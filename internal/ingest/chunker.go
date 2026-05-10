@@ -66,7 +66,7 @@ func chunkGeneric(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *
 		}
 
 		chunks = append(chunks, model.CodeChunk{
-			ID:        generateChunkID(repo, relPath, start+1),
+			ID:        generateChunkID(repo, relPath, name, start+1),
 			Repo:      repo,
 			FilePath:  relPath,
 			Language:  language,
@@ -86,8 +86,14 @@ func chunkGeneric(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *
 	return chunks, nil
 }
 
-// generateChunkID creates a deterministic ID from repo, file path, and start line.
-// This ensures re-indexing the same file produces the same IDs.
+// generateChunkID creates a deterministic ID from repo, file path, chunk name,
+// and an index to distinguish sub-chunks of the same symbol.
+//
+// For named chunks (functions, methods): "repo:file:FuncName:0"
+// For unnamed blocks: "repo:file::startLine"
+//
+// Using the symbol name instead of start_line makes IDs stable when lines
+// shift due to edits above the function.
 var namespaceUUID = uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 
 var namePatterns = map[string]*regexp.Regexp{
@@ -118,7 +124,14 @@ func extractName(content, language string) string {
 	return ""
 }
 
-func generateChunkID(repo, filePath string, startLine int) string {
-	input := fmt.Sprintf("%s:%s:%d", repo, filePath, startLine)
+func generateChunkID(repo, filePath, name string, index int) string {
+	var input string
+	if name != "" {
+		input = fmt.Sprintf("%s:%s:%s:%d", repo, filePath, name, index)
+	} else {
+		// Unnamed blocks use the index (which is start_line) as the fallback.
+		input = fmt.Sprintf("%s:%s::%d", repo, filePath, index)
+	}
 	return uuid.NewSHA1(namespaceUUID, []byte(input)).String()
 }
+
