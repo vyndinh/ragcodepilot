@@ -111,7 +111,7 @@ Last updated: 2026-05-08
 
 ### Remaining (Phase 2)
 - [x] Add Qdrant payload indexes for `repo`, `language`, `file_path` (filtered search performance)
-- [ ] Fix point ID strategy: `repo+file+symbol+chunk_index` instead of `repo+file+start_line`
+- [x] Fix point ID strategy: `repo+file+symbol+chunk_index` instead of `repo+file+start_line`
 - [ ] Re-indexing: file-hash change detection + delete stale points by filter
 - [ ] Regex heuristic chunkers for Python/Rust (optional, see `docs/plan/function_level_chunker.md`)
 

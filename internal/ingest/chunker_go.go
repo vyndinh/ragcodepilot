@@ -80,7 +80,7 @@ func chunkGoFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *c
 			chunks = append(chunks, subChunks...)
 		} else {
 			chunks = append(chunks, model.CodeChunk{
-				ID:        generateChunkID(repo, relPath, startLine),
+				ID:        generateChunkID(repo, relPath, name, 0),
 				Repo:      repo,
 				FilePath:  relPath,
 				Language:  language,
@@ -143,7 +143,7 @@ func buildGapChunks(lines []string, startIdx, endIdx int, relPath, repo, languag
 	}
 
 	return []model.CodeChunk{{
-		ID:        generateChunkID(repo, relPath, startIdx+1),
+		ID:        generateChunkID(repo, relPath, extractName(content, language), startIdx+1),
 		Repo:      repo,
 		FilePath:  relPath,
 		Language:  language,
@@ -183,7 +183,7 @@ func splitLargeBlock(lines []string, startLine, endLine int, relPath, repo, lang
 		}
 
 		chunks = append(chunks, model.CodeChunk{
-			ID:        generateChunkID(repo, relPath, absStart),
+			ID:        generateChunkID(repo, relPath, name, start),
 			Repo:      repo,
 			FilePath:  relPath,
 			Language:  language,
