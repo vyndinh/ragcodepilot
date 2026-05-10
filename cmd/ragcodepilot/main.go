@@ -113,7 +113,7 @@ func main() {
 			fs := flag.NewFlagSet("collections delete", flag.ExitOnError)
 			qdrantHost := fs.String("qdrant-host", "localhost", "Qdrant host")
 			qdrantPort := fs.Int("qdrant-port", 6334, "Qdrant gRPC port")
-			fs.Parse(os.Args[3:])
+			_ = fs.Parse(os.Args[3:])
 
 			if fs.NArg() < 1 {
 				fmt.Fprintln(os.Stderr, "error: collection name is required")
@@ -289,7 +289,7 @@ func runCollectionsDelete(name, qdrantHost string, qdrantPort int) error {
 	if err != nil {
 		return fmt.Errorf("connecting to qdrant: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if err := client.DeleteCollection(ctx, name); err != nil {
 		return err
