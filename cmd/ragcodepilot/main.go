@@ -35,7 +35,7 @@ func main() {
 		embedderType := fs.String("embedder", "ollama", "Embedder to use: ollama, fake")
 		ollamaURL := fs.String("ollama-url", "http://localhost:11434", "Ollama server URL")
 		ollamaModel := fs.String("ollama-model", "nomic-embed-text", "Ollama embedding model")
-		fs.Parse(os.Args[2:])
+		_ = fs.Parse(os.Args[2:])
 
 		if fs.NArg() < 1 {
 			fmt.Fprintln(os.Stderr, "error: repo-path is required")
@@ -68,7 +68,7 @@ func main() {
 		embedderType := fs.String("embedder", "ollama", "Embedder to use: ollama, fake")
 		ollamaURL := fs.String("ollama-url", "http://localhost:11434", "Ollama server URL")
 		ollamaModel := fs.String("ollama-model", "nomic-embed-text", "Ollama embedding model")
-		fs.Parse(os.Args[2:])
+		_ = fs.Parse(os.Args[2:])
 
 		if fs.NArg() < 1 {
 			fmt.Fprintln(os.Stderr, "error: query is required")
@@ -102,7 +102,7 @@ func main() {
 			fs := flag.NewFlagSet("collections list", flag.ExitOnError)
 			qdrantHost := fs.String("qdrant-host", "localhost", "Qdrant host")
 			qdrantPort := fs.Int("qdrant-port", 6334, "Qdrant gRPC port")
-			fs.Parse(os.Args[3:])
+			_ = fs.Parse(os.Args[3:])
 
 			if err := runCollectionsList(*qdrantHost, *qdrantPort); err != nil {
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -214,7 +214,7 @@ func runIndex(repoPath, collection string, languages []string, qdrantHost string
 	if err != nil {
 		return fmt.Errorf("connecting to qdrant: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	pipeline := ingest.NewPipeline(cfg, embedder, client, collection, ingest.WithLanguages(languages))
 
@@ -247,7 +247,7 @@ func runSearch(query, collection string, languages, repos []string, limit int, q
 	if err != nil {
 		return fmt.Errorf("connecting to qdrant: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	searcher := search.NewSearcher(client, embedder)
 	results, err := searcher.Search(ctx, collection, query, uint64(limit), languages, repos)
@@ -266,7 +266,7 @@ func runCollectionsList(qdrantHost string, qdrantPort int) error {
 	if err != nil {
 		return fmt.Errorf("connecting to qdrant: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	collections, err := client.ListCollections(ctx)
 	if err != nil {

@@ -51,7 +51,7 @@ func isBinaryFile(path string) bool {
 	if err != nil {
 		return true
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	buf := make([]byte, binaryCheckBytes)
 	n, err := f.Read(buf)
