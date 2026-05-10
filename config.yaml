@@ -1,0 +1,35 @@
+# ragsearch configuration
+
+# Language definitions: maps file extensions to language names.
+# Add new languages or extensions here without changing Go code.
+languages:
+  go: [".go"]
+  rust: [".rs"]
+  python: [".py"]
+  javascript: [".js"]
+  typescript: [".ts"]
+  java: [".java"]
+  c: [".c", ".h"]
+  cpp: [".cpp", ".cc", ".cxx", ".hpp"]
+  ruby: [".rb"]
+  php: [".php"]
+  swift: [".swift"]
+  kotlin: [".kt"]
+  scala: [".scala"]
+  shell: [".sh", ".bash"]
+  sql: [".sql"]
+  markdown: [".md"]
+  yaml: [".yaml", ".yml"]
+  toml: [".toml"]
+  json: [".json"]
+
+# Directories to skip during file walking.
+skip_dirs:
+  - .git
+  - vendor
+  - node_modules
+  - .venv
+  - __pycache__
+  - target
+  - bin
+  - build

@@ -1,0 +1,347 @@
+# System Design: Semantic Code Search Application
+
+> Created: May 2026 | Approach: top-down (use existing vector DB first, study internals later)
+
+## Overall roadmap
+
+```
+Phase A: Build application on Qdrant     ← THIS DOCUMENT
+Phase B: Study vector DB internals       ← Vector_DB_core.md
+Phase C: Refactor Rust vector DB to Go   ← Future
+```
+
+---
+
+## Mapping to full RAG architecture
+
+The full enterprise RAG system (see `rag_parts.md`) has five components. Our project implements a subset focused on retrieval, not generation:
+
+| Full RAG component | Our project equivalent | Status |
+|---|---|---|
+| **RAG Server** (orchestrator) | CLI + Ingestion Pipeline + Search Service | We build this |
+| **Qdrant Server** (vector DB) | Qdrant running in Docker | We use as-is |
+| **Embedding Server** | Our `Embedder` interface + implementation | We build this |
+| **MongoDB + MinIO** (metadata + files) | Not needed — we read files directly from local filesystem | Skipped |
+| **LLM Server** (answer generation) | Not included — we return raw code chunks, not generated answers | Skipped |
+
+Why we skip MongoDB/MinIO: we clone repos locally and index from the filesystem. No file upload workflow needed.
+
+Why we skip the LLM: for code refactoring, you want to read the **actual source code**, not a paraphrased summary. Returning ranked code chunks is more useful than generated text.
+
+---
+
+## Step 1: Requirements and scope
+
+### Goal
+
+Build a Go CLI application that indexes code repositories and enables semantic search over them, using Qdrant as the vector database backend. The primary purpose is to learn how vector DB applications work before refactoring a Rust vector DB to Go.
+
+### Functional requirements
+
+| # | Requirement | Vector DB concept it teaches |
+|---|---|---|
+| F1 | Ingest code from local Git repositories | Batch upsert, point structure, payloads |
+| F2 | Parse and chunk code into meaningful units (functions, classes, blocks) | Data modeling, chunking strategies |
+| F3 | Generate vector embeddings for each code chunk | Embeddings, dimensions, distance metrics |
+| F4 | Semantic search: natural language query → relevant code | Nearest-neighbor search, scoring |
+| F5 | Filtered search: by language, repo, file path | Payload indexing, filtered vector search |
+| F6 | Hybrid search: exact keyword match + semantic similarity | Sparse + dense vectors, score fusion |
+| F7 | Re-index when code changes (add/update/delete) | Point updates, deletions, collection management |
+
+### Non-functional requirements
+
+| # | Requirement | Notes |
+|---|---|---|
+| NF1 | Single-user, local deployment | No auth, no multi-tenancy initially |
+| NF2 | Written in Go | Builds experience for Phase C (Rust→Go refactor) |
+| NF3 | Qdrant as vector DB | Run via Docker, interact via Go SDK |
+| NF4 | Must exercise core vector DB features | Collections, points, vectors, payloads, filtering, hybrid search |
+
+### Scale estimate
+
+This is a learning project, not production scale. Estimating helps build the habit.
+
+```
+Target: index 5-10 medium repos (~50K code files, ~200K chunks)
+
+Storage:
+  200K chunks × 768-dim × 4 bytes/float = ~600 MB vector data
+  200K chunks × ~500 bytes avg payload   = ~100 MB metadata
+  Total Qdrant storage: ~700 MB (fits in memory on any laptop)
+
+Ingestion:
+  200K chunks × ~50ms per embedding = ~2.8 hours (sequential)
+  With batching (32 at a time): ~30 min
+
+Search:
+  Single user, <10 QPS
+  Target latency: <100ms per query
+```
+
+---
+
+## Step 2: High-level design
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                        CLI / TUI                        │
+│                                                         │
+│  ragsearch index <repo-path>    ragsearch search "query" │
+└──────────┬──────────────────────────────┬───────────────┘
+           │                              │
+           ▼                              ▼
+┌─────────────────────┐      ┌─────────────────────────┐
+│  Ingestion Pipeline │      │     Search Service      │
+│                     │      │                         │
+│  1. Walk files      │      │  1. Receive query       │
+│  2. Parse/chunk     │      │  2. Embed query         │
+│  3. Embed chunks    │      │  3. Build Qdrant request│
+│  4. Upsert to       │      │     (vector + filters)  │
+│     Qdrant          │      │  4. Call Qdrant         │
+│                     │      │  5. Format & return     │
+└────────┬────────────┘      └───────────┬─────────────┘
+         │                               │
+         │         ┌─────────────┐       │
+         │         │  Embedding  │       │
+         ├────────►│   Service   │◄──────┤
+         │         │             │       │
+         │         │ (API or     │       │
+         │         │  local model)│      │
+         │         └─────────────┘       │
+         │                               │
+         ▼                               ▼
+    ┌─────────────────────────────────────────┐
+    │              Qdrant (Docker)            │
+    │                                         │
+    │  Collection: "code_chunks"              │
+    │  ├── dense vector (auto-detected, cosine)│
+    │  ├── sparse vector (BM25, optional)     │
+    │  └── payload:                           │
+    │       ├── repo: string                  │
+    │       ├── file_path: string             │
+    │       ├── language: string              │
+    │       ├── chunk_type: string            │
+    │       ├── name: string                  │
+    │       ├── content: string               │
+    │       ├── start_line: int               │
+    │       └── end_line: int                 │
+    └─────────────────────────────────────────┘
+```
+
+### Components
+
+#### 1. CLI
+
+Simple command-line tool:
+
+```
+ragsearch index <repo-path> [--language go,rust] [--collection code_chunks]
+ragsearch search "how does WAL recovery work?" [--language rust] [--limit 10]
+ragsearch collections list
+ragsearch collections delete <name>
+```
+
+No web UI initially. CLI is faster to build and sufficient for learning.
+
+#### 2. Ingestion pipeline
+
+Turns a Git repository into searchable vectors:
+
+```
+repo path → file walker → language detector → code parser → chunker → enrichment → embedder → Qdrant upsert
+```
+
+- **File walker**: recursively walk directory, skip `.git`, `vendor`, `node_modules`, binary files
+- **Language detector**: detect by file extension (`.go`, `.rs`, `.py`, `.js`, etc.)
+- **Code parser**: extract meaningful units. Start simple (split by function/class boundaries using regex), can improve later with tree-sitter
+- **Chunker**: split large functions/files into smaller chunks with overlap. Target ~200-500 tokens per chunk
+- **Batch upsert**: send chunks to Qdrant in batches of 32-64 points
+
+#### 3. Search service
+
+Handles query processing and result formatting:
+
+```
+user query → embed query → build Qdrant search request → execute → format results
+```
+
+Supports three search modes:
+- **Semantic only**: dense vector search (default)
+- **Filtered**: semantic + payload filter (e.g., language=rust)
+- **Hybrid**: dense + sparse (BM25) with RRF fusion (later phase)
+
+#### 4. Embedding service
+
+Abstracts the embedding model behind a simple interface:
+
+```go
+type Embedder interface {
+    Embed(ctx context.Context, texts []string) ([][]float32, error)
+    Dimension() int
+}
+```
+
+Two implementations:
+- **Ollama** (`ollama.go`): calls local Ollama server with `nomic-embed-text` model (768d). Vector dimension is auto-detected from the first response and validated on all subsequent calls.
+- **Fake** (`fake.go`): generates deterministic pseudo-random vectors for pipeline testing without a real model.
+
+The embedder also includes vector dimension validation (`validate.go`) that prevents model-collection mismatches at both index and search time.
+
+#### 5. Qdrant
+
+Run locally via Docker:
+
+```bash
+docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant
+```
+
+---
+
+## Step 3: Data flow
+
+### Ingestion flow
+
+```
+Git repo → File walker → Language detector → Code parser → Chunker → Enrichment → Embedder → Batch upsert → Qdrant
+```
+
+The **enrichment** step prepends structured metadata (file path, language, chunk type/name) to the raw code before embedding. This gives the embedding model human-readable context that significantly improves semantic search for natural-language queries. The raw code stored in Qdrant payload is unchanged — only the embedding input is enriched. See `docs/plan/chunk_enrichment.md` for details.
+
+Key decisions:
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Chunk size | 200-500 tokens | Too small = no context. Too large = noisy embeddings |
+| Chunk overlap | 50 tokens | Prevents losing context at chunk boundaries |
+| Chunk unit | Sliding window (current), function-level planned | Semantic boundaries are better than arbitrary splits |
+| Embedding model | `nomic-embed-text` via Ollama (768d) | Local, no API costs, good code/text understanding |
+| Vector dimension | Auto-detected from model response | Prevents silent mismatch when switching models |
+| Batch size | 32 chunks per embed, 64 points per Qdrant upsert | Balances throughput and memory |
+| Point ID | Deterministic hash of `repo + file_path + start_line` | Enables re-indexing without duplicates |
+
+### Search flow
+
+```
+User query → Embed query → Search mode selection:
+  ├── Semantic:  dense vector search
+  ├── Filtered:  dense vector + payload filter
+  └── Hybrid:    dense + sparse + RRF fusion
+→ Qdrant returns ranked results → Format and display
+```
+
+### Data model (Qdrant point)
+
+```json
+{
+  "id": "a1b2c3d4-...",
+  "vector": {
+    "dense": [0.12, -0.31, 0.88, "..."]
+  },
+  "payload": {
+    "repo": "qdrant/qdrant",
+    "file_path": "src/segment/src/wal.rs",
+    "language": "rust",
+    "chunk_type": "function",
+    "name": "recover_from_wal",
+    "content": "fn recover_from_wal(&self) -> Result<()> { ... }",
+    "start_line": 142,
+    "end_line": 187,
+    "indexed_at": "2026-05-07T00:00:00Z"
+  }
+}
+```
+
+---
+
+## Step 4: Build phases
+
+### Phase 1: Minimal semantic search ✅
+
+- ✅ Set up Go project structure
+- ✅ Run Qdrant in Docker
+- ✅ Implement simple file walker + text chunker (sliding window with overlap)
+- ✅ Implement embedder — Ollama with `nomic-embed-text` (768d) + fake embedder for testing
+- ✅ Embedding dimension auto-detection and validation (see `docs/plan/embedding_dimension_validation.md`)
+- ✅ Chunk enrichment — prepend file path, language, and chunk type/name metadata before embedding (see `docs/plan/chunk_enrichment.md`)
+- ✅ Upsert chunks to Qdrant
+- ✅ Implement basic semantic search via CLI
+- ✅ Collection management commands (list, delete)
+- ✅ Search result formatting with scores and metadata
+- ✅ Externalized configuration (`config.yaml` with language/extension mappings)
+- **Goal**: `ragsearch index . && ragsearch search "WAL recovery"` works ✅
+
+### Phase 2: Filtering and better parsing (in progress)
+
+- ✅ Add language detection by file extension
+- ✅ Add `--language` payload filtering on both index and search
+- Add `--repo` payload filtering on search
+- ✅ Function-level chunking for Go files (AST-based, see `docs/plan/function_level_chunker.md`)
+- Improve chunker: regex heuristics for Python/Rust
+- Add re-indexing (detect changed files, update/delete stale points)
+- **Goal**: filtered search works, chunks are meaningful code units
+
+### Phase 3: Hybrid search
+
+- Add sparse vectors for BM25-style keyword matching
+- Implement hybrid search with RRF fusion
+- Add exact function name search alongside semantic
+- **Goal**: hybrid search finds code by both meaning and keywords
+
+### Phase 4: Learn internals
+
+- Study Qdrant internals: how does it store vectors? HNSW? Segments?
+- Map what you learned to `Vector_DB_core.md` concepts
+- **Goal**: ready to start Phase C (Rust→Go vector DB refactor)
+
+---
+
+## Tradeoffs and decisions
+
+| Tradeoff | Decision | Why |
+|---|---|---|
+| API embedding vs local | Local Ollama from the start | No API costs, works offline, sufficient quality with `nomic-embed-text` |
+| Hardcoded vs auto-detected dimension | Auto-detected from first embedding response | Prevents silent search failures when switching models |
+| Raw code vs enriched embedding input | Enriched: prepend file path, language, chunk type/name | Dramatically improves natural-language query matching on unfamiliar repos |
+| Tree-sitter parsing vs regex | Start with regex, consider tree-sitter or Go AST later | Regex is simpler; AST gives better chunks but adds complexity |
+| CLI vs web UI | CLI only | Faster to build; sufficient for learning |
+| Single collection vs per-repo | Single collection with repo as payload filter | Simpler; cross-repo search works naturally |
+| Chunk size | ~40 lines with 10-line overlap | Balanced between precision and context |
+
+---
+
+## Go project structure
+
+```
+ragsearch/
+├── cmd/
+│   └── ragsearch/
+│       └── main.go              # CLI entry point
+├── internal/
+│   ├── ingest/
+│   │   ├── walker.go            # File system walker
+│   │   ├── chunker.go           # Code chunking logic
+│   │   ├── enrichment.go        # Prepend metadata to chunks before embedding
+│   │   └── pipeline.go          # Orchestrates walk → chunk → enrich → embed → upsert
+│   ├── search/
+│   │   └── searcher.go          # Query embedding + Qdrant search + formatting
+│   ├── embedding/
+│   │   ├── embedder.go          # Embedder interface
+│   │   ├── ollama.go            # Ollama local model (nomic-embed-text)
+│   │   ├── fake.go              # Deterministic random vectors for testing
+│   │   └── validate.go          # Vector dimension validation
+│   ├── qdrant/
+│   │   └── client.go            # Qdrant client wrapper (with dimension validation)
+│   ├── config/
+│   │   └── config.go            # YAML config loader + language detection
+│   └── model/
+│       └── chunk.go             # CodeChunk, SearchResult types
+├── docs/
+│   ├── plan/                    # Design documents and checklists
+│   └── knowledge/               # Learning notes (embeddings, RAG, comparisons)
+├── config.yaml                  # Language/extension mappings + skip dirs
+├── docker-compose.yml           # Qdrant service
+├── go.mod
+└── go.sum
+```
