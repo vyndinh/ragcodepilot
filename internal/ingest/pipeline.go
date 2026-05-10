@@ -13,7 +13,10 @@ import (
 
 type vectorStore interface {
 	EnsureCollection(ctx context.Context, name string, vectorSize uint64) error
+	EnsurePayloadIndexes(ctx context.Context, collection string) error
 	Upsert(ctx context.Context, collection string, chunks []model.CodeChunk, vectors [][]float32) error
+	ScrollFileHashes(ctx context.Context, collection, repo string) (map[string]string, error)
+	DeleteByFilePaths(ctx context.Context, collection, repo string, filePaths []string) error
 }
 
 // Pipeline orchestrates the ingestion flow: walk → chunk → embed → upsert.
@@ -70,9 +73,8 @@ func NewPipeline(cfg *config.Config, embedder embedding.Embedder, store vectorSt
 }
 
 // Run walks the repository, chunks files, embeds them, and upserts to Qdrant.
-//
-// Ingestion order: walk → chunk → embed first batch → infer dimension →
-// ensure/validate collection → upsert first batch → embed/upsert remaining.
+// On re-index, it uses file hashes to skip unchanged files, delete stale points,
+// and only re-embed files that have changed.
 func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 	absPath, err := filepath.Abs(repoPath)
 	if err != nil {
@@ -89,29 +91,115 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 	files = p.filterFilesByLanguage(files)
 	fmt.Printf("Found %d source files in %s\n", len(files), repoName)
 
-	// Step 2: Chunk all files.
+	// Step 2: Ensure payload indexes exist for efficient filtered scroll/delete.
+	// This is a no-op if the collection doesn't exist yet or indexes already exist.
+	if err := p.store.EnsurePayloadIndexes(ctx, p.collection); err != nil {
+		return fmt.Errorf("ensuring payload indexes: %w", err)
+	}
+
+	// Step 3: Hash all source files on disk.
+	diskHashes, err := HashFiles(files)
+	if err != nil {
+		return fmt.Errorf("hashing files: %w", err)
+	}
+
+	// Step 4: Get existing file hashes from Qdrant.
+	existingHashes, err := p.store.ScrollFileHashes(ctx, p.collection, repoName)
+	if err != nil {
+		return fmt.Errorf("scrolling existing hashes: %w", err)
+	}
+
+	// Step 5: Classify files.
+	// Convert absolute paths to relative paths for comparison with Qdrant payloads.
+	var filesToIndex []string  // new or changed files (absolute paths)
+	var filesToDelete []string // changed or stale files (relative paths)
+	skipped := 0
+
+	relHashes := make(map[string]string, len(diskHashes))
+	absToRel := make(map[string]string, len(diskHashes))
+	for absFile, hash := range diskHashes {
+		rel, err := filepath.Rel(absPath, absFile)
+		if err != nil {
+			rel = absFile
+		}
+		relHashes[rel] = hash
+		absToRel[absFile] = rel
+	}
+
+	for absFile, hash := range diskHashes {
+		rel := absToRel[absFile]
+		existingHash, exists := existingHashes[rel]
+		if exists && existingHash == hash {
+			// File unchanged — skip.
+			skipped++
+			continue
+		}
+		if exists {
+			// File changed — mark for deletion then re-index.
+			filesToDelete = append(filesToDelete, rel)
+		}
+		// New or changed — add to index list.
+		filesToIndex = append(filesToIndex, absFile)
+	}
+
+	// Stale files: exist in Qdrant but not on disk.
+	for existingRel := range existingHashes {
+		if _, onDisk := relHashes[existingRel]; !onDisk {
+			filesToDelete = append(filesToDelete, existingRel)
+		}
+	}
+
+	staleCount := len(filesToDelete) - (len(filesToIndex) - countNew(relHashes, existingHashes))
+	if staleCount < 0 {
+		staleCount = 0
+	}
+	changedCount := len(filesToDelete) - staleCount
+	newCount := len(filesToIndex) - changedCount
+
+	fmt.Printf("Change detection: %d unchanged (skip), %d changed, %d new, %d stale\n",
+		skipped, changedCount, newCount, staleCount)
+
+	// Step 6: Delete stale + changed file points.
+	if len(filesToDelete) > 0 {
+		if err := p.store.DeleteByFilePaths(ctx, p.collection, repoName, filesToDelete); err != nil {
+			return fmt.Errorf("deleting stale/changed points: %w", err)
+		}
+		fmt.Printf("Deleted points for %d files\n", len(filesToDelete))
+	}
+
+	if len(filesToIndex) == 0 {
+		if len(filesToDelete) > 0 {
+			fmt.Println("Cleaned up stale files — no new indexing needed")
+		} else {
+			fmt.Println("Everything up to date — nothing to index")
+		}
+		return nil
+	}
+
+	// Step 7: Chunk files to index.
 	indexedAt := time.Now().UTC().Format(time.RFC3339)
-	allChunks := make([]model.CodeChunk, 0, len(files)*2)
-	for _, file := range files {
+	allChunks := make([]model.CodeChunk, 0, len(filesToIndex)*2)
+	for _, file := range filesToIndex {
 		chunks, err := ChunkFile(file, absPath, repoName, p.chunkSize, p.chunkOverlap, p.cfg)
 		if err != nil {
 			fmt.Printf("warning: skipping %s: %v\n", file, err)
 			continue
 		}
+		rel := absToRel[file]
+		hash := relHashes[rel]
 		for i := range chunks {
 			chunks[i].IndexedAt = indexedAt
+			chunks[i].FileHash = hash
 		}
 		allChunks = append(allChunks, chunks...)
 	}
-	fmt.Printf("Generated %d chunks from %d files\n", len(allChunks), len(files))
+	fmt.Printf("Generated %d chunks from %d files\n", len(allChunks), len(filesToIndex))
 
 	if len(allChunks) == 0 {
 		return fmt.Errorf("no chunks generated from %s", repoName)
 	}
 
-	// Step 3 + 4: Embed and upsert in batches.
-	// The collection is created after the first batch is embedded so that
-	// the vector dimension is inferred from the model, not hardcoded.
+	// Step 8: Embed and upsert in batches.
 	const batchSize = 32
 	collectionReady := false
 	expectedDim := 0
@@ -165,6 +253,17 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 
 	fmt.Printf("Successfully indexed %d chunks into collection %q\n", len(allChunks), p.collection)
 	return nil
+}
+
+// countNew counts files that exist on disk but not in Qdrant.
+func countNew(relHashes map[string]string, existingHashes map[string]string) int {
+	count := 0
+	for rel := range relHashes {
+		if _, exists := existingHashes[rel]; !exists {
+			count++
+		}
+	}
+	return count
 }
 
 func (p *Pipeline) filterFilesByLanguage(files []string) []string {
