@@ -1,4 +1,4 @@
-module github.com/dinhvy/ragsearch
+module github.com/dinhvy/ragcodepilot
 
 go 1.26.1
 

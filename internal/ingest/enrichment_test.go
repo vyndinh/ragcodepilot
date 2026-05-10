@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dinhvy/ragsearch/internal/model"
+	"github.com/dinhvy/ragcodepilot/internal/model"
 )
 
 func TestEnrichForEmbedding(t *testing.T) {

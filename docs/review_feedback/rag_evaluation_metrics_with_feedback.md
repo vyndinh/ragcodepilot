@@ -1,8 +1,8 @@
-# RAG Evaluation Metrics for ragsearch
+# RAG Evaluation Metrics for ragcodepilot
 
 ## Current Position
 
-`ragsearch` is retrieval-first, not a full answer-generating RAG system.
+`ragcodepilot` is retrieval-first, not a full answer-generating RAG system.
 
 The current system indexes code, embeds chunks, stores vectors in Qdrant, and returns ranked source chunks. It does not synthesize natural-language answers with an LLM. That means evaluation should start with retrieval quality and performance, not hallucination or generated-answer quality.
 
@@ -33,14 +33,14 @@ These metrics should be reported alongside retrieval quality so quality improvem
 
 ## Future Answer Metrics
 
-Only add these when `ragsearch` has an LLM answer-generation layer:
+Only add these when `ragcodepilot` has an LLM answer-generation layer:
 
 - Faithfulness or groundedness: generated answers must be supported by retrieved code chunks.
 - Answer correctness: generated answers should match expected behavior or a reference answer.
 - Citation coverage: answers should cite the right file, symbol, or chunk.
 - Abstention: the system should say it does not know when retrieval does not contain enough evidence.
 
-Until then, answer metrics are out of scope because `ragsearch` returns source chunks directly.
+Until then, answer metrics are out of scope because `ragcodepilot` returns source chunks directly.
 
 ## Example Dataset
 
@@ -73,13 +73,13 @@ queries:
 ## CLI Vision
 
 ```bash
-ragsearch eval --dataset docs/eval/ragsearch.yaml --collection code_chunks
+ragcodepilot eval --dataset docs/eval/ragcodepilot.yaml --collection code_chunks
 ```
 
 Expected output should include per-query results and aggregate metrics:
 
 ```text
-Dataset: docs/eval/ragsearch.yaml
+Dataset: docs/eval/ragcodepilot.yaml
 Queries: 25
 
 hit@1:    0.64
@@ -104,7 +104,7 @@ The first implementation can be offline and local: load a YAML dataset, run the 
 
 ## FEEDBACK: Suggested Improvements
 
-FEEDBACK: The evaluation direction is correct: because `ragsearch` currently returns ranked source chunks instead of generated answers, retrieval quality and latency should be the first-class metrics. Keep answer-generation metrics out of the initial scope until an LLM synthesis layer exists.
+FEEDBACK: The evaluation direction is correct: because `ragcodepilot` currently returns ranked source chunks instead of generated answers, retrieval quality and latency should be the first-class metrics. Keep answer-generation metrics out of the initial scope until an LLM synthesis layer exists.
 
 ### FEEDBACK: Define relevance labels explicitly
 
@@ -242,7 +242,7 @@ FEEDBACK: These metrics make ranking quality visible before adding hybrid search
 
 ### FEEDBACK: Add result-shape validation
 
-FEEDBACK: Because `ragsearch` returns source chunks, evaluation should verify that returned chunks contain the fields needed by a developer.
+FEEDBACK: Because `ragcodepilot` returns source chunks, evaluation should verify that returned chunks contain the fields needed by a developer.
 
 Suggested assertions:
 
@@ -267,7 +267,7 @@ Recommended report metadata:
 ```json
 {
   "run_id": "2026-05-08T08-30-00Z",
-  "dataset": "docs/eval/ragsearch.yaml",
+  "dataset": "docs/eval/ragcodepilot.yaml",
   "collection": "code_chunks",
   "repo_commit": "abc123",
   "embedding_model": "nomic-embed-text",
@@ -287,10 +287,10 @@ FEEDBACK: Instead of one eval command doing everything, split evaluation into fo
 Suggested commands:
 
 ```bash
-ragsearch eval retrieval --dataset docs/eval/ragsearch_retrieval.yaml
-ragsearch eval filters --dataset docs/eval/ragsearch_filters.yaml
-ragsearch eval latency --dataset docs/eval/ragsearch_retrieval.yaml
-ragsearch eval compare --baseline eval/results/base.json --candidate eval/results/new.json
+ragcodepilot eval retrieval --dataset docs/eval/ragcodepilot_retrieval.yaml
+ragcodepilot eval filters --dataset docs/eval/ragcodepilot_filters.yaml
+ragcodepilot eval latency --dataset docs/eval/ragcodepilot_retrieval.yaml
+ragcodepilot eval compare --baseline eval/results/base.json --candidate eval/results/new.json
 ```
 
 Suggested modes:

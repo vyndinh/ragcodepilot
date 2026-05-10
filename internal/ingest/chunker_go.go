@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dinhvy/ragsearch/internal/config"
-	"github.com/dinhvy/ragsearch/internal/model"
+	"github.com/dinhvy/ragcodepilot/internal/config"
+	"github.com/dinhvy/ragcodepilot/internal/model"
 )
 
 // maxFunctionLines is the threshold above which a single function is split

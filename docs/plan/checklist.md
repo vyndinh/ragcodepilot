@@ -1,4 +1,4 @@
-# Progress checklist — ragsearch
+# Progress checklist — ragcodepilot
 
 Tracking progress against [system_design.md](system_design.md) build phases.
 
@@ -8,7 +8,7 @@ Last updated: 2026-05-08
 
 ### Project setup
 - [x] Initialize Go module (`go mod init`)
-- [x] Create CLI entry point (`cmd/ragsearch/main.go`)
+- [x] Create CLI entry point (`cmd/ragcodepilot/main.go`)
 - [x] Set up project directory structure (`internal/` packages)
 - [x] Create Docker Compose for Qdrant (`docker-compose.yml`)
 
@@ -119,7 +119,7 @@ Last updated: 2026-05-08
 
 ## Phase 3: Hybrid search
 
-- [ ] Simple eval harness (`ragsearch eval` with `hit@k`, `MRR@5`) — build before hybrid search
+- [ ] Simple eval harness (`ragcodepilot eval` with `hit@k`, `MRR@5`) — build before hybrid search
 - [ ] Add sparse vectors for BM25 keyword matching
 - [ ] Implement hybrid search with RRF score fusion
 - [ ] Add exact function name search
@@ -139,7 +139,7 @@ Last updated: 2026-05-08
 
 | Package | Tests | Coverage area |
 |---------|-------|---------------|
-| `cmd/ragsearch` | 4 | Config resolution |
+| `cmd/ragcodepilot` | 4 | Config resolution |
 | `internal/embedding` | 9 | Vector batch validation |
 | `internal/ingest` | 18 | Pipeline, chunker (Go AST + router), enrichment, language filter |
 | `internal/qdrant` | 10 | Collection CRUD, search filters (4 combos), payload mapping |

@@ -1,8 +1,8 @@
-# RAG Evaluation Metrics for ragsearch
+# RAG Evaluation Metrics for ragcodepilot
 
 ## Current Position
 
-`ragsearch` is retrieval-first, not a full answer-generating RAG system.
+`ragcodepilot` is retrieval-first, not a full answer-generating RAG system.
 
 The current system indexes code, embeds chunks, stores vectors in Qdrant, and returns ranked source chunks. It does not synthesize natural-language answers with an LLM. That means evaluation should start with retrieval quality and performance, not hallucination or generated-answer quality.
 
@@ -33,14 +33,14 @@ These metrics should be reported alongside retrieval quality so quality improvem
 
 ## Future Answer Metrics
 
-Only add these when `ragsearch` has an LLM answer-generation layer:
+Only add these when `ragcodepilot` has an LLM answer-generation layer:
 
 - Faithfulness or groundedness: generated answers must be supported by retrieved code chunks.
 - Answer correctness: generated answers should match expected behavior or a reference answer.
 - Citation coverage: answers should cite the right file, symbol, or chunk.
 - Abstention: the system should say it does not know when retrieval does not contain enough evidence.
 
-Until then, answer metrics are out of scope because `ragsearch` returns source chunks directly.
+Until then, answer metrics are out of scope because `ragcodepilot` returns source chunks directly.
 
 ## Example Dataset
 
@@ -73,13 +73,13 @@ queries:
 ## CLI Vision
 
 ```bash
-ragsearch eval --dataset docs/eval/ragsearch.yaml --collection code_chunks
+ragcodepilot eval --dataset docs/eval/ragcodepilot.yaml --collection code_chunks
 ```
 
 Expected output should include per-query results and aggregate metrics:
 
 ```text
-Dataset: docs/eval/ragsearch.yaml
+Dataset: docs/eval/ragcodepilot.yaml
 Queries: 25
 
 hit@1:    0.64

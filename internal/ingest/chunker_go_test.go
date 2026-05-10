@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dinhvy/ragsearch/internal/config"
-	"github.com/dinhvy/ragsearch/internal/model"
+	"github.com/dinhvy/ragcodepilot/internal/config"
+	"github.com/dinhvy/ragcodepilot/internal/model"
 )
 
 func TestChunkGoFile_FunctionExtraction(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/dinhvy/ragsearch/internal/config"
-	"github.com/dinhvy/ragsearch/internal/model"
+	"github.com/dinhvy/ragcodepilot/internal/config"
+	"github.com/dinhvy/ragcodepilot/internal/model"
 	"github.com/google/uuid"
 )
 

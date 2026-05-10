@@ -2,7 +2,7 @@
 
 ## Current problem
 
-`ragsearch` embeds raw source code with no surrounding context. When a user searches an unfamiliar repository with a natural-language query like "how does indexing work?", the embedding model must match the query against raw code tokens alone. This produces low relevance scores and unpredictable results.
+`ragcodepilot` embeds raw source code with no surrounding context. When a user searches an unfamiliar repository with a natural-language query like "how does indexing work?", the embedding model must match the query against raw code tokens alone. This produces low relevance scores and unpredictable results.
 
 Current behavior:
 
@@ -165,7 +165,7 @@ This is a minor improvement and can be deferred.
 
 ### Search quality (manual verification)
 
-After re-indexing with enrichment, verify these queries return relevant results on the ragsearch repo itself:
+After re-indexing with enrichment, verify these queries return relevant results on the ragcodepilot repo itself:
 
 | Query | Expected top result | Why |
 |-------|-------------------|-----|
@@ -186,4 +186,4 @@ After re-indexing with enrichment, verify these queries return relevant results 
 - Raw code content in Qdrant payload is unchanged.
 - Enrichment measurably improves search relevance for natural-language queries compared to raw-code embedding. Full relevance also depends on model quality, chunking strategy, hybrid search, and reranking — enrichment is one layer in that stack.
 - The enrichment function is unit-tested.
-- The ragsearch repo can be re-indexed and the manual verification queries above produce expected results.
+- The ragcodepilot repo can be re-indexed and the manual verification queries above produce expected results.

@@ -112,9 +112,9 @@ The pipeline code is identical for all three. Only the input text and the metada
 Each project or use case gets its own Qdrant collection. Collections are independent and share nothing.
 
 ```
-ragsearch index ./qdrant-rust   --collection vectordb-refactor
-ragsearch index ./scala-media   --collection media-refactor
-ragsearch index ./api-docs      --collection documentation
+ragcodepilot index ./qdrant-rust   --collection vectordb-refactor
+ragcodepilot index ./scala-media   --collection media-refactor
+ragcodepilot index ./api-docs      --collection documentation
 ```
 
 Inside Qdrant:
@@ -133,13 +133,13 @@ Within a single collection, you can filter by metadata without changing any code
 
 ```
 Search all languages:
-  ragsearch search "error handling" --collection vectordb-refactor
+  ragcodepilot search "error handling" --collection vectordb-refactor
 
 Search only Rust code:
-  ragsearch search "error handling" --collection vectordb-refactor --language rust
+  ragcodepilot search "error handling" --collection vectordb-refactor --language rust
 
 Search only a specific repo:
-  ragsearch search "error handling" --collection vectordb-refactor --repo qdrant/qdrant
+  ragcodepilot search "error handling" --collection vectordb-refactor --repo qdrant/qdrant
 ```
 
 The filter is applied **before or during** the vector search. Qdrant uses payload indexes to do this efficiently without scanning every point.

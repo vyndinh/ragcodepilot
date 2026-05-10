@@ -88,7 +88,7 @@ Search:
 ┌─────────────────────────────────────────────────────────┐
 │                        CLI / TUI                        │
 │                                                         │
-│  ragsearch index <repo-path>    ragsearch search "query" │
+│  ragcodepilot index <repo-path>    ragcodepilot search "query" │
 └──────────┬──────────────────────────────┬───────────────┘
            │                              │
            ▼                              ▼
@@ -137,10 +137,10 @@ Search:
 Simple command-line tool:
 
 ```
-ragsearch index <repo-path> [--language go,rust] [--collection code_chunks]
-ragsearch search "how does WAL recovery work?" [--language rust] [--limit 10]
-ragsearch collections list
-ragsearch collections delete <name>
+ragcodepilot index <repo-path> [--language go,rust] [--collection code_chunks]
+ragcodepilot search "how does WAL recovery work?" [--language rust] [--limit 10]
+ragcodepilot collections list
+ragcodepilot collections delete <name>
 ```
 
 No web UI initially. CLI is faster to build and sufficient for learning.
@@ -270,7 +270,7 @@ User query → Embed query → Search mode selection:
 - ✅ Collection management commands (list, delete)
 - ✅ Search result formatting with scores and metadata
 - ✅ Externalized configuration (`config.yaml` with language/extension mappings)
-- **Goal**: `ragsearch index . && ragsearch search "WAL recovery"` works ✅
+- **Goal**: `ragcodepilot index . && ragcodepilot search "WAL recovery"` works ✅
 
 ### Phase 2: Filtering and better parsing (in progress)
 
@@ -314,9 +314,9 @@ User query → Embed query → Search mode selection:
 ## Go project structure
 
 ```
-ragsearch/
+ragcodepilot/
 ├── cmd/
-│   └── ragsearch/
+│   └── ragcodepilot/
 │       └── main.go              # CLI entry point
 ├── internal/
 │   ├── ingest/

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dinhvy/ragsearch/internal/model"
+	"github.com/dinhvy/ragcodepilot/internal/model"
 )
 
 // enrichForEmbedding prepends structured metadata to a chunk's raw code

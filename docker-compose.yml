@@ -1,11 +1,11 @@
-# Docker Compose for ragsearch
+# Docker Compose for ragcodepilot
 # Starts the infrastructure services needed by the CLI tool.
 # The Go CLI itself runs on the host machine, not in a container.
 
 services:
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: ragsearch-qdrant
+    container_name: ragcodepilot-qdrant
     ports:
       - "6333:6333"  # REST API
       - "6334:6334"  # gRPC API

@@ -1,5 +1,5 @@
 // Package qdrant wraps the Qdrant Go SDK and provides domain-specific methods
-// for the ragsearch application.
+// for the ragcodepilot application.
 package qdrant
 
 import (
@@ -8,7 +8,7 @@ import (
 
 	pb "github.com/qdrant/go-client/qdrant"
 
-	"github.com/dinhvy/ragsearch/internal/model"
+	"github.com/dinhvy/ragcodepilot/internal/model"
 )
 
 type sdkClient interface {

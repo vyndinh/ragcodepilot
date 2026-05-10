@@ -1,6 +1,6 @@
-# ragsearch
+# ragcodepilot
 
-`ragsearch` is a local semantic code search CLI. It indexes source code from local repositories, stores code chunks and vector embeddings in Qdrant, then searches the indexed code from the terminal using natural language.
+`ragcodepilot` is a local semantic code search CLI. It indexes source code from local repositories, stores code chunks and vector embeddings in Qdrant, then searches the indexed code from the terminal using natural language.
 
 This project is a learning implementation for vector database application design. It focuses on retrieval, not answer generation: search returns ranked code chunks, not LLM-generated summaries.
 
@@ -64,50 +64,50 @@ ollama pull nomic-embed-text
 Check the CLI from source:
 
 ```bash
-go run ./cmd/ragsearch version
+go run ./cmd/ragcodepilot version
 ```
 
 Build the project:
 
 ```bash
 mkdir -p bin
-go build -o bin/ragsearch ./cmd/ragsearch
+go build -o bin/ragcodepilot ./cmd/ragcodepilot
 ```
 
 Index this repository (Go files only):
 
 ```bash
-go run ./cmd/ragsearch index --language go .
+go run ./cmd/ragcodepilot index --language go .
 ```
 
 Search indexed code:
 
 ```bash
-go run ./cmd/ragsearch search --language go --limit 5 "embedding interface"
+go run ./cmd/ragcodepilot search --language go --limit 5 "embedding interface"
 ```
 
 Search with repo filter:
 
 ```bash
-go run ./cmd/ragsearch search --repo ragsearch --limit 3 "ingestion pipeline"
+go run ./cmd/ragcodepilot search --repo ragcodepilot --limit 3 "ingestion pipeline"
 ```
 
 Combine language and repo filters:
 
 ```bash
-go run ./cmd/ragsearch search --language go --repo ragsearch --limit 3 "how does chunking work?"
+go run ./cmd/ragcodepilot search --language go --repo ragcodepilot --limit 3 "how does chunking work?"
 ```
 
 List collections:
 
 ```bash
-go run ./cmd/ragsearch collections list
+go run ./cmd/ragcodepilot collections list
 ```
 
 Delete the default collection (required when changing embedding model or enrichment logic):
 
 ```bash
-go run ./cmd/ragsearch collections delete code_chunks
+go run ./cmd/ragcodepilot collections delete code_chunks
 ```
 
 Stop Qdrant:
@@ -136,7 +136,7 @@ docker compose down
 |------|---------|-------------|
 | `-collection` | `code_chunks` | Qdrant collection name |
 | `-language` | (all) | Comma-separated language filter (e.g., `go,rust`) |
-| `-repo` | (all) | Comma-separated repo name filter (e.g., `ragsearch`) |
+| `-repo` | (all) | Comma-separated repo name filter (e.g., `ragcodepilot`) |
 | `-limit` | `5` | Maximum number of results |
 | `-embedder` | `ollama` | Embedder to use: `ollama`, `fake` |
 | `-ollama-url` | `http://localhost:11434` | Ollama server URL |
@@ -190,14 +190,14 @@ Build the project:
 
 ```bash
 mkdir -p bin
-go build -o bin/ragsearch ./cmd/ragsearch
+go build -o bin/ragcodepilot ./cmd/ragcodepilot
 ```
 
 Inject a version at build time:
 
 ```bash
 mkdir -p bin
-go build -ldflags "-X main.version=dev-local" -o bin/ragsearch ./cmd/ragsearch
+go build -ldflags "-X main.version=dev-local" -o bin/ragcodepilot ./cmd/ragcodepilot
 ```
 
 Check formatting:
@@ -215,8 +215,8 @@ You must delete the collection and re-index when:
 - Switching between `fake` and `ollama` embedders
 
 ```bash
-go run ./cmd/ragsearch collections delete code_chunks
-go run ./cmd/ragsearch index --language go .
+go run ./cmd/ragcodepilot collections delete code_chunks
+go run ./cmd/ragcodepilot index --language go .
 ```
 
 ## Known limitations

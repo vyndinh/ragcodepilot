@@ -2,11 +2,11 @@
 
 ## Current problem
 
-`ragsearch` now supports real semantic embeddings through Ollama, but vector dimensions are still treated as a fixed configuration value in code.
+`ragcodepilot` now supports real semantic embeddings through Ollama, but vector dimensions are still treated as a fixed configuration value in code.
 
 Current behavior:
 
-- `cmd/ragsearch/main.go` creates the Ollama embedder with a hard-coded dimension:
+- `cmd/ragcodepilot/main.go` creates the Ollama embedder with a hard-coded dimension:
 
   ```go
   embedding.NewOllamaEmbedder(ollamaURL, ollamaModel, 768)

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dinhvy/ragsearch/internal/embedding"
-	"github.com/dinhvy/ragsearch/internal/model"
-	"github.com/dinhvy/ragsearch/internal/qdrant"
+	"github.com/dinhvy/ragcodepilot/internal/embedding"
+	"github.com/dinhvy/ragcodepilot/internal/model"
+	"github.com/dinhvy/ragcodepilot/internal/qdrant"
 )
 
 // Searcher coordinates query embedding, vector search, and result formatting.

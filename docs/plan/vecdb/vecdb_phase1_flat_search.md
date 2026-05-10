@@ -10,10 +10,10 @@ This phase teaches the **core mechanic** of every vector database: given a query
 
 ## Project location
 
-The vector DB lives as a new package inside ragsearch:
+The vector DB lives as a new package inside ragcodepilot:
 
 ```
-ragsearch/internal/vecdb/    ← new package, zero dependencies on ragsearch
+ragcodepilot/internal/vecdb/    ← new package, zero dependencies on ragcodepilot
 ```
 
 This means it can later implement the existing `vectorStore` interface to replace Qdrant — no separate repo needed.

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dinhvy/ragsearch/internal/config"
-	"github.com/dinhvy/ragsearch/internal/model"
+	"github.com/dinhvy/ragcodepilot/internal/config"
+	"github.com/dinhvy/ragcodepilot/internal/model"
 )
 
 func TestPipeline_filterFilesByLanguage(t *testing.T) {

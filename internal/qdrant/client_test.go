@@ -274,7 +274,7 @@ func TestClient_SearchRepoOnly(t *testing.T) {
 	sdk := &fakeSDKClient{}
 	client := &Client{conn: sdk}
 
-	_, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, 5, nil, []string{"ragsearch"})
+	_, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, 5, nil, []string{"ragcodepilot"})
 	if err != nil {
 		t.Fatalf("Search() unexpected error: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestClient_SearchLanguageAndRepo(t *testing.T) {
 	sdk := &fakeSDKClient{}
 	client := &Client{conn: sdk}
 
-	_, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, 5, []string{"go"}, []string{"ragsearch", "other"})
+	_, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, 5, []string{"go"}, []string{"ragcodepilot", "other"})
 	if err != nil {
 		t.Fatalf("Search() unexpected error: %v", err)
 	}
@@ -335,7 +335,7 @@ func TestClient_SearchReturnsResults(t *testing.T) {
 			{
 				Score: 0.95,
 				Payload: map[string]*pb.Value{
-					"repo":       {Kind: &pb.Value_StringValue{StringValue: "ragsearch"}},
+					"repo":       {Kind: &pb.Value_StringValue{StringValue: "ragcodepilot"}},
 					"file_path":  {Kind: &pb.Value_StringValue{StringValue: "main.go"}},
 					"language":   {Kind: &pb.Value_StringValue{StringValue: "go"}},
 					"chunk_type": {Kind: &pb.Value_StringValue{StringValue: "function"}},
@@ -360,8 +360,8 @@ func TestClient_SearchReturnsResults(t *testing.T) {
 	if r.Score != 0.95 {
 		t.Errorf("score = %f, want 0.95", r.Score)
 	}
-	if r.Chunk.Repo != "ragsearch" {
-		t.Errorf("repo = %q, want ragsearch", r.Chunk.Repo)
+	if r.Chunk.Repo != "ragcodepilot" {
+		t.Errorf("repo = %q, want ragcodepilot", r.Chunk.Repo)
 	}
 	if r.Chunk.Name != "Run" {
 		t.Errorf("name = %q, want Run", r.Chunk.Name)

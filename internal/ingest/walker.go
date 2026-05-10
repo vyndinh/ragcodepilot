@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dinhvy/ragsearch/internal/config"
+	"github.com/dinhvy/ragcodepilot/internal/config"
 )
 
 const binaryCheckBytes = 8000

@@ -24,7 +24,7 @@ Both documents push heavily toward building an **evaluation framework**. Some su
 
 | # | Item | Source | Why defer |
 |---|------|--------|-----------|
-| 4 | **Simple eval harness** | both docs | Build a simple `ragsearch eval` with `hit@k` and `MRR@k` **before** adding hybrid search. One command, one YAML dataset, terminal output. No CI, no compare mode, no regression policy |
+| 4 | **Simple eval harness** | both docs | Build a simple `ragcodepilot eval` with `hit@k` and `MRR@k` **before** adding hybrid search. One command, one YAML dataset, terminal output. No CI, no compare mode, no regression policy |
 | 5 | **Observability hooks** | system_design #7 | Add timing fields (`query_embedding_ms`, `qdrant_search_ms`) when performance becomes a question |
 | 6 | **Baseline workflow** | system_design #8 | Save semantic-only results before hybrid search. Build when Phase 3 is imminent |
 
@@ -52,7 +52,7 @@ Both documents push heavily toward building an **evaluation framework**. Some su
 
 | Topic | system_design | eval_metrics | Redundant? |
 |-------|--------------|--------------|------------|
-| `ragsearch eval` command | ✅ defined | ✅ defined | Yes — same thing |
+| `ragcodepilot eval` command | ✅ defined | ✅ defined | Yes — same thing |
 | Eval modes (retrieval, filters, compare) | ✅ | ✅ | Yes — nearly identical |
 | CI regression policy | ✅ | ✅ | Yes — same thresholds |
 | Baseline workflow | ✅ | implied | Partial |

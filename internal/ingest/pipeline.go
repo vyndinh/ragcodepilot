@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/dinhvy/ragsearch/internal/config"
-	"github.com/dinhvy/ragsearch/internal/embedding"
-	"github.com/dinhvy/ragsearch/internal/model"
+	"github.com/dinhvy/ragcodepilot/internal/config"
+	"github.com/dinhvy/ragcodepilot/internal/embedding"
+	"github.com/dinhvy/ragcodepilot/internal/model"
 )
 
 type vectorStore interface {

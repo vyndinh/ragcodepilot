@@ -8,11 +8,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dinhvy/ragsearch/internal/config"
-	"github.com/dinhvy/ragsearch/internal/embedding"
-	"github.com/dinhvy/ragsearch/internal/ingest"
-	"github.com/dinhvy/ragsearch/internal/qdrant"
-	"github.com/dinhvy/ragsearch/internal/search"
+	"github.com/dinhvy/ragcodepilot/internal/config"
+	"github.com/dinhvy/ragcodepilot/internal/embedding"
+	"github.com/dinhvy/ragcodepilot/internal/ingest"
+	"github.com/dinhvy/ragcodepilot/internal/qdrant"
+	"github.com/dinhvy/ragcodepilot/internal/search"
 )
 
 var version = "dev"
@@ -61,7 +61,7 @@ func main() {
 		fs := flag.NewFlagSet("search", flag.ExitOnError)
 		collection := fs.String("collection", "code_chunks", "Qdrant collection name")
 		language := fs.String("language", "", "Comma-separated language filter (e.g., go,rust)")
-		repo := fs.String("repo", "", "Comma-separated repo name filter (e.g., ragsearch,myproject)")
+		repo := fs.String("repo", "", "Comma-separated repo name filter (e.g., ragcodepilot,myproject)")
 		limit := fs.Int("limit", 5, "Maximum number of results")
 		qdrantHost := fs.String("qdrant-host", "localhost", "Qdrant host")
 		qdrantPort := fs.Int("qdrant-port", 6334, "Qdrant gRPC port")
@@ -132,7 +132,7 @@ func main() {
 		}
 
 	case "version":
-		fmt.Printf("ragsearch %s\n", version)
+		fmt.Printf("ragcodepilot %s\n", version)
 
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
@@ -142,14 +142,14 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println(`ragsearch - semantic code search powered by vector database
+	fmt.Println(`ragcodepilot - semantic code search powered by vector database
 
 Usage:
-  ragsearch index <repo-path> [flags]       Index a code repository
-  ragsearch search <query> [flags]          Search indexed code
-  ragsearch collections list [flags]        List all collections
-  ragsearch collections delete <name> [flags]  Delete a collection
-  ragsearch version                         Print version
+  ragcodepilot index <repo-path> [flags]       Index a code repository
+  ragcodepilot search <query> [flags]          Search indexed code
+  ragcodepilot collections list [flags]        List all collections
+  ragcodepilot collections delete <name> [flags]  Delete a collection
+  ragcodepilot version                         Print version
 
 Index flags:
   -collection string     Qdrant collection name (default "code_chunks")
@@ -163,7 +163,7 @@ Index flags:
 Search flags:
   -collection string     Qdrant collection name (default "code_chunks")
   -language string       Comma-separated language filter (e.g., go,rust)
-  -repo string           Comma-separated repo name filter (e.g., ragsearch)
+  -repo string           Comma-separated repo name filter (e.g., ragcodepilot)
   -limit int             Maximum number of results (default 5)
   -embedder string       Embedder to use: ollama, fake (default "ollama")
   -ollama-url string     Ollama server URL (default "http://localhost:11434")

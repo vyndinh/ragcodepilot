@@ -88,7 +88,7 @@ Search:
 ┌─────────────────────────────────────────────────────────┐
 │                        CLI / TUI                        │
 │                                                         │
-│  ragsearch index <repo-path>    ragsearch search "query" │
+│  ragcodepilot index <repo-path>    ragcodepilot search "query" │
 └──────────┬──────────────────────────────┬───────────────┘
            │                              │
            ▼                              ▼
@@ -137,10 +137,10 @@ Search:
 Simple command-line tool:
 
 ```
-ragsearch index <repo-path> [--language go,rust] [--collection code_chunks]
-ragsearch search "how does WAL recovery work?" [--language rust] [--limit 10]
-ragsearch collections list
-ragsearch collections delete <name>
+ragcodepilot index <repo-path> [--language go,rust] [--collection code_chunks]
+ragcodepilot search "how does WAL recovery work?" [--language rust] [--limit 10]
+ragcodepilot collections list
+ragcodepilot collections delete <name>
 ```
 
 No web UI initially. CLI is faster to build and sufficient for learning.
@@ -270,7 +270,7 @@ User query → Embed query → Search mode selection:
 - ✅ Collection management commands (list, delete)
 - ✅ Search result formatting with scores and metadata
 - ✅ Externalized configuration (`config.yaml` with language/extension mappings)
-- **Goal**: `ragsearch index . && ragsearch search "WAL recovery"` works ✅
+- **Goal**: `ragcodepilot index . && ragcodepilot search "WAL recovery"` works ✅
 
 ### Phase 2: Filtering and better parsing (in progress)
 
@@ -314,9 +314,9 @@ User query → Embed query → Search mode selection:
 ## Go project structure
 
 ```
-ragsearch/
+ragcodepilot/
 ├── cmd/
-│   └── ragsearch/
+│   └── ragcodepilot/
 │       └── main.go              # CLI entry point
 ├── internal/
 │   ├── ingest/
@@ -370,7 +370,7 @@ Evaluation Runner
 Recommended repository structure:
 
 ```text
-ragsearch/
+ragcodepilot/
 ├── internal/
 │   ├── eval/
 │   │   ├── dataset.go
@@ -386,9 +386,9 @@ ragsearch/
 │   └── model/
 ├── docs/
 │   └── eval/
-│       ├── ragsearch_retrieval.yaml
-│       ├── ragsearch_filters.yaml
-│       ├── ragsearch_negative.yaml
+│       ├── ragcodepilot_retrieval.yaml
+│       ├── ragcodepilot_filters.yaml
+│       ├── ragcodepilot_negative.yaml
 │       └── README.md
 ├── eval/
 │   └── results/
@@ -402,14 +402,14 @@ FEEDBACK: Keep eval code in `internal/eval`, human-maintained datasets in `docs/
 
 ### FEEDBACK: Add an evaluation command to the CLI
 
-FEEDBACK: Add `ragsearch eval` alongside `index`, `search`, and `collections`.
+FEEDBACK: Add `ragcodepilot eval` alongside `index`, `search`, and `collections`.
 
 Suggested CLI shape:
 
 ```bash
-ragsearch eval retrieval --dataset docs/eval/ragsearch_retrieval.yaml --collection code_chunks --top-k 5
-ragsearch eval filters --dataset docs/eval/ragsearch_filters.yaml --collection code_chunks
-ragsearch eval compare --baseline eval/results/base.json --candidate eval/results/new.json
+ragcodepilot eval retrieval --dataset docs/eval/ragcodepilot_retrieval.yaml --collection code_chunks --top-k 5
+ragcodepilot eval filters --dataset docs/eval/ragcodepilot_filters.yaml --collection code_chunks
+ragcodepilot eval compare --baseline eval/results/base.json --candidate eval/results/new.json
 ```
 
 FEEDBACK: The eval runner should call the same search path as normal CLI search. Avoid a separate evaluation-only search implementation because it can drift from production behavior.
@@ -422,7 +422,7 @@ Recommended payload fields:
 
 ```json
 {
-  "repo": "ragsearch",
+  "repo": "ragcodepilot",
   "branch": "main",
   "commit": "abc123",
   "file_path": "internal/ingest/chunker.go",
@@ -538,14 +538,14 @@ FEEDBACK: Before Phase 3 hybrid search, create and save a baseline report for th
 Suggested workflow:
 
 ```bash
-ragsearch index . --collection code_chunks
-ragsearch eval retrieval --dataset docs/eval/ragsearch_retrieval.yaml --collection code_chunks --out eval/results/semantic_baseline.json
+ragcodepilot index . --collection code_chunks
+ragcodepilot eval retrieval --dataset docs/eval/ragcodepilot_retrieval.yaml --collection code_chunks --out eval/results/semantic_baseline.json
 ```
 
 FEEDBACK: After adding hybrid search, compare against the baseline:
 
 ```bash
-ragsearch eval compare --baseline eval/results/semantic_baseline.json --candidate eval/results/hybrid_candidate.json
+ragcodepilot eval compare --baseline eval/results/semantic_baseline.json --candidate eval/results/hybrid_candidate.json
 ```
 
 FEEDBACK: Hybrid search should improve exact symbol/config queries without significantly hurting semantic concept queries or p95 latency.
@@ -570,11 +570,11 @@ FEEDBACK: These boundaries keep the project focused and prevent the eval harness
 FEEDBACK: The next implementation sequence should be:
 
 ```text
-1. Add docs/eval/ragsearch_retrieval.yaml with 20-30 queries.
+1. Add docs/eval/ragcodepilot_retrieval.yaml with 20-30 queries.
 2. Implement internal/eval dataset loader.
 3. Implement hit@k, MRR@5, recall@5.
 4. Add latency timing to the search service.
-5. Add ragsearch eval retrieval command.
+5. Add ragcodepilot eval retrieval command.
 6. Save JSON reports to eval/results.
 7. Add filter-specific eval cases.
 8. Add negative cases with calibrated score thresholds.
