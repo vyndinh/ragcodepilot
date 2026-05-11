@@ -214,6 +214,8 @@ type recordingStore struct {
 	ensureSize       uint64
 	upsertCalls      int
 	upsertBatchSizes []int
+	deleteCalls      int
+	deleteFilePaths  []string
 }
 
 func (s *recordingStore) EnsureCollection(_ context.Context, name string, vectorSize uint64) error {
@@ -226,6 +228,21 @@ func (s *recordingStore) EnsureCollection(_ context.Context, name string, vector
 func (s *recordingStore) Upsert(_ context.Context, _ string, chunks []model.CodeChunk, _ [][]float32) error {
 	s.upsertCalls++
 	s.upsertBatchSizes = append(s.upsertBatchSizes, len(chunks))
+	return nil
+}
+
+func (s *recordingStore) ScrollFileHashes(_ context.Context, _, _ string) (map[string]string, error) {
+	// Return empty — simulates first-time index.
+	return make(map[string]string), nil
+}
+
+func (s *recordingStore) EnsurePayloadIndexes(_ context.Context, _ string) error {
+	return nil
+}
+
+func (s *recordingStore) DeleteByFilePaths(_ context.Context, _, _ string, filePaths []string) error {
+	s.deleteCalls++
+	s.deleteFilePaths = append(s.deleteFilePaths, filePaths...)
 	return nil
 }
 

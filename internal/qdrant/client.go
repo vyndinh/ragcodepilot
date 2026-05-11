@@ -19,6 +19,8 @@ type sdkClient interface {
 	CreateFieldIndex(ctx context.Context, request *pb.CreateFieldIndexCollection) (*pb.UpdateResult, error)
 	Upsert(ctx context.Context, request *pb.UpsertPoints) (*pb.UpdateResult, error)
 	Query(ctx context.Context, request *pb.QueryPoints) ([]*pb.ScoredPoint, error)
+	ScrollAndOffset(ctx context.Context, request *pb.ScrollPoints) ([]*pb.RetrievedPoint, *pb.PointId, error)
+	Delete(ctx context.Context, request *pb.DeletePoints) (*pb.UpdateResult, error)
 	ListCollections(ctx context.Context) ([]string, error)
 	DeleteCollection(ctx context.Context, collectionName string) error
 }
@@ -54,7 +56,11 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
 	}
 
 	if exists {
-		return c.validateCollectionDimension(ctx, name, vectorSize)
+		if err := c.validateCollectionDimension(ctx, name, vectorSize); err != nil {
+			return err
+		}
+		// Ensure payload indexes exist even for previously created collections.
+		return c.ensurePayloadIndexes(ctx, name)
 	}
 
 	// Create the collection.
@@ -75,6 +81,21 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
 	}
 
 	return nil
+}
+
+// EnsurePayloadIndexes creates keyword indexes on commonly filtered payload
+// fields if the collection exists. No-op if the collection does not exist.
+// Call this before any filtered scroll or delete to guarantee efficient queries
+// on collections created before payload indexes were introduced.
+func (c *Client) EnsurePayloadIndexes(ctx context.Context, collection string) error {
+	exists, err := c.conn.CollectionExists(ctx, collection)
+	if err != nil {
+		return fmt.Errorf("checking collection %s: %w", collection, err)
+	}
+	if !exists {
+		return nil
+	}
+	return c.ensurePayloadIndexes(ctx, collection)
 }
 
 // payloadIndexFields lists the payload fields that should be indexed for
@@ -147,6 +168,7 @@ func (c *Client) Upsert(ctx context.Context, collection string, chunks []model.C
 				"start_line": chunk.StartLine,
 				"end_line":   chunk.EndLine,
 				"indexed_at": chunk.IndexedAt,
+				"file_hash":  chunk.FileHash,
 			}),
 		}
 	}
@@ -259,7 +281,92 @@ func payloadToChunk(payload map[string]*pb.Value) model.CodeChunk {
 		StartLine: getIntValue(payload, "start_line"),
 		EndLine:   getIntValue(payload, "end_line"),
 		IndexedAt: getStringValue(payload, "indexed_at"),
+		FileHash:  getStringValue(payload, "file_hash"),
 	}
+}
+
+// ScrollFileHashes retrieves all unique {file_path: file_hash} pairs for a given
+// repo from the collection. Used for change detection during re-indexing.
+// Paginates through all points to handle repos with more than one page of chunks.
+func (c *Client) ScrollFileHashes(ctx context.Context, collection, repo string) (map[string]string, error) {
+	exists, err := c.conn.CollectionExists(ctx, collection)
+	if err != nil {
+		return nil, fmt.Errorf("checking collection %s: %w", collection, err)
+	}
+	if !exists {
+		return make(map[string]string), nil
+	}
+
+	const pageSize = 1000
+	result := make(map[string]string)
+	var offset *pb.PointId
+
+	for {
+		points, nextOffset, err := c.conn.ScrollAndOffset(ctx, &pb.ScrollPoints{
+			CollectionName: collection,
+			Filter: &pb.Filter{
+				Must: []*pb.Condition{pb.NewMatch("repo", repo)},
+			},
+			WithPayload: pb.NewWithPayloadInclude("file_path", "file_hash"),
+			Limit:       pb.PtrOf(uint32(pageSize)),
+			Offset:      offset,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("scrolling file hashes for repo %s: %w", repo, err)
+		}
+
+		for _, point := range points {
+			filePath := getStringValue(point.Payload, "file_path")
+			fileHash := getStringValue(point.Payload, "file_hash")
+			if filePath != "" {
+				result[filePath] = fileHash
+			}
+		}
+
+		// Qdrant returns nil next_page_offset when there are no more pages.
+		if nextOffset == nil {
+			break
+		}
+		offset = nextOffset
+	}
+
+	return result, nil
+}
+
+// DeleteByFilePaths deletes all points in the collection that match the given
+// repo and any of the specified file paths.
+func (c *Client) DeleteByFilePaths(ctx context.Context, collection, repo string, filePaths []string) error {
+	if len(filePaths) == 0 {
+		return nil
+	}
+
+	fileConditions := make([]*pb.Condition, len(filePaths))
+	for i, fp := range filePaths {
+		fileConditions[i] = pb.NewMatch("file_path", fp)
+	}
+
+	_, err := c.conn.Delete(ctx, &pb.DeletePoints{
+		CollectionName: collection,
+		Points: &pb.PointsSelector{
+			PointsSelectorOneOf: &pb.PointsSelector_Filter{
+				Filter: &pb.Filter{
+					Must: []*pb.Condition{
+						pb.NewMatch("repo", repo),
+						{
+							ConditionOneOf: &pb.Condition_Filter{
+								Filter: &pb.Filter{Should: fileConditions},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("deleting points for %d files in repo %s: %w", len(filePaths), repo, err)
+	}
+
+	return nil
 }
 
 func getStringValue(payload map[string]*pb.Value, key string) string {

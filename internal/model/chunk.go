@@ -33,6 +33,10 @@ type CodeChunk struct {
 
 	// IndexedAt is the timestamp when this chunk was indexed.
 	IndexedAt string `json:"indexed_at,omitempty"`
+
+	// FileHash is the SHA-256 hash of the source file content at indexing time.
+	// Used for change detection during re-indexing.
+	FileHash string `json:"file_hash,omitempty"`
 }
 
 // SearchResult represents a single result returned from a search query.

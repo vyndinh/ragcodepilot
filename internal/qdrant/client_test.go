@@ -73,6 +73,10 @@ func TestClient_EnsureCollectionAcceptsMatchingExistingDimension(t *testing.T) {
 	if sdk.createCalls != 0 {
 		t.Fatalf("CreateCollection calls = %d, want 0", sdk.createCalls)
 	}
+	// Payload indexes are now ensured even for existing collections.
+	if sdk.fieldIndexCalls != 3 {
+		t.Fatalf("CreateFieldIndex calls = %d, want 3", sdk.fieldIndexCalls)
+	}
 }
 
 func TestClient_EnsureCollectionRejectsMismatchedExistingDimension(t *testing.T) {
@@ -162,6 +166,18 @@ type fakeSDKClient struct {
 	queryErr    error
 	queryCalls  int
 	queriedReq  *pb.QueryPoints
+
+	// Scroll recording.
+	scrollPages  []scrollPage // multi-page results; takes precedence if non-empty
+	scrollResult []*pb.RetrievedPoint // single-page fallback
+	scrollErr    error
+	scrollCalls  int
+	scrolledReq  *pb.ScrollPoints
+
+	// Delete recording.
+	deleteErr   error
+	deleteCalls int
+	deletedReq  *pb.DeletePoints
 }
 
 func (f *fakeSDKClient) Close() error {
@@ -198,6 +214,29 @@ func (f *fakeSDKClient) Query(_ context.Context, req *pb.QueryPoints) ([]*pb.Sco
 	f.queryCalls++
 	f.queriedReq = req
 	return f.queryResult, f.queryErr
+}
+
+func (f *fakeSDKClient) ScrollAndOffset(_ context.Context, req *pb.ScrollPoints) ([]*pb.RetrievedPoint, *pb.PointId, error) {
+	f.scrollCalls++
+	f.scrolledReq = req
+
+	// Multi-page support: return the page matching the current call index.
+	if len(f.scrollPages) > 0 {
+		idx := f.scrollCalls - 1
+		if idx >= len(f.scrollPages) {
+			return nil, nil, f.scrollErr
+		}
+		page := f.scrollPages[idx]
+		return page.points, page.nextOffset, f.scrollErr
+	}
+
+	return f.scrollResult, nil, f.scrollErr
+}
+
+func (f *fakeSDKClient) Delete(_ context.Context, req *pb.DeletePoints) (*pb.UpdateResult, error) {
+	f.deleteCalls++
+	f.deletedReq = req
+	return &pb.UpdateResult{}, f.deleteErr
 }
 
 func (f *fakeSDKClient) ListCollections(context.Context) ([]string, error) {
@@ -365,5 +404,225 @@ func TestClient_SearchReturnsResults(t *testing.T) {
 	}
 	if r.Chunk.Name != "Run" {
 		t.Errorf("name = %q, want Run", r.Chunk.Name)
+	}
+}
+
+// scrollPage holds points and the next offset for a single scroll page.
+type scrollPage struct {
+	points     []*pb.RetrievedPoint
+	nextOffset *pb.PointId
+}
+
+// --- EnsurePayloadIndexes tests ---
+
+func TestClient_EnsurePayloadIndexesCreatesIndexesForExistingCollection(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{exists: true}
+	client := &Client{conn: sdk}
+
+	if err := client.EnsurePayloadIndexes(context.Background(), "code_chunks"); err != nil {
+		t.Fatalf("EnsurePayloadIndexes() unexpected error: %v", err)
+	}
+	if sdk.fieldIndexCalls != 3 {
+		t.Fatalf("CreateFieldIndex calls = %d, want 3", sdk.fieldIndexCalls)
+	}
+	wantFields := []string{"repo", "language", "file_path"}
+	for i, want := range wantFields {
+		if sdk.fieldIndexFields[i] != want {
+			t.Fatalf("field index[%d] = %q, want %q", i, sdk.fieldIndexFields[i], want)
+		}
+	}
+}
+
+func TestClient_EnsurePayloadIndexesNoOpForMissingCollection(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{exists: false}
+	client := &Client{conn: sdk}
+
+	if err := client.EnsurePayloadIndexes(context.Background(), "code_chunks"); err != nil {
+		t.Fatalf("EnsurePayloadIndexes() unexpected error: %v", err)
+	}
+	if sdk.fieldIndexCalls != 0 {
+		t.Fatalf("CreateFieldIndex calls = %d, want 0 for missing collection", sdk.fieldIndexCalls)
+	}
+}
+
+// --- ScrollFileHashes tests ---
+
+func TestClient_ScrollFileHashes(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{
+		exists: true,
+		scrollPages: []scrollPage{
+			{
+				points: []*pb.RetrievedPoint{
+					{
+						Payload: map[string]*pb.Value{
+							"file_path": {Kind: &pb.Value_StringValue{StringValue: "internal/main.go"}},
+							"file_hash": {Kind: &pb.Value_StringValue{StringValue: "abc123"}},
+						},
+					},
+					{
+						Payload: map[string]*pb.Value{
+							"file_path": {Kind: &pb.Value_StringValue{StringValue: "internal/utils.go"}},
+							"file_hash": {Kind: &pb.Value_StringValue{StringValue: "def456"}},
+						},
+					},
+					// Duplicate file_path — should be deduplicated (last wins).
+					{
+						Payload: map[string]*pb.Value{
+							"file_path": {Kind: &pb.Value_StringValue{StringValue: "internal/main.go"}},
+							"file_hash": {Kind: &pb.Value_StringValue{StringValue: "abc123"}},
+						},
+					},
+				},
+				nextOffset: nil, // single page — done
+			},
+		},
+	}
+	client := &Client{conn: sdk}
+
+	hashes, err := client.ScrollFileHashes(context.Background(), "code_chunks", "ragcodepilot")
+	if err != nil {
+		t.Fatalf("ScrollFileHashes() unexpected error: %v", err)
+	}
+
+	if len(hashes) != 2 {
+		t.Fatalf("expected 2 unique files, got %d", len(hashes))
+	}
+	if hashes["internal/main.go"] != "abc123" {
+		t.Errorf("main.go hash = %q, want abc123", hashes["internal/main.go"])
+	}
+	if hashes["internal/utils.go"] != "def456" {
+		t.Errorf("utils.go hash = %q, want def456", hashes["internal/utils.go"])
+	}
+}
+
+func TestClient_ScrollFileHashesEmptyWhenNoCollection(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{exists: false}
+	client := &Client{conn: sdk}
+
+	hashes, err := client.ScrollFileHashes(context.Background(), "code_chunks", "ragcodepilot")
+	if err != nil {
+		t.Fatalf("ScrollFileHashes() unexpected error: %v", err)
+	}
+	if len(hashes) != 0 {
+		t.Fatalf("expected 0 hashes for missing collection, got %d", len(hashes))
+	}
+	if sdk.scrollCalls != 0 {
+		t.Fatalf("Scroll calls = %d, want 0 (should not scroll missing collection)", sdk.scrollCalls)
+	}
+}
+
+// --- DeleteByFilePaths tests ---
+
+func TestClient_DeleteByFilePaths(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{}
+	client := &Client{conn: sdk}
+
+	err := client.DeleteByFilePaths(context.Background(), "code_chunks", "ragcodepilot", []string{"main.go", "utils.go"})
+	if err != nil {
+		t.Fatalf("DeleteByFilePaths() unexpected error: %v", err)
+	}
+	if sdk.deleteCalls != 1 {
+		t.Fatalf("Delete calls = %d, want 1", sdk.deleteCalls)
+	}
+
+	// Verify filter structure: Must[0] = repo match, Must[1] = Should(file_path matches).
+	filter := sdk.deletedReq.GetPoints().GetFilter()
+	if filter == nil {
+		t.Fatal("expected non-nil filter")
+	}
+	if len(filter.Must) != 2 {
+		t.Fatalf("Must conditions = %d, want 2", len(filter.Must))
+	}
+	fileFilter := filter.Must[1].GetFilter()
+	if fileFilter == nil || len(fileFilter.Should) != 2 {
+		t.Fatalf("expected 2 file_path Should conditions")
+	}
+}
+
+func TestClient_DeleteByFilePathsNoOpOnEmpty(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{}
+	client := &Client{conn: sdk}
+
+	err := client.DeleteByFilePaths(context.Background(), "code_chunks", "ragcodepilot", nil)
+	if err != nil {
+		t.Fatalf("DeleteByFilePaths() unexpected error: %v", err)
+	}
+	if sdk.deleteCalls != 0 {
+		t.Fatalf("Delete calls = %d, want 0 for empty file paths", sdk.deleteCalls)
+	}
+}
+
+// --- Multi-page scroll test ---
+
+func TestClient_ScrollFileHashesMultiPage(t *testing.T) {
+	t.Parallel()
+
+	page2Offset := pb.NewIDNum(1001)
+
+	sdk := &fakeSDKClient{
+		exists: true,
+		scrollPages: []scrollPage{
+			{
+				points: []*pb.RetrievedPoint{
+					{
+						Payload: map[string]*pb.Value{
+							"file_path": {Kind: &pb.Value_StringValue{StringValue: "file_a.go"}},
+							"file_hash": {Kind: &pb.Value_StringValue{StringValue: "hash_a"}},
+						},
+					},
+				},
+				nextOffset: page2Offset, // more pages
+			},
+			{
+				points: []*pb.RetrievedPoint{
+					{
+						Payload: map[string]*pb.Value{
+							"file_path": {Kind: &pb.Value_StringValue{StringValue: "file_b.go"}},
+							"file_hash": {Kind: &pb.Value_StringValue{StringValue: "hash_b"}},
+						},
+					},
+				},
+				nextOffset: nil, // last page
+			},
+		},
+	}
+	client := &Client{conn: sdk}
+
+	hashes, err := client.ScrollFileHashes(context.Background(), "code_chunks", "ragcodepilot")
+	if err != nil {
+		t.Fatalf("ScrollFileHashes() unexpected error: %v", err)
+	}
+
+	// Verify both pages were scrolled.
+	if sdk.scrollCalls != 2 {
+		t.Fatalf("Scroll calls = %d, want 2", sdk.scrollCalls)
+	}
+
+	// Verify both files collected.
+	if len(hashes) != 2 {
+		t.Fatalf("expected 2 unique files, got %d", len(hashes))
+	}
+	if hashes["file_a.go"] != "hash_a" {
+		t.Errorf("file_a.go hash = %q, want hash_a", hashes["file_a.go"])
+	}
+	if hashes["file_b.go"] != "hash_b" {
+		t.Errorf("file_b.go hash = %q, want hash_b", hashes["file_b.go"])
+	}
+
+	// Verify the second call used the offset from page 1.
+	if sdk.scrolledReq.GetOffset().GetNum() != page2Offset.GetNum() {
+		t.Fatalf("second scroll offset = %v, want %v", sdk.scrolledReq.GetOffset(), page2Offset)
 	}
 }
