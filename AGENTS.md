@@ -4,6 +4,8 @@
 
 - **Never `git push` autonomously.** Always stop after committing locally. Let the user review and push themselves.
 - Before working on a feature, skim the `docs/` folder for relevant docs (e.g. `docs/system_design.md`, `docs/checklist.md`, `docs/vector_DB_core.md`, `docs/vector_DB_app.md`); these are the source of truth for cross-cutting features and working conventions
+- **`docs/` files use pseudocode, not Go.** When expressing a code idea in any file under `docs/`, write language-agnostic pseudocode (e.g. `function HitAtK(results, k) → bool`) instead of real Go syntax. Real Go code belongs only in `internal/`, `cmd/`, or test files.
+
 
 ## Project Overview
 
