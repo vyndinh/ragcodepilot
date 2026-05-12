@@ -56,11 +56,7 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
 	}
 
 	if exists {
-		if err := c.validateCollectionDimension(ctx, name, vectorSize); err != nil {
-			return err
-		}
-		// Ensure payload indexes exist even for previously created collections.
-		return c.ensurePayloadIndexes(ctx, name)
+		return c.validateCollectionDimension(ctx, name, vectorSize)
 	}
 
 	// Create the collection.
@@ -183,6 +179,7 @@ func (c *Client) Upsert(ctx context.Context, collection string, chunks []model.C
 
 		_, err := c.conn.Upsert(ctx, &pb.UpsertPoints{
 			CollectionName: collection,
+			Wait:           pb.PtrOf(true),
 			Points:         points[start:end],
 		})
 		if err != nil {
@@ -287,14 +284,34 @@ func payloadToChunk(payload map[string]*pb.Value) model.CodeChunk {
 
 // ScrollFileHashes retrieves all unique {file_path: file_hash} pairs for a given
 // repo from the collection. Used for change detection during re-indexing.
+//
+// When languages is non-empty, only points matching those languages are returned.
+// This prevents language-scoped re-indexing (e.g. --language go) from seeing
+// points for other languages, which would otherwise be classified as stale and
+// deleted.
+//
 // Paginates through all points to handle repos with more than one page of chunks.
-func (c *Client) ScrollFileHashes(ctx context.Context, collection, repo string) (map[string]string, error) {
+func (c *Client) ScrollFileHashes(ctx context.Context, collection, repo string, languages []string) (map[string]string, error) {
 	exists, err := c.conn.CollectionExists(ctx, collection)
 	if err != nil {
 		return nil, fmt.Errorf("checking collection %s: %w", collection, err)
 	}
 	if !exists {
 		return make(map[string]string), nil
+	}
+
+	// Build scroll filter: repo is always required, language is optional.
+	mustConditions := []*pb.Condition{pb.NewMatch("repo", repo)}
+	if len(languages) > 0 {
+		langConditions := make([]*pb.Condition, len(languages))
+		for i, lang := range languages {
+			langConditions[i] = pb.NewMatch("language", lang)
+		}
+		mustConditions = append(mustConditions, &pb.Condition{
+			ConditionOneOf: &pb.Condition_Filter{
+				Filter: &pb.Filter{Should: langConditions},
+			},
+		})
 	}
 
 	const pageSize = 1000
@@ -304,12 +321,10 @@ func (c *Client) ScrollFileHashes(ctx context.Context, collection, repo string) 
 	for {
 		points, nextOffset, err := c.conn.ScrollAndOffset(ctx, &pb.ScrollPoints{
 			CollectionName: collection,
-			Filter: &pb.Filter{
-				Must: []*pb.Condition{pb.NewMatch("repo", repo)},
-			},
-			WithPayload: pb.NewWithPayloadInclude("file_path", "file_hash"),
-			Limit:       pb.PtrOf(uint32(pageSize)),
-			Offset:      offset,
+			Filter:         &pb.Filter{Must: mustConditions},
+			WithPayload:    pb.NewWithPayloadInclude("file_path", "file_hash"),
+			Limit:          pb.PtrOf(uint32(pageSize)),
+			Offset:         offset,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("scrolling file hashes for repo %s: %w", repo, err)
@@ -333,6 +348,34 @@ func (c *Client) ScrollFileHashes(ctx context.Context, collection, repo string) 
 	return result, nil
 }
 
+// DeleteStaleChunksByFilePath deletes points for a single file whose stored
+// file_hash does not match currentHash. Used after upserting re-indexed chunks
+// to remove only the orphaned old-hash chunks, leaving the freshly indexed
+// new-hash chunks untouched.
+func (c *Client) DeleteStaleChunksByFilePath(ctx context.Context, collection, repo, filePath, currentHash string) error {
+	_, err := c.conn.Delete(ctx, &pb.DeletePoints{
+		CollectionName: collection,
+		Wait:           pb.PtrOf(true),
+		Points: &pb.PointsSelector{
+			PointsSelectorOneOf: &pb.PointsSelector_Filter{
+				Filter: &pb.Filter{
+					Must: []*pb.Condition{
+						pb.NewMatch("repo", repo),
+						pb.NewMatch("file_path", filePath),
+					},
+					MustNot: []*pb.Condition{
+						pb.NewMatch("file_hash", currentHash),
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("deleting stale chunks for %s in repo %s: %w", filePath, repo, err)
+	}
+	return nil
+}
+
 // DeleteByFilePaths deletes all points in the collection that match the given
 // repo and any of the specified file paths.
 func (c *Client) DeleteByFilePaths(ctx context.Context, collection, repo string, filePaths []string) error {
@@ -347,6 +390,7 @@ func (c *Client) DeleteByFilePaths(ctx context.Context, collection, repo string,
 
 	_, err := c.conn.Delete(ctx, &pb.DeletePoints{
 		CollectionName: collection,
+		Wait:           pb.PtrOf(true),
 		Points: &pb.PointsSelector{
 			PointsSelectorOneOf: &pb.PointsSelector_Filter{
 				Filter: &pb.Filter{

@@ -3,9 +3,11 @@ package qdrant
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/dinhvy/ragcodepilot/internal/model"
 	pb "github.com/qdrant/go-client/qdrant"
 )
 
@@ -73,9 +75,10 @@ func TestClient_EnsureCollectionAcceptsMatchingExistingDimension(t *testing.T) {
 	if sdk.createCalls != 0 {
 		t.Fatalf("CreateCollection calls = %d, want 0", sdk.createCalls)
 	}
-	// Payload indexes are now ensured even for existing collections.
-	if sdk.fieldIndexCalls != 3 {
-		t.Fatalf("CreateFieldIndex calls = %d, want 3", sdk.fieldIndexCalls)
+	// Payload indexes are no longer ensured here — Pipeline.Run() calls
+	// EnsurePayloadIndexes separately to avoid redundant gRPC round-trips.
+	if sdk.fieldIndexCalls != 0 {
+		t.Fatalf("CreateFieldIndex calls = %d, want 0", sdk.fieldIndexCalls)
 	}
 }
 
@@ -168,11 +171,15 @@ type fakeSDKClient struct {
 	queriedReq  *pb.QueryPoints
 
 	// Scroll recording.
-	scrollPages  []scrollPage // multi-page results; takes precedence if non-empty
+	scrollPages  []scrollPage         // multi-page results; takes precedence if non-empty
 	scrollResult []*pb.RetrievedPoint // single-page fallback
 	scrollErr    error
 	scrollCalls  int
 	scrolledReq  *pb.ScrollPoints
+
+	// Upsert recording.
+	upsertCalls  int
+	upsertedReqs []*pb.UpsertPoints
 
 	// Delete recording.
 	deleteErr   error
@@ -206,8 +213,10 @@ func (f *fakeSDKClient) CreateFieldIndex(_ context.Context, request *pb.CreateFi
 	return &pb.UpdateResult{}, f.fieldIndexErr
 }
 
-func (f *fakeSDKClient) Upsert(context.Context, *pb.UpsertPoints) (*pb.UpdateResult, error) {
-	panic("unexpected Upsert call")
+func (f *fakeSDKClient) Upsert(_ context.Context, req *pb.UpsertPoints) (*pb.UpdateResult, error) {
+	f.upsertCalls++
+	f.upsertedReqs = append(f.upsertedReqs, req)
+	return &pb.UpdateResult{}, nil
 }
 
 func (f *fakeSDKClient) Query(_ context.Context, req *pb.QueryPoints) ([]*pb.ScoredPoint, error) {
@@ -485,7 +494,7 @@ func TestClient_ScrollFileHashes(t *testing.T) {
 	}
 	client := &Client{conn: sdk}
 
-	hashes, err := client.ScrollFileHashes(context.Background(), "code_chunks", "ragcodepilot")
+	hashes, err := client.ScrollFileHashes(context.Background(), "code_chunks", "ragcodepilot", nil)
 	if err != nil {
 		t.Fatalf("ScrollFileHashes() unexpected error: %v", err)
 	}
@@ -507,7 +516,7 @@ func TestClient_ScrollFileHashesEmptyWhenNoCollection(t *testing.T) {
 	sdk := &fakeSDKClient{exists: false}
 	client := &Client{conn: sdk}
 
-	hashes, err := client.ScrollFileHashes(context.Background(), "code_chunks", "ragcodepilot")
+	hashes, err := client.ScrollFileHashes(context.Background(), "code_chunks", "ragcodepilot", nil)
 	if err != nil {
 		t.Fatalf("ScrollFileHashes() unexpected error: %v", err)
 	}
@@ -520,6 +529,37 @@ func TestClient_ScrollFileHashesEmptyWhenNoCollection(t *testing.T) {
 }
 
 // --- DeleteByFilePaths tests ---
+
+func TestClient_DeleteStaleChunksByFilePath(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{}
+	client := &Client{conn: sdk}
+
+	err := client.DeleteStaleChunksByFilePath(context.Background(), "code_chunks", "myrepo", "internal/main.go", "hash_new")
+	if err != nil {
+		t.Fatalf("DeleteStaleChunksByFilePath() unexpected error: %v", err)
+	}
+	if sdk.deleteCalls != 1 {
+		t.Fatalf("Delete calls = %d, want 1", sdk.deleteCalls)
+	}
+	if !sdk.deletedReq.GetWait() {
+		t.Fatal("expected Wait: true")
+	}
+
+	filter := sdk.deletedReq.GetPoints().GetFilter()
+	if filter == nil {
+		t.Fatal("expected non-nil filter")
+	}
+	// Must: repo + file_path
+	if len(filter.Must) != 2 {
+		t.Fatalf("Must conditions = %d, want 2 (repo + file_path)", len(filter.Must))
+	}
+	// MustNot: file_hash != current_hash (excludes freshly upserted chunks)
+	if len(filter.MustNot) != 1 {
+		t.Fatalf("MustNot conditions = %d, want 1 (file_hash exclusion)", len(filter.MustNot))
+	}
+}
 
 func TestClient_DeleteByFilePaths(t *testing.T) {
 	t.Parallel()
@@ -564,6 +604,62 @@ func TestClient_DeleteByFilePathsNoOpOnEmpty(t *testing.T) {
 	}
 }
 
+// --- Upsert batch tests ---
+
+func TestClient_UpsertBatchSplitting(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{}
+	client := &Client{conn: sdk}
+
+	// Create 130 chunks → expect 3 SDK calls: 64 + 64 + 2
+	const totalChunks = 130
+	chunks := make([]model.CodeChunk, totalChunks)
+	vectors := make([][]float32, totalChunks)
+	for i := range chunks {
+		chunks[i] = model.CodeChunk{
+			ID:       fmt.Sprintf("00000000-0000-0000-0000-%012d", i),
+			Repo:     "testrepo",
+			FilePath: fmt.Sprintf("file_%d.go", i),
+			Language: "go",
+			Content:  "func main() {}",
+		}
+		vectors[i] = []float32{1.0, 2.0, 3.0}
+	}
+
+	err := client.Upsert(context.Background(), "code_chunks", chunks, vectors)
+	if err != nil {
+		t.Fatalf("Upsert() unexpected error: %v", err)
+	}
+
+	// Verify batch count.
+	if sdk.upsertCalls != 3 {
+		t.Fatalf("Upsert SDK calls = %d, want 3", sdk.upsertCalls)
+	}
+
+	// Verify batch sizes.
+	wantSizes := []int{64, 64, 2}
+	for i, req := range sdk.upsertedReqs {
+		got := len(req.GetPoints())
+		if got != wantSizes[i] {
+			t.Errorf("batch %d size = %d, want %d", i, got, wantSizes[i])
+		}
+	}
+
+	// Verify total points cover all chunks.
+	totalPoints := 0
+	for _, req := range sdk.upsertedReqs {
+		totalPoints += len(req.GetPoints())
+		// Verify Wait is set on every batch.
+		if !req.GetWait() {
+			t.Error("expected Wait: true on upsert batch")
+		}
+	}
+	if totalPoints != totalChunks {
+		t.Fatalf("total upserted points = %d, want %d", totalPoints, totalChunks)
+	}
+}
+
 // --- Multi-page scroll test ---
 
 func TestClient_ScrollFileHashesMultiPage(t *testing.T) {
@@ -600,7 +696,7 @@ func TestClient_ScrollFileHashesMultiPage(t *testing.T) {
 	}
 	client := &Client{conn: sdk}
 
-	hashes, err := client.ScrollFileHashes(context.Background(), "code_chunks", "ragcodepilot")
+	hashes, err := client.ScrollFileHashes(context.Background(), "code_chunks", "ragcodepilot", nil)
 	if err != nil {
 		t.Fatalf("ScrollFileHashes() unexpected error: %v", err)
 	}
@@ -624,5 +720,76 @@ func TestClient_ScrollFileHashesMultiPage(t *testing.T) {
 	// Verify the second call used the offset from page 1.
 	if sdk.scrolledReq.GetOffset().GetNum() != page2Offset.GetNum() {
 		t.Fatalf("second scroll offset = %v, want %v", sdk.scrolledReq.GetOffset(), page2Offset)
+	}
+}
+
+func TestClient_ScrollFileHashesWithLanguageFilter(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{
+		exists: true,
+		scrollPages: []scrollPage{
+			{
+				points: []*pb.RetrievedPoint{
+					{
+						Payload: map[string]*pb.Value{
+							"file_path": {Kind: &pb.Value_StringValue{StringValue: "main.go"}},
+							"file_hash": {Kind: &pb.Value_StringValue{StringValue: "go_hash"}},
+						},
+					},
+				},
+				nextOffset: nil,
+			},
+		},
+	}
+	client := &Client{conn: sdk}
+
+	hashes, err := client.ScrollFileHashes(context.Background(), "code_chunks", "ragcodepilot", []string{"go", "rust"})
+	if err != nil {
+		t.Fatalf("ScrollFileHashes() unexpected error: %v", err)
+	}
+	if len(hashes) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(hashes))
+	}
+
+	// Verify the scroll filter includes both repo AND language conditions.
+	filter := sdk.scrolledReq.GetFilter()
+	if filter == nil {
+		t.Fatal("expected non-nil filter")
+	}
+	// Must[0] = repo match, Must[1] = language Should-filter.
+	if len(filter.Must) != 2 {
+		t.Fatalf("Must conditions = %d, want 2 (repo + language)", len(filter.Must))
+	}
+	langFilter := filter.Must[1].GetFilter()
+	if langFilter == nil {
+		t.Fatal("expected nested language filter in Must[1]")
+	}
+	if len(langFilter.Should) != 2 {
+		t.Fatalf("language Should conditions = %d, want 2", len(langFilter.Should))
+	}
+}
+
+func TestClient_ScrollFileHashesNoLanguageFilterWhenEmpty(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{
+		exists:       true,
+		scrollResult: []*pb.RetrievedPoint{},
+	}
+	client := &Client{conn: sdk}
+
+	_, err := client.ScrollFileHashes(context.Background(), "code_chunks", "ragcodepilot", nil)
+	if err != nil {
+		t.Fatalf("ScrollFileHashes() unexpected error: %v", err)
+	}
+
+	// Verify the scroll filter only has repo — no language filter.
+	filter := sdk.scrolledReq.GetFilter()
+	if filter == nil {
+		t.Fatal("expected non-nil filter")
+	}
+	if len(filter.Must) != 1 {
+		t.Fatalf("Must conditions = %d, want 1 (repo only)", len(filter.Must))
 	}
 }

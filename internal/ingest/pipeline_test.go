@@ -208,6 +208,19 @@ func (e *scriptedEmbedder) Dimension() int {
 	return 0
 }
 
+// fakeEmbedder always returns uniform vectors matching the input count.
+type fakeEmbedder struct {
+	dim int
+}
+
+func (e *fakeEmbedder) Embed(_ context.Context, texts []string) ([][]float32, error) {
+	return repeatedVectors(len(texts), e.dim), nil
+}
+
+func (e *fakeEmbedder) Dimension() int {
+	return e.dim
+}
+
 type recordingStore struct {
 	ensureCalls      int
 	ensureCollection string
@@ -231,7 +244,7 @@ func (s *recordingStore) Upsert(_ context.Context, _ string, chunks []model.Code
 	return nil
 }
 
-func (s *recordingStore) ScrollFileHashes(_ context.Context, _, _ string) (map[string]string, error) {
+func (s *recordingStore) ScrollFileHashes(_ context.Context, _, _ string, _ []string) (map[string]string, error) {
 	// Return empty — simulates first-time index.
 	return make(map[string]string), nil
 }
@@ -243,6 +256,11 @@ func (s *recordingStore) EnsurePayloadIndexes(_ context.Context, _ string) error
 func (s *recordingStore) DeleteByFilePaths(_ context.Context, _, _ string, filePaths []string) error {
 	s.deleteCalls++
 	s.deleteFilePaths = append(s.deleteFilePaths, filePaths...)
+	return nil
+}
+
+func (s *recordingStore) DeleteStaleChunksByFilePath(_ context.Context, _, _, _ string, _ string) error {
+	s.deleteCalls++
 	return nil
 }
 
@@ -270,4 +288,166 @@ func repeatedVectors(count, dim int) [][]float32 {
 		vectors[i][0] = 1
 	}
 	return vectors
+}
+
+// --- Delete ordering tests ---
+
+// orderingStore records the order of operations to verify temporal ordering
+// between delete and upsert calls.
+type orderingStore struct {
+	ops            []string          // ordered log: "delete:path", "upsert"
+	existingHashes map[string]string // pre-existing {file_path: file_hash}
+}
+
+func (s *orderingStore) EnsureCollection(context.Context, string, uint64) error { return nil }
+func (s *orderingStore) EnsurePayloadIndexes(context.Context, string) error     { return nil }
+
+func (s *orderingStore) ScrollFileHashes(_ context.Context, _, _ string, _ []string) (map[string]string, error) {
+	return s.existingHashes, nil
+}
+
+func (s *orderingStore) DeleteByFilePaths(_ context.Context, _, _ string, filePaths []string) error {
+	for _, fp := range filePaths {
+		s.ops = append(s.ops, "delete:"+fp)
+	}
+	return nil
+}
+
+func (s *orderingStore) DeleteStaleChunksByFilePath(_ context.Context, _, _, filePath, _ string) error {
+	s.ops = append(s.ops, "delete_changed:"+filePath)
+	return nil
+}
+
+func (s *orderingStore) Upsert(_ context.Context, _ string, chunks []model.CodeChunk, _ [][]float32) error {
+	s.ops = append(s.ops, "upsert")
+	return nil
+}
+
+func TestPipeline_RunDeletesChangedFilesAfterUpsert(t *testing.T) {
+	t.Parallel()
+
+	// Create a repo with one Python file.
+	repoPath := t.TempDir()
+	filePath := filepath.Join(repoPath, "app.py")
+	if err := os.WriteFile(filePath, []byte("# changed content\nprint('v2')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate that app.py was previously indexed with a different hash.
+	store := &orderingStore{
+		existingHashes: map[string]string{
+			"app.py": "old_hash_does_not_match",
+		},
+	}
+
+	p := NewPipeline(config.Default(), &fakeEmbedder{dim: 4}, store, "test_collection")
+
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+
+	// Verify operation order: upsert must come BEFORE delete of changed file.
+	upsertIdx := -1
+	deleteIdx := -1
+	for i, op := range store.ops {
+		if op == "upsert" && upsertIdx == -1 {
+			upsertIdx = i
+		}
+		if op == "delete_changed:app.py" {
+			deleteIdx = i
+		}
+	}
+	if upsertIdx == -1 {
+		t.Fatal("expected upsert call, got none")
+	}
+	if deleteIdx == -1 {
+		t.Fatal("expected delete_changed:app.py call, got none; ops: " + fmt.Sprint(store.ops))
+	}
+	if deleteIdx < upsertIdx {
+		t.Errorf("changed-file delete (op %d) happened before upsert (op %d); want delete after upsert\nops: %v",
+			deleteIdx, upsertIdx, store.ops)
+	}
+}
+
+// captureStore extends orderingStore to also record the hash passed to
+// DeleteStaleChunksByFilePath, so tests can verify the correct hash is used.
+type captureStore struct {
+	orderingStore
+	capturedHash string
+}
+
+func (s *captureStore) DeleteStaleChunksByFilePath(_ context.Context, _, _, filePath, currentHash string) error {
+	s.ops = append(s.ops, "delete_changed:"+filePath)
+	s.capturedHash = currentHash
+	return nil
+}
+
+func TestPipeline_RunDeletesChangedFileChunksWithCurrentHash(t *testing.T) {
+	t.Parallel()
+
+	repoPath := t.TempDir()
+	filePath := filepath.Join(repoPath, "app.py")
+	if err := os.WriteFile(filePath, []byte("# v2\nprint('hello')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate app.py was previously indexed with a different hash.
+	store := &captureStore{
+		orderingStore: orderingStore{
+			existingHashes: map[string]string{
+				"app.py": "old_hash_does_not_match",
+			},
+		},
+	}
+
+	p := NewPipeline(config.Default(), &fakeEmbedder{dim: 4}, store, "test_collection")
+
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+
+	if store.capturedHash == "" {
+		t.Fatal("DeleteStaleChunksByFilePath was not called for the changed file")
+	}
+	if store.capturedHash == "old_hash_does_not_match" {
+		t.Fatal("DeleteStaleChunksByFilePath called with old hash — would delete freshly upserted chunks")
+	}
+}
+
+func TestPipeline_RunDeletesStaleFiles(t *testing.T) {
+	t.Parallel()
+
+	// Create a repo with one file — but Qdrant has two (the other is stale).
+	repoPath := t.TempDir()
+	filePath := filepath.Join(repoPath, "kept.py")
+	if err := os.WriteFile(filePath, []byte("# still here\nprint('ok')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Hash the kept file to simulate it being new (not in existingHashes).
+	// removed.py is in Qdrant but not on disk → stale.
+	store := &orderingStore{
+		existingHashes: map[string]string{
+			"removed.py": "doesnt_matter",
+		},
+	}
+
+	p := NewPipeline(config.Default(), &fakeEmbedder{dim: 4}, store, "test_collection")
+
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+
+	// Verify stale file deletion happens (order relative to upsert doesn't matter
+	// for stale files, but it should be present).
+	found := false
+	for _, op := range store.ops {
+		if op == "delete:removed.py" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected delete:removed.py in ops, got: %v", store.ops)
+	}
 }

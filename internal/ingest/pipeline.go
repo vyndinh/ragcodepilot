@@ -15,8 +15,9 @@ type vectorStore interface {
 	EnsureCollection(ctx context.Context, name string, vectorSize uint64) error
 	EnsurePayloadIndexes(ctx context.Context, collection string) error
 	Upsert(ctx context.Context, collection string, chunks []model.CodeChunk, vectors [][]float32) error
-	ScrollFileHashes(ctx context.Context, collection, repo string) (map[string]string, error)
+	ScrollFileHashes(ctx context.Context, collection, repo string, languages []string) (map[string]string, error)
 	DeleteByFilePaths(ctx context.Context, collection, repo string, filePaths []string) error
+	DeleteStaleChunksByFilePath(ctx context.Context, collection, repo, filePath, currentHash string) error
 }
 
 // Pipeline orchestrates the ingestion flow: walk → chunk → embed → upsert.
@@ -104,15 +105,19 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 	}
 
 	// Step 4: Get existing file hashes from Qdrant.
-	existingHashes, err := p.store.ScrollFileHashes(ctx, p.collection, repoName)
+	// Scope the scroll to the same languages being indexed, so language-filtered
+	// re-indexing (e.g. --language go) doesn't see points for other languages
+	// and misclassify them as stale.
+	existingHashes, err := p.store.ScrollFileHashes(ctx, p.collection, repoName, p.languageKeys())
 	if err != nil {
 		return fmt.Errorf("scrolling existing hashes: %w", err)
 	}
 
 	// Step 5: Classify files.
 	// Convert absolute paths to relative paths for comparison with Qdrant payloads.
-	var filesToIndex []string  // new or changed files (absolute paths)
-	var filesToDelete []string // changed or stale files (relative paths)
+	var filesToIndex []string // new or changed files (absolute paths)
+	var staleFiles []string   // exist in Qdrant but not on disk (relative paths)
+	var changedFiles []string // exist in Qdrant with different hash (relative paths)
 	skipped := 0
 
 	relHashes := make(map[string]string, len(diskHashes))
@@ -135,8 +140,8 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 			continue
 		}
 		if exists {
-			// File changed — mark for deletion then re-index.
-			filesToDelete = append(filesToDelete, rel)
+			// File changed — mark for post-upsert cleanup.
+			changedFiles = append(changedFiles, rel)
 		}
 		// New or changed — add to index list.
 		filesToIndex = append(filesToIndex, absFile)
@@ -145,30 +150,27 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 	// Stale files: exist in Qdrant but not on disk.
 	for existingRel := range existingHashes {
 		if _, onDisk := relHashes[existingRel]; !onDisk {
-			filesToDelete = append(filesToDelete, existingRel)
+			staleFiles = append(staleFiles, existingRel)
 		}
 	}
 
-	staleCount := len(filesToDelete) - (len(filesToIndex) - countNew(relHashes, existingHashes))
-	if staleCount < 0 {
-		staleCount = 0
-	}
-	changedCount := len(filesToDelete) - staleCount
+	changedCount := len(changedFiles)
 	newCount := len(filesToIndex) - changedCount
+	staleCount := len(staleFiles)
 
 	fmt.Printf("Change detection: %d unchanged (skip), %d changed, %d new, %d stale\n",
 		skipped, changedCount, newCount, staleCount)
 
-	// Step 6: Delete stale + changed file points.
-	if len(filesToDelete) > 0 {
-		if err := p.store.DeleteByFilePaths(ctx, p.collection, repoName, filesToDelete); err != nil {
-			return fmt.Errorf("deleting stale/changed points: %w", err)
+	// Step 6: Delete stale file points immediately (no replacement coming).
+	if len(staleFiles) > 0 {
+		if err := p.store.DeleteByFilePaths(ctx, p.collection, repoName, staleFiles); err != nil {
+			return fmt.Errorf("deleting stale points: %w", err)
 		}
-		fmt.Printf("Deleted points for %d files\n", len(filesToDelete))
+		fmt.Printf("Deleted points for %d stale files\n", len(staleFiles))
 	}
 
 	if len(filesToIndex) == 0 {
-		if len(filesToDelete) > 0 {
+		if len(staleFiles) > 0 {
 			fmt.Println("Cleaned up stale files — no new indexing needed")
 		} else {
 			fmt.Println("Everything up to date — nothing to index")
@@ -251,19 +253,22 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 		fmt.Printf("Indexed %d/%d chunks\n", end, len(allChunks))
 	}
 
-	fmt.Printf("Successfully indexed %d chunks into collection %q\n", len(allChunks), p.collection)
-	return nil
-}
-
-// countNew counts files that exist on disk but not in Qdrant.
-func countNew(relHashes map[string]string, existingHashes map[string]string) int {
-	count := 0
-	for rel := range relHashes {
-		if _, exists := existingHashes[rel]; !exists {
-			count++
+	// Step 9: Remove orphaned chunks for changed files.
+	// Filters by file_hash != current_hash so only old-hash points (chunks whose
+	// start_line shifted and were not overwritten by the upsert) are removed.
+	// New-hash points upserted in Step 8 are preserved. If the process crashes
+	// before here, old points remain searchable until the next run.
+	for _, rel := range changedFiles {
+		if err := p.store.DeleteStaleChunksByFilePath(ctx, p.collection, repoName, rel, relHashes[rel]); err != nil {
+			return fmt.Errorf("deleting stale chunks for %s: %w", rel, err)
 		}
 	}
-	return count
+	if len(changedFiles) > 0 {
+		fmt.Printf("Cleaned up stale chunks for %d changed files\n", len(changedFiles))
+	}
+
+	fmt.Printf("Successfully indexed %d chunks into collection %q\n", len(allChunks), p.collection)
+	return nil
 }
 
 func (p *Pipeline) filterFilesByLanguage(files []string) []string {
@@ -279,4 +284,17 @@ func (p *Pipeline) filterFilesByLanguage(files []string) []string {
 		}
 	}
 	return filtered
+}
+
+// languageKeys returns the language filter keys as a slice.
+// Returns nil when no language filter is set (full re-index).
+func (p *Pipeline) languageKeys() []string {
+	if len(p.languages) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(p.languages))
+	for lang := range p.languages {
+		keys = append(keys, lang)
+	}
+	return keys
 }
