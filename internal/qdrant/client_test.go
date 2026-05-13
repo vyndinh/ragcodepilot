@@ -326,7 +326,7 @@ func TestClient_SearchNoFilters(t *testing.T) {
 	sdk := &fakeSDKClient{}
 	client := &Client{conn: sdk}
 
-	_, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, 5, nil, nil)
+	_, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, nil, SearchModeDense, 5, nil, nil)
 	if err != nil {
 		t.Fatalf("Search() unexpected error: %v", err)
 	}
@@ -347,7 +347,7 @@ func TestClient_SearchLanguageOnly(t *testing.T) {
 	sdk := &fakeSDKClient{}
 	client := &Client{conn: sdk}
 
-	_, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, 5, []string{"go", "rust"}, nil)
+	_, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, nil, SearchModeDense, 5, []string{"go", "rust"}, nil)
 	if err != nil {
 		t.Fatalf("Search() unexpected error: %v", err)
 	}
@@ -374,7 +374,7 @@ func TestClient_SearchRepoOnly(t *testing.T) {
 	sdk := &fakeSDKClient{}
 	client := &Client{conn: sdk}
 
-	_, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, 5, nil, []string{"ragcodepilot"})
+	_, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, nil, SearchModeDense, 5, nil, []string{"ragcodepilot"})
 	if err != nil {
 		t.Fatalf("Search() unexpected error: %v", err)
 	}
@@ -401,7 +401,7 @@ func TestClient_SearchLanguageAndRepo(t *testing.T) {
 	sdk := &fakeSDKClient{}
 	client := &Client{conn: sdk}
 
-	_, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, 5, []string{"go"}, []string{"ragcodepilot", "other"})
+	_, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, nil, SearchModeDense, 5, []string{"go"}, []string{"ragcodepilot", "other"})
 	if err != nil {
 		t.Fatalf("Search() unexpected error: %v", err)
 	}
@@ -449,7 +449,7 @@ func TestClient_SearchReturnsResults(t *testing.T) {
 	}
 	client := &Client{conn: sdk}
 
-	results, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, 5, nil, nil)
+	results, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, nil, SearchModeDense, 5, nil, nil)
 	if err != nil {
 		t.Fatalf("Search() unexpected error: %v", err)
 	}
@@ -465,6 +465,202 @@ func TestClient_SearchReturnsResults(t *testing.T) {
 	}
 	if r.Chunk.Name != "Run" {
 		t.Errorf("name = %q, want Run", r.Chunk.Name)
+	}
+}
+
+// --- Sparse search test ---
+
+func TestClient_SearchSparseMode(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{}
+	client := &Client{conn: sdk}
+
+	sv := &embedding.SparseVector{
+		Indices: []uint32{100, 200},
+		Values:  []float32{0.8, 0.5},
+	}
+
+	_, err := client.Search(context.Background(), "code_chunks", nil, sv, SearchModeSparse, 5, nil, nil)
+	if err != nil {
+		t.Fatalf("Search(sparse) unexpected error: %v", err)
+	}
+	if sdk.queryCalls != 1 {
+		t.Fatalf("Query calls = %d, want 1", sdk.queryCalls)
+	}
+	if got := sdk.queriedReq.GetUsing(); got != "sparse" {
+		t.Fatalf("Using = %q, want \"sparse\"", got)
+	}
+	if sdk.queriedReq.Filter != nil {
+		t.Fatal("expected nil filter when no languages or repos")
+	}
+}
+
+// --- Hybrid search tests ---
+
+func TestClient_SearchHybridMode(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{}
+	client := &Client{conn: sdk}
+
+	sv := &embedding.SparseVector{
+		Indices: []uint32{100, 200},
+		Values:  []float32{0.8, 0.5},
+	}
+
+	_, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, sv, SearchModeHybrid, 5, nil, nil)
+	if err != nil {
+		t.Fatalf("Search(hybrid) unexpected error: %v", err)
+	}
+	if sdk.queryCalls != 1 {
+		t.Fatalf("Query calls = %d, want 1", sdk.queryCalls)
+	}
+
+	req := sdk.queriedReq
+
+	// Verify RRF query at top level.
+	if req.GetQuery().GetRrf() == nil {
+		t.Fatal("expected RRF query at top level")
+	}
+	if got := req.GetQuery().GetRrf().GetK(); got != uint32(rrfK) {
+		t.Fatalf("RRF k = %d, want %d", got, rrfK)
+	}
+
+	// Verify two prefetch queries.
+	if len(req.Prefetch) != 2 {
+		t.Fatalf("Prefetch count = %d, want 2", len(req.Prefetch))
+	}
+
+	// Prefetch[0] = dense.
+	densePrefetch := req.Prefetch[0]
+	if got := densePrefetch.GetUsing(); got != "dense" {
+		t.Fatalf("Prefetch[0] Using = %q, want \"dense\"", got)
+	}
+	if densePrefetch.GetLimit() != 10 { // limit * 2
+		t.Fatalf("Prefetch[0] Limit = %d, want 10", densePrefetch.GetLimit())
+	}
+
+	// Prefetch[1] = sparse.
+	sparsePrefetch := req.Prefetch[1]
+	if got := sparsePrefetch.GetUsing(); got != "sparse" {
+		t.Fatalf("Prefetch[1] Using = %q, want \"sparse\"", got)
+	}
+
+	// Top-level has no filter — filters are on prefetches.
+	if req.Filter != nil {
+		t.Fatal("expected nil filter at top level for hybrid (filters go on prefetches)")
+	}
+}
+
+func TestClient_SearchHybridWithFilters(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{}
+	client := &Client{conn: sdk}
+
+	sv := &embedding.SparseVector{
+		Indices: []uint32{100},
+		Values:  []float32{0.5},
+	}
+
+	_, err := client.Search(context.Background(), "code_chunks", []float32{1, 2, 3}, sv, SearchModeHybrid, 5, []string{"go"}, []string{"myrepo"})
+	if err != nil {
+		t.Fatalf("Search(hybrid+filters) unexpected error: %v", err)
+	}
+
+	req := sdk.queriedReq
+
+	// Filters on each prefetch, not top level.
+	if req.Filter != nil {
+		t.Fatal("expected nil filter at top level")
+	}
+	for i, pf := range req.Prefetch {
+		if pf.Filter == nil {
+			t.Fatalf("Prefetch[%d] expected non-nil filter", i)
+		}
+		if len(pf.Filter.Must) != 2 {
+			t.Fatalf("Prefetch[%d] Must conditions = %d, want 2 (language + repo)", i, len(pf.Filter.Must))
+		}
+	}
+}
+
+// --- Search error cases ---
+
+func TestClient_SearchRejectsMissingDenseForDenseMode(t *testing.T) {
+	t.Parallel()
+
+	client := &Client{conn: &fakeSDKClient{}}
+	_, err := client.Search(context.Background(), "code_chunks", nil, nil, SearchModeDense, 5, nil, nil)
+	if err == nil {
+		t.Fatal("expected error for nil dense vector in dense mode")
+	}
+}
+
+func TestClient_SearchRejectsMissingSparseForSparseMode(t *testing.T) {
+	t.Parallel()
+
+	client := &Client{conn: &fakeSDKClient{}}
+	_, err := client.Search(context.Background(), "code_chunks", []float32{1}, nil, SearchModeSparse, 5, nil, nil)
+	if err == nil {
+		t.Fatal("expected error for nil sparse vector in sparse mode")
+	}
+}
+
+func TestClient_SearchRejectsMissingVectorsForHybridMode(t *testing.T) {
+	t.Parallel()
+
+	client := &Client{conn: &fakeSDKClient{}}
+
+	// Missing dense.
+	sv := &embedding.SparseVector{Indices: []uint32{1}, Values: []float32{1.0}}
+	_, err := client.Search(context.Background(), "code_chunks", nil, sv, SearchModeHybrid, 5, nil, nil)
+	if err == nil {
+		t.Fatal("expected error for nil dense vector in hybrid mode")
+	}
+
+	// Missing sparse.
+	_, err = client.Search(context.Background(), "code_chunks", []float32{1}, nil, SearchModeHybrid, 5, nil, nil)
+	if err == nil {
+		t.Fatal("expected error for nil sparse vector in hybrid mode")
+	}
+}
+
+func TestClient_SearchRejectsUnknownMode(t *testing.T) {
+	t.Parallel()
+
+	client := &Client{conn: &fakeSDKClient{}}
+	_, err := client.Search(context.Background(), "code_chunks", []float32{1}, nil, SearchMode("magic"), 5, nil, nil)
+	if err == nil {
+		t.Fatal("expected error for unknown search mode")
+	}
+}
+
+func TestClient_SearchRejectsMalformedSparseVector(t *testing.T) {
+	t.Parallel()
+
+	client := &Client{conn: &fakeSDKClient{}}
+	malformed := &embedding.SparseVector{
+		Indices: []uint32{1, 2, 3},
+		Values:  []float32{0.5}, // length mismatch
+	}
+
+	// Sparse mode.
+	_, err := client.Search(context.Background(), "code_chunks", nil, malformed, SearchModeSparse, 5, nil, nil)
+	if err == nil {
+		t.Fatal("expected error for malformed sparse vector in sparse mode")
+	}
+	if !strings.Contains(err.Error(), "indices/values length mismatch") {
+		t.Fatalf("error = %q, want indices/values mismatch", err.Error())
+	}
+
+	// Hybrid mode.
+	_, err = client.Search(context.Background(), "code_chunks", []float32{1}, malformed, SearchModeHybrid, 5, nil, nil)
+	if err == nil {
+		t.Fatal("expected error for malformed sparse vector in hybrid mode")
+	}
+	if !strings.Contains(err.Error(), "indices/values length mismatch") {
+		t.Fatalf("error = %q, want indices/values mismatch", err.Error())
 	}
 }
 
