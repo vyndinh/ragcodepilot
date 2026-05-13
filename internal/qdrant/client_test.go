@@ -32,7 +32,10 @@ func TestClient_EnsureCollectionCreatesMissingCollection(t *testing.T) {
 	if got := sdk.created.GetCollectionName(); got != "code_chunks" {
 		t.Fatalf("created collection = %q, want code_chunks", got)
 	}
-	params := sdk.created.GetVectorsConfig().GetParams()
+	params := sdk.created.GetVectorsConfig().GetParamsMap().GetMap()["dense"]
+	if params == nil {
+		t.Fatal("expected named 'dense' vector in created collection")
+	}
 	if got := params.GetSize(); got != 384 {
 		t.Fatalf("created vector size = %d, want 384", got)
 	}
@@ -101,6 +104,27 @@ func TestClient_EnsureCollectionRejectsMismatchedExistingDimension(t *testing.T)
 	}
 	if sdk.createCalls != 0 {
 		t.Fatalf("CreateCollection calls = %d, want 0", sdk.createCalls)
+	}
+}
+
+func TestClient_EnsureCollectionRejectsLegacyUnnamedSchema(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{
+		exists: true,
+		info:   collectionInfoLegacy(384),
+	}
+	client := &Client{conn: sdk}
+
+	err := client.EnsureCollection(context.Background(), "code_chunks", 384)
+	if err == nil {
+		t.Fatal("expected error for legacy unnamed-vector schema")
+	}
+	if !strings.Contains(err.Error(), "legacy unnamed-vector schema") {
+		t.Fatalf("error = %q, want substring about legacy schema", err.Error())
+	}
+	if !strings.Contains(err.Error(), "delete and re-index") {
+		t.Fatalf("error = %q, want substring about delete and re-index", err.Error())
 	}
 }
 
@@ -260,6 +284,23 @@ func collectionInfoWithVectorSize(size uint64) *pb.CollectionInfo {
 	return &pb.CollectionInfo{
 		Config: &pb.CollectionConfig{
 			Params: &pb.CollectionParams{
+				VectorsConfig: pb.NewVectorsConfigMap(map[string]*pb.VectorParams{
+					"dense": {
+						Size:     size,
+						Distance: pb.Distance_Cosine,
+					},
+				}),
+			},
+		},
+	}
+}
+
+// collectionInfoLegacy returns a CollectionInfo with the old unnamed-vector
+// schema. Used to test legacy schema detection and migration error.
+func collectionInfoLegacy(size uint64) *pb.CollectionInfo {
+	return &pb.CollectionInfo{
+		Config: &pb.CollectionConfig{
+			Params: &pb.CollectionParams{
 				VectorsConfig: pb.NewVectorsConfig(&pb.VectorParams{
 					Size:     size,
 					Distance: pb.Distance_Cosine,
@@ -286,6 +327,9 @@ func TestClient_SearchNoFilters(t *testing.T) {
 	}
 	if sdk.queriedReq.Filter != nil {
 		t.Fatal("expected nil filter when no languages or repos")
+	}
+	if got := sdk.queriedReq.GetUsing(); got != "dense" {
+		t.Fatalf("Using = %q, want \"dense\"", got)
 	}
 }
 
@@ -604,7 +648,44 @@ func TestClient_DeleteByFilePathsNoOpOnEmpty(t *testing.T) {
 	}
 }
 
-// --- Upsert batch tests ---
+// --- Upsert tests ---
+
+func TestClient_UpsertUsesNamedDenseVector(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{}
+	client := &Client{conn: sdk}
+
+	chunks := []model.CodeChunk{{
+		ID:       "00000000-0000-0000-0000-000000000001",
+		Repo:     "testrepo",
+		FilePath: "main.go",
+		Language: "go",
+		Content:  "func main() {}",
+	}}
+	vectors := [][]float32{{1.0, 2.0, 3.0}}
+
+	err := client.Upsert(context.Background(), "code_chunks", chunks, vectors)
+	if err != nil {
+		t.Fatalf("Upsert() unexpected error: %v", err)
+	}
+	if sdk.upsertCalls != 1 {
+		t.Fatalf("Upsert calls = %d, want 1", sdk.upsertCalls)
+	}
+
+	point := sdk.upsertedReqs[0].GetPoints()[0]
+	vectorsMap := point.GetVectors().GetVectors().GetVectors()
+	if vectorsMap == nil {
+		t.Fatal("expected VectorsMap, got nil")
+	}
+	denseVec, ok := vectorsMap["dense"]
+	if !ok {
+		t.Fatal("expected 'dense' key in VectorsMap")
+	}
+	if len(denseVec.GetDense().GetData()) != 3 {
+		t.Fatalf("dense vector length = %d, want 3", len(denseVec.GetDense().GetData()))
+	}
+}
 
 func TestClient_UpsertBatchSplitting(t *testing.T) {
 	t.Parallel()
