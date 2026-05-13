@@ -71,7 +71,7 @@ func (s *Searcher) SearchWithTimings(ctx context.Context, collection, query stri
 
 	// Search Qdrant.
 	qdrantStart := time.Now()
-	results, err := s.client.Search(ctx, collection, vectors[0], limit, languages, repos)
+	results, err := s.client.Search(ctx, collection, vectors[0], nil, qdrant.SearchModeDense, limit, languages, repos)
 	t.Qdrant = time.Since(qdrantStart)
 	t.Total = time.Since(totalStart)
 	if err != nil {

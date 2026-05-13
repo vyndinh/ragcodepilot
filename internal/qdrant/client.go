@@ -237,18 +237,133 @@ func (c *Client) Upsert(ctx context.Context, collection string, chunks []model.C
 	return nil
 }
 
-// Search performs a vector similarity search and returns the top results.
-func (c *Client) Search(ctx context.Context, collection string, queryVector []float32, limit uint64, languages, repos []string) ([]model.SearchResult, error) {
-	queryPoints := &pb.QueryPoints{
-		CollectionName: collection,
-		Query:          pb.NewQueryDense(queryVector),
-		Using:          pb.PtrOf("dense"),
-		Limit:          pb.PtrOf(limit),
-		WithPayload:    pb.NewWithPayload(true),
+// SearchMode controls which query path is used.
+type SearchMode string
+
+const (
+	// SearchModeDense uses only the dense vector for retrieval.
+	SearchModeDense SearchMode = "dense"
+	// SearchModeSparse uses only the sparse vector for retrieval.
+	SearchModeSparse SearchMode = "sparse"
+	// SearchModeHybrid fuses dense and sparse results via server-side RRF.
+	SearchModeHybrid SearchMode = "hybrid"
+)
+
+// rrfK is the standard Reciprocal Rank Fusion constant. Hardcoded per the
+// hybrid search plan — no tuning beyond this single value.
+const rrfK = 60
+
+// Search performs a vector search using the specified mode.
+//
+// Parameters:
+//   - denseVector: required for dense and hybrid modes (nil for sparse-only).
+//   - sparseVector: required for sparse and hybrid modes (nil for dense-only).
+//   - mode: selects the query shape (dense / sparse / hybrid).
+//
+// For hybrid mode, two PrefetchQuery stages (dense + sparse) are fused via
+// server-side RRF (k=60). Filters are applied on each prefetch stage, not at
+// the top level, to ensure correct ranking before fusion.
+func (c *Client) Search(
+	ctx context.Context,
+	collection string,
+	denseVector []float32,
+	sparseVector *embedding.SparseVector,
+	mode SearchMode,
+	limit uint64,
+	languages, repos []string,
+) ([]model.SearchResult, error) {
+
+	// Build the filter once — reused across prefetches and single-mode queries.
+	filter := buildFilter(languages, repos)
+
+	var queryPoints *pb.QueryPoints
+
+	switch mode {
+	case SearchModeDense:
+		if denseVector == nil {
+			return nil, fmt.Errorf("dense vector required for dense search mode")
+		}
+		queryPoints = &pb.QueryPoints{
+			CollectionName: collection,
+			Query:          pb.NewQueryDense(denseVector),
+			Using:          pb.PtrOf("dense"),
+			Limit:          pb.PtrOf(limit),
+			WithPayload:    pb.NewWithPayload(true),
+			Filter:         filter,
+		}
+
+	case SearchModeSparse:
+		if sparseVector == nil {
+			return nil, fmt.Errorf("sparse vector required for sparse search mode")
+		}
+		if err := validateSparseVector(sparseVector); err != nil {
+			return nil, err
+		}
+		queryPoints = &pb.QueryPoints{
+			CollectionName: collection,
+			Query:          pb.NewQuerySparse(sparseVector.Indices, sparseVector.Values),
+			Using:          pb.PtrOf("sparse"),
+			Limit:          pb.PtrOf(limit),
+			WithPayload:    pb.NewWithPayload(true),
+			Filter:         filter,
+		}
+
+	case SearchModeHybrid:
+		if denseVector == nil {
+			return nil, fmt.Errorf("dense vector required for hybrid search mode")
+		}
+		if sparseVector == nil {
+			return nil, fmt.Errorf("sparse vector required for hybrid search mode")
+		}
+		if err := validateSparseVector(sparseVector); err != nil {
+			return nil, err
+		}
+		prefetchLimit := limit * 2
+		queryPoints = &pb.QueryPoints{
+			CollectionName: collection,
+			Prefetch: []*pb.PrefetchQuery{
+				{
+					Query:  pb.NewQueryDense(denseVector),
+					Using:  pb.PtrOf("dense"),
+					Limit:  pb.PtrOf(prefetchLimit),
+					Filter: filter,
+				},
+				{
+					Query:  pb.NewQuerySparse(sparseVector.Indices, sparseVector.Values),
+					Using:  pb.PtrOf("sparse"),
+					Limit:  pb.PtrOf(prefetchLimit),
+					Filter: filter,
+				},
+			},
+			Query:       pb.NewQueryRRF(&pb.Rrf{K: pb.PtrOf(uint32(rrfK))}),
+			Limit:       pb.PtrOf(limit),
+			WithPayload: pb.NewWithPayload(true),
+		}
+
+	default:
+		return nil, fmt.Errorf("unknown search mode: %q", mode)
 	}
 
-	// Build filter: language and repo are AND-ed (Must).
-	// Within each, multiple values are OR-ed (Should).
+	response, err := c.conn.Query(ctx, queryPoints)
+	if err != nil {
+		return nil, fmt.Errorf("searching collection %s: %w", collection, err)
+	}
+
+	results := make([]model.SearchResult, 0, len(response))
+	for _, point := range response {
+		chunk := payloadToChunk(point.Payload)
+		results = append(results, model.SearchResult{
+			Chunk: chunk,
+			Score: point.Score,
+		})
+	}
+
+	return results, nil
+}
+
+// buildFilter constructs a Qdrant filter from language and repo slices.
+// Returns nil when no filters are specified.
+func buildFilter(languages, repos []string) *pb.Filter {
 	var mustConditions []*pb.Condition
 
 	if len(languages) > 0 {
@@ -275,25 +390,20 @@ func (c *Client) Search(ctx context.Context, collection string, queryVector []fl
 		})
 	}
 
-	if len(mustConditions) > 0 {
-		queryPoints.Filter = &pb.Filter{Must: mustConditions}
+	if len(mustConditions) == 0 {
+		return nil
 	}
+	return &pb.Filter{Must: mustConditions}
+}
 
-	response, err := c.conn.Query(ctx, queryPoints)
-	if err != nil {
-		return nil, fmt.Errorf("searching collection %s: %w", collection, err)
+// validateSparseVector checks that a sparse vector's Indices and Values slices
+// have the same length. Returns a clear local error instead of letting a
+// malformed vector reach the Qdrant gRPC endpoint.
+func validateSparseVector(sv *embedding.SparseVector) error {
+	if len(sv.Indices) != len(sv.Values) {
+		return fmt.Errorf("sparse vector indices/values length mismatch: %d vs %d", len(sv.Indices), len(sv.Values))
 	}
-
-	results := make([]model.SearchResult, 0, len(response))
-	for _, point := range response {
-		chunk := payloadToChunk(point.Payload)
-		results = append(results, model.SearchResult{
-			Chunk: chunk,
-			Score: point.Score,
-		})
-	}
-
-	return results, nil
+	return nil
 }
 
 // ListCollections returns the names of all collections.
