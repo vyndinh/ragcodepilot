@@ -6,6 +6,7 @@
 - Before working on a feature, skim the `docs/` folder for relevant docs (e.g. `docs/plan/mvp_roadmap.md`, `docs/plan/system_design.md`, `docs/plan/checklist.md` - tracks the original phase plan ); these are the source of truth for cross-cutting features and working conventions
 - **`docs/` files use pseudocode, not Go.** When expressing a code idea in any file under `docs/`, write language-agnostic pseudocode (e.g. `function HitAtK(results, k) → bool`) instead of real Go syntax. Real Go code belongs only in `internal/`, `cmd/`, or test files.
 - **Use t-shirt sizes for estimates.** When estimating effort in planning docs, use t-shirt sizes (S / M / L / XL) instead of week counts. They communicate relative effort without false precision.
+- **Doc review feedback goes inline, not in a sibling file.** When asked to review a document, insert feedback directly into that file as `FEEDBACK: <comment>` lines at the relevant location. Do not create a separate `*_with_feedback.md` or similar file.
 
 ## Project Overview
 

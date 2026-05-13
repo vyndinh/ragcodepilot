@@ -245,5 +245,3 @@ ragcodepilot search "HNSW graph insert neighbor selection" --language rust
 ```
 
 Read the Rust patterns, then write idiomatic Go. This is already detailed in the artifact from our previous discussion.
-
-Want me to create an implementation plan for Phase 1 (vector math + flat search) so you can start building?
