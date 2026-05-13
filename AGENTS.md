@@ -3,9 +3,9 @@
 ## Rules
 
 - **Never `git push` autonomously.** Always stop after committing locally. Let the user review and push themselves.
-- Before working on a feature, skim the `docs/` folder for relevant docs (e.g. `docs/system_design.md`, `docs/checklist.md`, `docs/vector_DB_core.md`, `docs/vector_DB_app.md`); these are the source of truth for cross-cutting features and working conventions
+- Before working on a feature, skim the `docs/` folder for relevant docs (e.g. `docs/plan/mvp_roadmap.md`, `docs/plan/system_design.md`, `docs/plan/checklist.md` - tracks the original phase plan ); these are the source of truth for cross-cutting features and working conventions
 - **`docs/` files use pseudocode, not Go.** When expressing a code idea in any file under `docs/`, write language-agnostic pseudocode (e.g. `function HitAtK(results, k) → bool`) instead of real Go syntax. Real Go code belongs only in `internal/`, `cmd/`, or test files.
-
+- **Use t-shirt sizes for estimates.** When estimating effort in planning docs, use t-shirt sizes (S / M / L / XL) instead of week counts. They communicate relative effort without false precision.
 
 ## Project Overview
 
@@ -57,11 +57,13 @@ ragcodepilot/
 ### Key Data Flow
 
 **Ingestion:**
+
 ```
 Git repo → File walker → Language filter → Chunker (Go AST / generic) → Enrichment → Ollama embed → Batch upsert → Qdrant
 ```
 
 **Search:**
+
 ```
 Natural-language query → Ollama embed → Qdrant vector search (with optional language/repo filters) → Formatted results
 ```

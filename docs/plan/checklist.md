@@ -112,18 +112,29 @@ Last updated: 2026-05-08
 ### Remaining (Phase 2)
 - [x] Add Qdrant payload indexes for `repo`, `language`, `file_path` (filtered search performance)
 - [x] Fix point ID strategy: `repo+file+symbol+chunk_index` instead of `repo+file+start_line`
-- [ ] Re-indexing: file-hash change detection + delete stale points by filter
+- [x] Re-indexing: file-hash change detection + delete stale points by filter
 - [ ] Regex heuristic chunkers for Python/Rust (optional, see `docs/plan/function_level_chunker.md`)
 
 ---
 
 ## Phase 3: Hybrid search
 
-- [ ] Simple eval harness (`ragcodepilot eval` with `hit@k`, `MRR@5`) — build before hybrid search
+- [x] Simple eval harness (`ragcodepilot eval` with `hit@k`, `MRR@5`) — build before hybrid search
 - [ ] Add sparse vectors for BM25 keyword matching
 - [ ] Implement hybrid search with RRF score fusion
 - [ ] Add exact function name search
 - [ ] Add observability hooks (embedding/Qdrant latency timing)
+
+---
+
+## Incremental processing improvements
+
+> See [`docs/improvement/incremental_processing_roadmap.md`](../improvement/incremental_processing_roadmap.md) for full design details.
+
+- [ ] Pipeline version fingerprint — detect enrichment/model/chunker changes and force re-index
+- [ ] Chunk-level change detection — skip unchanged chunks within changed files
+- [ ] Watch mode (`ragcodepilot watch`) — live filesystem sync via fsnotify
+- [ ] DAG pipeline / multi-source reconciliation (future vision)
 
 ---
 

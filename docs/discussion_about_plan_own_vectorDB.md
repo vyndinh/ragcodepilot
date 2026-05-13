@@ -18,11 +18,10 @@ Here are my suggestions and ideas on how to approach building this custom Vector
 
 ### 1. The "Interface-First" Approach
 Since you already have a working RAG pipeline with Qdrant, your first step should be to define a strict Go interface for your vector storage. 
-```go
-type VectorStore interface {
-    Upsert(ctx context.Context, id string, vector []float32, payload map[string]any) error
-    Search(ctx context.Context, query []float32, topK int, filter map[string]any) ([]SearchResult, error)
-}
+```
+VectorStore interface:
+  Upsert(id, vector[], payload)    → error
+  Search(query[], topK, filter)    → results[]
 ```
 This allows you to hot-swap Qdrant with your custom DB. Your initial goal is simply to make your RAG pipeline work end-to-end using your own database without changing the application logic.
 

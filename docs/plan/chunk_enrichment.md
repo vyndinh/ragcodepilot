@@ -8,7 +8,7 @@ Current behavior:
 
 - `internal/ingest/pipeline.go` extracts `chunk.Content` (raw code) and passes it directly to the embedder:
 
-  ```go
+  ```
   texts[i] = chunk.Content
   ```
 
@@ -68,38 +68,29 @@ Result: ingest/pipeline.go:Run (higher score)  ← metadata words "ingest", "pip
 
 Add a function in `internal/ingest/pipeline.go` (or a new file `internal/ingest/enrichment.go`):
 
-```go
-func enrichForEmbedding(chunk model.CodeChunk) string {
-    var b strings.Builder
+```
+enrichForEmbedding(chunk) → enriched_text:
 
-    fmt.Fprintf(&b, "File: %s\n", chunk.FilePath)
-    fmt.Fprintf(&b, "Language: %s\n", chunk.Language)
+  text = ""
+  text += "File: {chunk.FilePath}"
+  text += "Language: {chunk.Language}"
 
-    label := chunkTypeLabel(chunk.ChunkType)
-    if chunk.Name != "" {
-        fmt.Fprintf(&b, "%s: %s\n", label, chunk.Name)
-    } else {
-        fmt.Fprintf(&b, "Type: %s\n", label)
-    }
+  label = chunkTypeLabel(chunk.ChunkType)
+  if chunk has a name:
+    text += "{label}: {chunk.Name}"
+  else:
+    text += "Type: {label}"
 
-    b.WriteString("\n")
-    b.WriteString(chunk.Content)
+  text += blank line
+  text += chunk.Content
 
-    return b.String()
-}
+  return text
 
-// chunkTypeLabel returns a human-readable label for the chunk type.
-// Avoids strings.Title which is deprecated since Go 1.18.
-func chunkTypeLabel(chunkType string) string {
-    switch chunkType {
-    case "function":
-        return "Function"
-    case "block":
-        return "Block"
-    default:
-        return "Chunk"
-    }
-}
+
+chunkTypeLabel(type) → label:
+  "function" → "Function"
+  "block"    → "Block"
+  otherwise  → "Chunk"
 ```
 
 Design decisions:
@@ -117,20 +108,14 @@ Change `internal/ingest/pipeline.go` in the embed-and-upsert loop:
 
 Current:
 
-```go
-texts := make([]string, len(batch))
-for i, chunk := range batch {
-    texts[i] = chunk.Content
-}
+```
+texts[i] = chunk.Content
 ```
 
 New:
 
-```go
-texts := make([]string, len(batch))
-for i, chunk := range batch {
-    texts[i] = enrichForEmbedding(chunk)
-}
+```
+texts[i] = enrichForEmbedding(chunk)
 ```
 
 No other pipeline changes are needed. The `chunk.Content` stored in Qdrant payload remains the original raw code.

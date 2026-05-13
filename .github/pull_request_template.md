@@ -11,6 +11,5 @@
 
 ## Checklist
 
-- [ ] `make check` passes locally (vet + lint + tests + build)
 - [ ] New tests added for new behaviour
 - [ ] Relevant docs updated (checklist, system_design, AGENTS.md)
