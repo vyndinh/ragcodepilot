@@ -59,12 +59,14 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
 		return c.validateCollectionDimension(ctx, name, vectorSize)
 	}
 
-	// Create the collection.
+	// Create the collection with named vectors.
 	err = c.conn.CreateCollection(ctx, &pb.CreateCollection{
 		CollectionName: name,
-		VectorsConfig: pb.NewVectorsConfig(&pb.VectorParams{
-			Size:     vectorSize,
-			Distance: pb.Distance_Cosine,
+		VectorsConfig: pb.NewVectorsConfigMap(map[string]*pb.VectorParams{
+			"dense": {
+				Size:     vectorSize,
+				Distance: pb.Distance_Cosine,
+			},
 		}),
 	})
 	if err != nil {
@@ -119,22 +121,49 @@ func (c *Client) ensurePayloadIndexes(ctx context.Context, collection string) er
 
 // validateCollectionDimension checks that an existing collection's vector
 // dimension matches the expected size. Returns a clear error on mismatch.
+//
+// Supports both named-vector (Phase 2+) and unnamed-vector (legacy) schemas.
+// If the collection uses the legacy unnamed schema, it returns an error
+// advising the user to delete and re-index.
 func (c *Client) validateCollectionDimension(ctx context.Context, name string, expectedSize uint64) error {
 	info, err := c.conn.GetCollectionInfo(ctx, name)
 	if err != nil {
 		return fmt.Errorf("getting collection info for %s: %w", name, err)
 	}
 
-	actualSize := info.GetConfig().GetParams().GetVectorsConfig().GetParams().GetSize()
-	if actualSize != expectedSize {
+	vectorsConfig := info.GetConfig().GetParams().GetVectorsConfig()
+
+	// Named-vector schema: look up the "dense" key in the params map.
+	if paramsMap := vectorsConfig.GetParamsMap(); paramsMap != nil {
+		denseParams, ok := paramsMap.GetMap()["dense"]
+		if !ok {
+			return fmt.Errorf(
+				"collection %q has named vectors but no \"dense\" vector; "+
+					"delete the collection and re-index: ragcodepilot collections delete %s",
+				name, name,
+			)
+		}
+		actualSize := denseParams.GetSize()
+		if actualSize != expectedSize {
+			return fmt.Errorf(
+				"collection %q uses %d-dimensional vectors, but the current embedder produces %d-dimensional vectors; "+
+					"delete the collection and re-index, or use a different collection name",
+				name, actualSize, expectedSize,
+			)
+		}
+		return nil
+	}
+
+	// Legacy unnamed-vector schema: advise re-indexing.
+	if params := vectorsConfig.GetParams(); params != nil {
 		return fmt.Errorf(
-			"collection %q uses %d-dimensional vectors, but the current embedder produces %d-dimensional vectors; "+
-				"delete the collection and re-index, or use a different collection name",
-			name, actualSize, expectedSize,
+			"collection %q uses the legacy unnamed-vector schema; "+
+				"delete and re-index:\n  ragcodepilot collections delete %s\n  ragcodepilot index <repo-path>",
+			name, name,
 		)
 	}
 
-	return nil
+	return fmt.Errorf("collection %q has no vector configuration", name)
 }
 
 // ValidateCollectionVectorSize checks that the collection's vector dimension
@@ -152,8 +181,10 @@ func (c *Client) Upsert(ctx context.Context, collection string, chunks []model.C
 	points := make([]*pb.PointStruct, len(chunks))
 	for i, chunk := range chunks {
 		points[i] = &pb.PointStruct{
-			Id:      pb.NewID(chunk.ID),
-			Vectors: pb.NewVectors(vectors[i]...),
+			Id: pb.NewID(chunk.ID),
+			Vectors: pb.NewVectorsMap(map[string]*pb.Vector{
+				"dense": pb.NewVectorDense(vectors[i]),
+			}),
 			Payload: pb.NewValueMap(map[string]any{
 				"repo":       chunk.Repo,
 				"file_path":  chunk.FilePath,
@@ -194,7 +225,8 @@ func (c *Client) Upsert(ctx context.Context, collection string, chunks []model.C
 func (c *Client) Search(ctx context.Context, collection string, queryVector []float32, limit uint64, languages, repos []string) ([]model.SearchResult, error) {
 	queryPoints := &pb.QueryPoints{
 		CollectionName: collection,
-		Query:          pb.NewQuery(queryVector...),
+		Query:          pb.NewQueryDense(queryVector),
+		Using:          pb.PtrOf("dense"),
 		Limit:          pb.PtrOf(limit),
 		WithPayload:    pb.NewWithPayload(true),
 	}
