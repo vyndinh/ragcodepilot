@@ -136,6 +136,27 @@ func TestClient_EnsureCollectionRejectsLegacyUnnamedSchema(t *testing.T) {
 	}
 }
 
+func TestClient_EnsureCollectionRejectsDenseOnlySchema(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{
+		exists: true,
+		info:   collectionInfoDenseOnly(384),
+	}
+	client := &Client{conn: sdk}
+
+	err := client.EnsureCollection(context.Background(), "code_chunks", 384)
+	if err == nil {
+		t.Fatal("expected error for dense-only schema (missing sparse slot)")
+	}
+	if !strings.Contains(err.Error(), "no \"sparse\" slot") {
+		t.Fatalf("error = %q, want substring about missing sparse slot", err.Error())
+	}
+	if !strings.Contains(err.Error(), "delete and re-index") {
+		t.Fatalf("error = %q, want substring about delete and re-index", err.Error())
+	}
+}
+
 func TestClient_EnsureCollectionWrapsExistenceError(t *testing.T) {
 	t.Parallel()
 
@@ -288,7 +309,31 @@ func (f *fakeSDKClient) DeleteCollection(context.Context, string) error {
 	panic("unexpected DeleteCollection call")
 }
 
+// collectionInfoWithVectorSize returns a CollectionInfo with the current
+// Phase 2 schema: named "dense" vector + "sparse" slot. Used to test happy
+// paths where the existing collection matches the current expected schema.
 func collectionInfoWithVectorSize(size uint64) *pb.CollectionInfo {
+	return &pb.CollectionInfo{
+		Config: &pb.CollectionConfig{
+			Params: &pb.CollectionParams{
+				VectorsConfig: pb.NewVectorsConfigMap(map[string]*pb.VectorParams{
+					"dense": {
+						Size:     size,
+						Distance: pb.Distance_Cosine,
+					},
+				}),
+				SparseVectorsConfig: pb.NewSparseVectorsConfig(map[string]*pb.SparseVectorParams{
+					"sparse": {},
+				}),
+			},
+		},
+	}
+}
+
+// collectionInfoDenseOnly returns a CollectionInfo with a named "dense" vector
+// but no sparse slot — the intermediate state from the transitional dense-only
+// step (2a) that should now be rejected.
+func collectionInfoDenseOnly(size uint64) *pb.CollectionInfo {
 	return &pb.CollectionInfo{
 		Config: &pb.CollectionConfig{
 			Params: &pb.CollectionParams{

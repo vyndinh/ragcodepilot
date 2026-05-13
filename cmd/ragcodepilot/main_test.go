@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/dinhvy/ragcodepilot/internal/eval"
+	"github.com/dinhvy/ragcodepilot/internal/search"
 )
 
 func TestResolveIndexConfig_MissingUsesDefault(t *testing.T) {
@@ -101,6 +102,7 @@ func TestRunEvalRejectsLimitBelowDefault(t *testing.T) {
 		"human",
 		eval.DefaultLimit-1,
 		"",
+		search.DefaultSearchMode,
 		"localhost",
 		6334,
 		"ollama",

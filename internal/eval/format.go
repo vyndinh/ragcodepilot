@@ -14,6 +14,7 @@ func FormatHuman(r *Report) string {
 	fmt.Fprintf(&b, "Dataset:    %s\n", r.Dataset)
 	fmt.Fprintf(&b, "Collection: %s\n", r.Collection)
 	fmt.Fprintf(&b, "Embedder:   %s\n", r.Embedder)
+	fmt.Fprintf(&b, "Mode:       %s\n", r.Mode)
 	fmt.Fprintf(&b, "Run ID:     %s\n", r.RunID)
 	fmt.Fprintf(&b, "Queries:    %d (positive %d, negative %d, errors %d)\n",
 		r.Aggregate.Queries, r.Aggregate.Positive, r.Aggregate.Negative, r.Aggregate.Errors)

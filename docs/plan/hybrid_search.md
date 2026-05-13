@@ -8,6 +8,53 @@ Add keyword-based sparse vector search alongside dense vector search so exact-sy
 
 ---
 
+## Eval Results (2026-05-13)
+
+Run on ragcodepilot's own Go corpus (350 chunks, 32 files), 23 golden queries (19 positive, 4 negative), `nomic-embed-text` 768d, Qdrant v1.17.1, RRF `k=60`, prefetch limit `2×limit`.
+
+Canonical baseline: `docs/eval/baseline_v2.json` (the hybrid run).
+
+| Mode | hit@1 | hit@3 | hit@5 | MRR@5 | recall@10 | nav h@5 | con h@5 | beh h@5 | neg pass | p50/p95 ms |
+|---|---|---|---|---|---|---|---|---|---|---|
+| baseline_v1 (P1 dense) | 0.526 | 0.684 | 0.789 | 0.632 | 0.842 | 0.500 | 1.000 | 1.000 | 1.000 | 31/131 |
+| dense (P2) | 0.526 | 0.737 | 0.789 | 0.625 | 0.711 | 0.500 | 1.000 | 1.000 | 1.000 | 29/186 |
+| sparse (P2) | 0.421 | 0.526 | 0.526 | 0.474 | 0.789 | 0.625 | 0.429 | 0.500 | 0.750 | 1/99 |
+| **hybrid (P2)** | 0.421 | 0.737 | **0.895** | 0.607 | 0.816 | **0.750** | 1.000 | 1.000 | 1.000 | 29/173 |
+
+### Exit-criteria check
+
+| Criterion | Result | Status |
+|---|---|---|
+| navigation hit@5 hybrid − dense ≥ +10pp | +25.0pp (0.500 → 0.750) | ✅ |
+| concept hit@5 no regression | ±0.0pp (1.000 → 1.000) | ✅ |
+| behavior hit@5 no regression | ±0.0pp (1.000 → 1.000) | ✅ |
+| dense P2 hit@5 vs baseline_v1 within ±1pp | +0.0pp (0.789 → 0.789) | ✅ |
+| Full test suite passes with `-race` | All packages green | ✅ |
+
+All four numeric criteria met. Phase 2 is done for the documented exit gate.
+
+### Observations worth noting (not blocking)
+
+- **Sparse mode is materially worse on `concept` and `behavior`** (h@5 0.429 / 0.500 vs 1.000 dense). Pure keyword matching doesn't generalize, as expected — sparse is a complement to dense, not a replacement. Hybrid mixing both is what carries.
+- **Sparse mode loses one negative query** (pass rate 0.75 vs 1.000): without dense semantics, BM25-style keyword matching scores some queries higher than expected when they share surface tokens with code. Hybrid mode is unaffected because RRF damps the over-confident sparse rank when dense disagrees.
+- **Hybrid hit@1 dropped 10pp vs dense** (0.526 → 0.421). RRF re-ranks some dense top-1 hits to position 2-3 when sparse disagrees with them. Net effect is still positive for hit@5, MRR@5 is slightly lower (0.607 vs 0.625). Acceptable trade for the +25pp navigation lift.
+- **Dense P2 recall@10 dropped vs baseline_v1** (0.711 vs 0.842). `hit@5` matches exactly (0.789), so this is rank-6-to-10 movement only. **Investigated and resolved as a corpus-stability effect, not a search regression.** Phase 2 added `internal/embedding/sparse.go` and `internal/embedding/sparse_test.go` (~100 new chunks, corpus grew from ~250 to 350). The new test chunks (`TestSplitCamel_DigitsMiddle`, `TestSplitCamel_AllUpper`, `TestTokenize_NumbersAttached`, etc.) share surface tokens — "chunk", "split", "camel" — with navigation queries like "where is ChunkFile defined". Their cosine similarity scores are competitive with the expected definition chunks, pushing them out of the top-10 for two queries. Hybrid mode recovered one of those queries (`validate_collection_vector_size_navigation`) by surfacing the exact symbol match via BM25+RRF; the other (`chunkfile_navigation`) remains displaced because the test names share too many tokens with the target identifier. **The dense algorithm itself is unchanged from Phase 1 — same vectors, same cosine math.** This is the limit of pure-semantic retrieval on a corpus where test code mirrors the names it tests. Phase 3 reranking is the right layer to address it. Same-corpus dense reference for Phase 3 comparisons: `docs/eval/baseline_v2_dense.json`.
+- **Sparse latency** is dramatically lower (1ms p50) because it skips the Ollama embed call — useful if a query type ever proves robust to sparse-only retrieval (it doesn't here).
+
+### Reproduction
+
+```bash
+docker compose up -d
+ollama pull nomic-embed-text
+go run ./cmd/ragcodepilot collections delete code_chunks
+go run ./cmd/ragcodepilot index --language go .
+go run ./cmd/ragcodepilot eval --mode dense  --output json > /tmp/eval_dense.json
+go run ./cmd/ragcodepilot eval --mode sparse --output json > /tmp/eval_sparse.json
+go run ./cmd/ragcodepilot eval --mode hybrid --output json > /tmp/eval_hybrid.json
+```
+
+---
+
 ## Key Design Decision: Server-Side RRF
 
 Qdrant's Go SDK (`v1.17.1`) provides built-in RRF fusion via `PrefetchQuery` + `NewQueryRRF()`. This means:
@@ -71,6 +118,8 @@ For ragcodepilot's stated scale (~200K chunks per `system_design.md`), the IDF m
 **Partial re-index:** For change-detection re-indexing (already supported), either recompute IDF from unchanged-on-disk chunks plus changed ones, OR force a full re-index. Both are acceptable for the MVP; document the choice.
 
 Persist nothing for v1 — recompute each indexing run.
+
+**Known limitation — language-scoped IDF:** When `--language go` (or any single-language filter) is used to re-index a multi-language collection, the IDF is computed only over the chunks of that language. Other languages already in the collection retain the IDF weights from whichever run wrote them. This means cross-language hybrid search has inconsistent sparse weighting across languages — fine for single-language searches (which are the common case via the language filter), but not ideal for unfiltered cross-language hybrid retrieval. Mitigations: use one collection per language, or force a full re-index by deleting the collection before re-indexing. Documented inline at `internal/ingest/pipeline.go:207`.
 
 ### 3. Naming: TF-IDF (not BM25)
 

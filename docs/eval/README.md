@@ -61,6 +61,32 @@ go run ./cmd/ragcodepilot eval --output json > docs/eval/baseline_v1.json
 
 ---
 
+## Comparing runs — `compare.py`
+
+`docs/eval/compare.py` is a stdlib-only Python helper for comparing eval JSON reports. Pass one path to summarize; pass two or more to get a side-by-side table plus pairwise deltas against the first report.
+
+```bash
+# Summarize one report
+docs/eval/compare.py docs/eval/baseline_v2.json
+
+# Regression check: candidate vs current baseline
+docs/eval/compare.py docs/eval/baseline_v2.json /tmp/candidate.json
+
+# Phase 2 sweep (this is the table in docs/plan/hybrid_search.md)
+docs/eval/compare.py \
+  docs/eval/baseline_v1.json \
+  /tmp/eval_dense.json \
+  /tmp/eval_sparse.json \
+  /tmp/eval_hybrid.json \
+  --labels=baseline_v1,dense_p2,sparse_p2,hybrid_p2
+```
+
+Output is a fixed-width table covering hit@1/3/5, MRR@5, recall@10, per-type hit@5 (navigation / concept / behavior), negative pass rate, and total p50/p95 latency. The deltas block reports each candidate's gap to the baseline in percentage points — useful for the "did this change help or hurt?" check.
+
+The script is intentionally read-only and stdlib-only (no `pip install`) so it works on any machine that can run Python 3.10+. If you need to plot trends across many runs, parse the JSON directly — the eval `--output json` schema is stable.
+
+---
+
 ## CLI flags
 
 | Flag | Default | Notes |
@@ -145,6 +171,36 @@ queries:
 5. Commit both the YAML and an updated `baseline_*.json` in the same PR.
 
 Keep the golden set focused. 20-30 hand-curated queries are more useful than 200 hastily-written ones.
+
+---
+
+## Baselines and the corpus-stability assumption
+
+Each baseline file is tied to the **state of the indexed corpus** at the time it was captured:
+
+| File | Corpus | Mode | Use |
+|---|---|---|---|
+| `baseline_v1.json` | Phase 1 corpus (~250 chunks) | dense | Historical only |
+| `baseline_v2_dense.json` | Phase 2 corpus (350 chunks) | dense | Same-corpus dense reference for Phase 3 |
+| `baseline_v2.json` | Phase 2 corpus (350 chunks) | hybrid | Canonical Phase 2 baseline; default comparison target |
+
+A pure-algorithm comparison (e.g. "did the new reranker help?") only makes sense **between runs that share the same corpus**. When the corpus changes — new packages added, chunker upgrades emit different chunks, etc. — the rank ordering shifts for reasons that have nothing to do with the algorithm under test. Comparing across corpus generations conflates "the algorithm changed" with "the inputs changed."
+
+**Methodology when starting a new phase:**
+
+1. Before changing any retrieval code, re-run the current default mode against the **current corpus** and save it as the phase's baseline. Example workflow for starting Phase 3:
+   ```bash
+   go run ./cmd/ragcodepilot collections delete code_chunks
+   go run ./cmd/ragcodepilot index --language go .
+   go run ./cmd/ragcodepilot eval --mode hybrid --output json > docs/eval/baseline_v3_pre.json
+   ```
+2. Make the algorithm change.
+3. Re-run eval against the same corpus.
+4. Compare with `docs/eval/compare.py baseline_v3_pre.json /tmp/eval_after.json`.
+
+If the corpus itself changed mid-phase (e.g. you added a new chunker that emits more chunks), re-capture the pre-change baseline before declaring wins or losses. The eval harness measures retrieval against a corpus — it cannot separate "better algorithm" from "different corpus" on its own.
+
+A concrete example of why this matters: between Phase 1 and Phase 2, the corpus grew from ~250 chunks to 350 chunks (Phase 2 added the `internal/embedding/sparse*` files). Dense-mode `recall@10` dropped 13pp purely from the new chunks competing for top-10 slots — no search-algorithm change involved. See the `hybrid_search.md` observations for the full investigation.
 
 ---
 

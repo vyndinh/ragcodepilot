@@ -65,6 +65,7 @@ func main() {
 		language := fs.String("language", "", "Comma-separated language filter (e.g., go,rust)")
 		repo := fs.String("repo", "", "Comma-separated repo name filter (e.g., ragcodepilot,myproject)")
 		limit := fs.Int("limit", 5, "Maximum number of results")
+		mode := fs.String("mode", string(search.DefaultSearchMode), "Search mode: dense, sparse, hybrid")
 		qdrantHost := fs.String("qdrant-host", "localhost", "Qdrant host")
 		qdrantPort := fs.Int("qdrant-port", 6334, "Qdrant gRPC port")
 		embedderType := fs.String("embedder", "ollama", "Embedder to use: ollama, fake")
@@ -81,6 +82,15 @@ func main() {
 		query := fs.Arg(0)
 		languages := parseLanguageFilter(*language)
 		repos := parseLanguageFilter(*repo) // same CSV parsing logic
+		if *limit <= 0 {
+			fmt.Fprintf(os.Stderr, "error: --limit must be > 0 (got %d)\n", *limit)
+			os.Exit(1)
+		}
+		searchMode, err := search.ParseSearchMode(*mode)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
 
 		emb, err := resolveEmbedder(*embedderType, *ollamaURL, *ollamaModel)
 		if err != nil {
@@ -88,7 +98,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		if err := runSearch(query, *collection, languages, repos, *limit, *qdrantHost, *qdrantPort, emb); err != nil {
+		if err := runSearch(query, *collection, languages, repos, searchMode, *limit, *qdrantHost, *qdrantPort, emb); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
@@ -140,6 +150,7 @@ func main() {
 		output := fs.String("output", "human", "Output format: human, json")
 		limit := fs.Int("limit", eval.DefaultLimit, "Per-query result limit (must be >= 10 for recall@10)")
 		typeFilter := fs.String("type", "", "Filter queries by type (navigation, concept, behavior, negative)")
+		mode := fs.String("mode", string(search.DefaultSearchMode), "Search mode: dense, sparse, hybrid")
 		qdrantHost := fs.String("qdrant-host", "localhost", "Qdrant host")
 		qdrantPort := fs.Int("qdrant-port", 6334, "Qdrant gRPC port")
 		embedderType := fs.String("embedder", "ollama", "Embedder to use: ollama, fake")
@@ -147,13 +158,24 @@ func main() {
 		ollamaModel := fs.String("ollama-model", "nomic-embed-text", "Ollama embedding model")
 		_ = fs.Parse(os.Args[2:])
 
+		if *limit <= 0 {
+			fmt.Fprintf(os.Stderr, "error: --limit must be > 0 (got %d)\n", *limit)
+			os.Exit(1)
+		}
+
+		searchMode, err := search.ParseSearchMode(*mode)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+
 		emb, err := resolveEmbedder(*embedderType, *ollamaURL, *ollamaModel)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
 
-		if err := runEval(*dataset, *collection, *output, *limit, *typeFilter, *qdrantHost, *qdrantPort, *embedderType, *ollamaModel, emb); err != nil {
+		if err := runEval(*dataset, *collection, *output, *limit, *typeFilter, searchMode, *qdrantHost, *qdrantPort, *embedderType, *ollamaModel, emb); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
@@ -193,6 +215,20 @@ Search flags:
   -language string       Comma-separated language filter (e.g., go,rust)
   -repo string           Comma-separated repo name filter (e.g., ragcodepilot)
   -limit int             Maximum number of results (default 5)
+  -mode string           Search mode: dense, sparse, hybrid (default "hybrid")
+  -embedder string       Embedder to use: ollama, fake (default "ollama")
+  -ollama-url string     Ollama server URL (default "http://localhost:11434")
+  -ollama-model string   Ollama embedding model (default "nomic-embed-text")
+  -qdrant-host string    Qdrant host (default "localhost")
+  -qdrant-port int       Qdrant gRPC port (default 6334)
+
+Eval flags:
+  -dataset string        Path to the golden YAML dataset (default "docs/eval/golden.yaml")
+  -collection string     Qdrant collection name (default "code_chunks")
+  -output string         Output format: human, json (default "human")
+  -limit int             Per-query result limit (default 10)
+  -type string           Filter queries by type (navigation, concept, behavior, negative)
+  -mode string           Search mode: dense, sparse, hybrid (default "hybrid")
   -embedder string       Embedder to use: ollama, fake (default "ollama")
   -ollama-url string     Ollama server URL (default "http://localhost:11434")
   -ollama-model string   Ollama embedding model (default "nomic-embed-text")
@@ -268,7 +304,7 @@ func resolveIndexConfig() (*config.Config, error) {
 	return cfg, nil
 }
 
-func runSearch(query, collection string, languages, repos []string, limit int, qdrantHost string, qdrantPort int, embedder embedding.Embedder) error {
+func runSearch(query, collection string, languages, repos []string, mode search.SearchMode, limit int, qdrantHost string, qdrantPort int, embedder embedding.Embedder) error {
 	ctx := context.Background()
 
 	client, err := qdrant.NewClient(qdrantHost, qdrantPort)
@@ -278,7 +314,7 @@ func runSearch(query, collection string, languages, repos []string, limit int, q
 	defer func() { _ = client.Close() }()
 
 	searcher := search.NewSearcher(client, embedder)
-	results, err := searcher.Search(ctx, collection, query, uint64(limit), languages, repos)
+	results, err := searcher.Search(ctx, collection, query, mode, uint64(limit), languages, repos)
 	if err != nil {
 		return err
 	}
@@ -310,7 +346,7 @@ func runCollectionsList(qdrantHost string, qdrantPort int) error {
 	return nil
 }
 
-func runEval(datasetPath, collection, output string, limit int, typeFilter, qdrantHost string, qdrantPort int, embedderType, model string, embedder embedding.Embedder) error {
+func runEval(datasetPath, collection, output string, limit int, typeFilter string, mode search.SearchMode, qdrantHost string, qdrantPort int, embedderType, model string, embedder embedding.Embedder) error {
 	ctx := context.Background()
 	if limit < eval.DefaultLimit {
 		return fmt.Errorf("invalid --limit %d: must be >= %d for recall@10", limit, eval.DefaultLimit)
@@ -351,6 +387,7 @@ func runEval(datasetPath, collection, output string, limit int, typeFilter, qdra
 		Collection:   collection,
 		Limit:        limit,
 		EmbedderName: embedderName,
+		Mode:         mode,
 	}
 
 	report, err := runner.Run(ctx, datasetPath, ds)

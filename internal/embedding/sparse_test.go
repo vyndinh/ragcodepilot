@@ -218,6 +218,35 @@ func TestBuildSparseVectors_EmptyText(t *testing.T) {
 	}
 }
 
+func TestBuildSparseVectors_UniqueIndices(t *testing.T) {
+	// Structural invariant: the output sparse vector must never contain
+	// duplicate indices. Any CRC32 collision between two distinct tokens
+	// should be merged into a single dimension via weight summing.
+	//
+	// We don't manufacture a real CRC32 collision (rare; brute-forcing one
+	// is wasteful) — instead we verify the invariant across varied input.
+	// The accumulator's map[uint32]float32 keying makes the property a
+	// structural guarantee; this test catches future regressions that would
+	// re-introduce duplicate emission.
+	texts := []string{
+		"ChunkFile parser writer reader",
+		"EnsureCollection deleteByFilePaths search",
+		"sha256Hash crc32Checksum xxhash",
+	}
+	idf := ComputeIDF(texts)
+	vectors := BuildSparseVectors(texts, idf)
+
+	for i, sv := range vectors {
+		seen := make(map[uint32]bool, len(sv.Indices))
+		for _, idx := range sv.Indices {
+			if seen[idx] {
+				t.Errorf("vector %d contains duplicate index %d", i, idx)
+			}
+			seen[idx] = true
+		}
+	}
+}
+
 func TestBuildSparseVectors_AllStopWords(t *testing.T) {
 	texts := []string{"the func for return"}
 	idf := ComputeIDF(texts)

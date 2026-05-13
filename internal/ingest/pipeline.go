@@ -206,6 +206,18 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 
 	// Step 7.5: Build enriched texts once and compute global IDF over the full
 	// chunk corpus for this indexing run.
+	//
+	// IDF scope caveat: this map is computed over the chunks being indexed in
+	// THIS run, after the language filter (see p.languageKeys()) and after the
+	// change-detection filter (only new/changed files are in allChunks). When
+	// re-indexing a single language with --language go, the IDF reflects only
+	// Go chunks — other languages already in the collection keep the IDF
+	// weights they were written with. For a multi-language collection this
+	// produces inconsistent sparse weighting across languages, which is fine
+	// for filtered search (where the filter narrows results to one language
+	// anyway) but not ideal for cross-language hybrid search. Workaround:
+	// use a separate collection per language, or force a full re-index by
+	// deleting the collection.
 	allTexts := make([]string, len(allChunks))
 	for i, chunk := range allChunks {
 		allTexts[i] = enrichForEmbedding(chunk)

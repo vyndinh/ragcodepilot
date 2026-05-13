@@ -226,15 +226,13 @@ func BuildSparseVectors(texts []string, idfMap map[string]float64) []SparseVecto
 			tf[tok]++
 		}
 
-		// Build sparse vector: index = hash(token), value = TF * IDF.
-		// Sort by index for deterministic output (Go map iteration is random).
+		// Build sparse vector keyed by hashed index. Different tokens that
+		// hash to the same uint32 (CRC32 collision) naturally merge into one
+		// dimension because the map key is the hash — duplicate writes use
+		// += to sum weights. This makes the output's "one dimension per
+		// unique hash" property a structural guarantee.
 		docLen := float64(len(tokens))
-
-		type entry struct {
-			idx uint32
-			val float32
-		}
-		entries := make([]entry, 0, len(tf))
+		hashWeights := make(map[uint32]float32, len(tf))
 
 		for tok, count := range tf {
 			idf, ok := idfMap[tok]
@@ -247,9 +245,18 @@ func BuildSparseVectors(texts []string, idfMap map[string]float64) []SparseVecto
 			if weight <= 0 {
 				continue
 			}
-			entries = append(entries, entry{idx: tokenHash(tok), val: float32(weight)})
+			hashWeights[tokenHash(tok)] += float32(weight)
 		}
 
+		// Sort by index for deterministic output (Go map iteration is random).
+		type entry struct {
+			idx uint32
+			val float32
+		}
+		entries := make([]entry, 0, len(hashWeights))
+		for idx, val := range hashWeights {
+			entries = append(entries, entry{idx: idx, val: val})
+		}
 		slices.SortFunc(entries, func(a, b entry) int { return cmp.Compare(a.idx, b.idx) })
 
 		indices := make([]uint32, len(entries))
