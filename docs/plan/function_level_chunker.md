@@ -81,19 +81,16 @@ Tradeoffs:
 
 The router in `chunker.go` makes it simple:
 
-```go
-func ChunkFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *config.Config) ([]model.CodeChunk, error) {
-    switch cfg.DetectLanguage(filePath) {
-    case "go":
-        return chunkGoFile(filePath, repoRoot, repo, chunkSize, overlap, cfg)
-    case "python":
-        return chunkPythonFile(filePath, repoRoot, repo, chunkSize, overlap, cfg)
-    case "rust":
-        return chunkRustFile(filePath, repoRoot, repo, chunkSize, overlap, cfg)
-    default:
-        return chunkGeneric(filePath, repoRoot, repo, chunkSize, overlap, cfg)
-    }
-}
+```
+ChunkFile(filePath, repoRoot, repo, chunkSize, overlap, config):
+
+  language = config.DetectLanguage(filePath)
+
+  switch language:
+    "go"     → chunkGoFile(...)      // Go AST parser
+    "python" → chunkPythonFile(...)   // regex + indentation
+    "rust"   → chunkRustFile(...)     // regex + brace counting
+    default  → chunkGeneric(...)      // sliding window fallback
 ```
 
 Each language chunker follows the same contract:

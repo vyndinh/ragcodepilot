@@ -176,11 +176,10 @@ Supports three search modes:
 
 Abstracts the embedding model behind a simple interface:
 
-```go
-type Embedder interface {
-    Embed(ctx context.Context, texts []string) ([][]float32, error)
-    Dimension() int
-}
+```
+Embedder interface:
+  Embed(texts[]) → vectors[][]
+  Dimension()    → int
 ```
 
 Two implementations:

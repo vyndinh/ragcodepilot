@@ -8,8 +8,8 @@ Current behavior:
 
 - `cmd/ragcodepilot/main.go` creates the Ollama embedder with a hard-coded dimension:
 
-  ```go
-  embedding.NewOllamaEmbedder(ollamaURL, ollamaModel, 768)
+  ```
+  NewOllamaEmbedder(url, model, 768)
   ```
 
 - `internal/embedding/ollama.go` returns that stored value from `Dimension()`.
@@ -49,21 +49,17 @@ collection "code_chunks" uses 768-dimensional vectors, but model "all-minilm" re
 
 Change the Ollama constructor from:
 
-```go
-func NewOllamaEmbedder(baseURL, model string, dim int) *OllamaEmbedder
+```
+NewOllamaEmbedder(url, model, dim) → embedder
 ```
 
 to:
 
-```go
-func NewOllamaEmbedder(baseURL, model string) *OllamaEmbedder
+```
+NewOllamaEmbedder(url, model) → embedder
 ```
 
-Update CLI embedder resolution:
-
-```go
-return embedding.NewOllamaEmbedder(ollamaURL, ollamaModel), nil
-```
+(dimension is no longer a constructor argument — it is inferred from the first embedding response)
 
 Keep `NewFakeEmbedder(dim int)` unchanged because fake embeddings are explicitly synthetic and test-oriented.
 
@@ -88,8 +84,8 @@ This makes `Dimension()` descriptive, not authoritative before embedding.
 
 Add a helper in the embedding package or ingestion package:
 
-```go
-func ValidateVectorBatch(vectors [][]float32, expectedDim int) (int, error)
+```
+ValidateVectorBatch(vectors[][], expectedDim) → (detectedDim, error)
 ```
 
 Behavior:
@@ -144,16 +140,16 @@ if collection exists:
 
 For the current unnamed dense vector collection, read:
 
-```go
-info.GetConfig().GetParams().GetVectorsConfig().GetParams().GetSize()
+```
+collectionInfo → config → params → vectorsConfig → params → size
 ```
 
 If support for named vectors is added later, this logic must also support `GetParamsMap()`.
 
 Suggested method shape:
 
-```go
-func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize uint64) error
+```
+EnsureCollection(name, vectorSize) → error
 ```
 
 can keep the same public signature, but its behavior should become "ensure or validate".
@@ -168,8 +164,8 @@ embed query -> validate query vector -> validate collection dimension -> query Q
 
 Add a Qdrant client method if useful:
 
-```go
-func (c *Client) ValidateCollectionVectorSize(ctx context.Context, name string, vectorSize uint64) error
+```
+ValidateCollectionVectorSize(name, vectorSize) → error
 ```
 
 Then `Search` can call it before `Query`.

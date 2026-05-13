@@ -150,11 +150,10 @@ The search code stays the same. Only the filter values in the request change.
 
 Different use cases might benefit from different embedding models:
 
-```go
-type Embedder interface {
-    Embed(ctx context.Context, texts []string) ([][]float32, error)
-    Dimension() int
-}
+```
+Embedder interface:
+  Embed(texts[]) → vectors[][]
+  Dimension()    → int
 ```
 
 Examples:
