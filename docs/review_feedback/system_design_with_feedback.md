@@ -6,7 +6,7 @@
 
 ```
 Phase A: Build application on Qdrant     ← THIS DOCUMENT
-Phase B: Study vector DB internals       ← Vector_DB_core.md
+Phase B: Study vector DB internals       ← vector_db_core.md
 Phase C: Refactor Rust vector DB to Go   ← Future
 ```
 
@@ -168,6 +168,7 @@ user query → embed query → build Qdrant search request → execute → forma
 ```
 
 Supports three search modes:
+
 - **Semantic only**: dense vector search (default)
 - **Filtered**: semantic + payload filter (e.g., language=rust)
 - **Hybrid**: dense + sparse (BM25) with RRF fusion (later phase)
@@ -183,6 +184,7 @@ Embedder interface:
 ```
 
 Two implementations:
+
 - **Ollama** (`ollama.go`): calls local Ollama server with `nomic-embed-text` model (768d). Vector dimension is auto-detected from the first response and validated on all subsequent calls.
 - **Fake** (`fake.go`): generates deterministic pseudo-random vectors for pipeline testing without a real model.
 
@@ -291,7 +293,7 @@ User query → Embed query → Search mode selection:
 ### Phase 4: Learn internals
 
 - Study Qdrant internals: how does it store vectors? HNSW? Segments?
-- Map what you learned to `Vector_DB_core.md` concepts
+- Map what you learned to `vector_db_core.md` concepts
 - **Goal**: ready to start Phase C (Rust→Go vector DB refactor)
 
 ---
@@ -582,4 +584,3 @@ FEEDBACK: The next implementation sequence should be:
 ```
 
 FEEDBACK: This creates a scoreboard before making bigger search-quality changes.
-

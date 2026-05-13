@@ -1,10 +1,10 @@
-# Plan comparison: vector_DB_app.md vs system_design.md
+# Plan comparison: vector_db_app.md vs system_design.md
 
 This document compares the two implementation plans for the semantic code search project.
 
 ## Summary
 
-| | vector_DB_app.md (old plan) | system_design.md (new plan) |
+| | vector_db_app.md (old plan) | system_design.md (new plan) |
 |---|---|---|
 | **Approach** | Bottom-up: build engine first, then application | Top-down: build application first, then study engine |
 | **What you code** | The vector DB engine (storage, indexes, segments, WAL) | The search application (CLI, ingestion, search, embedding) |
@@ -16,7 +16,7 @@ This document compares the two implementation plans for the semantic code search
 
 ## Architecture comparison
 
-### Old plan (vector_DB_app.md)
+### Old plan (vector_db_app.md)
 
 ```
 Source code repo
@@ -111,7 +111,7 @@ REST / gRPC / CLI API
 | Old plan | New plan |
 |---|---|
 | Build persistence: WAL, snapshots, disk storage | Polish CLI, result formatting |
-| Implement crash recovery | Study Qdrant internals (map to Vector_DB_core.md) |
+| Implement crash recovery | Study Qdrant internals (map to vector_db_core.md) |
 | **Result**: data survives restarts | **Result**: ready for Phase C (Rust→Go refactor) |
 
 ### Phase 5-8 (old plan only)
@@ -165,8 +165,8 @@ Old plan path:
 1. **Faster to working result**: real semantic search in days, not months
 2. **Motivation**: see useful results early instead of debugging internal data structures
 3. **Better Phase C preparation**: by using Qdrant as a user, you know what a good vector DB API should look like before building one
-4. **Theory still covered**: `Vector_DB_core.md` remains the reference for Phase B (studying internals)
-5. **The old plan is not wasted**: when you reach Phase C (Rust→Go refactor), `vector_DB_app.md` becomes a useful reference for what the engine needs to implement internally
+4. **Theory still covered**: `vector_db_core.md` remains the reference for Phase B (studying internals)
+5. **The old plan is not wasted**: when you reach Phase C (Rust→Go refactor), `vector_db_app.md` becomes a useful reference for what the engine needs to implement internally
 
 ---
 
@@ -175,7 +175,7 @@ Old plan path:
 ```
 compare.md           → Which existing vector DB to use? (Answer: Qdrant)
 system_design.md     → How to build the application on top of Qdrant (Phase A)
-Vector_DB_core.md    → Theory of vector DB internals (Phase B study material)
-vector_DB_app.md     → Reference for building engine internals (Phase C guide)
+vector_db_core.md    → Theory of vector DB internals (Phase B study material)
+vector_db_app.md     → Reference for building engine internals (Phase C guide)
 plan_comparison.md   → This document (explains why we chose top-down)
 ```

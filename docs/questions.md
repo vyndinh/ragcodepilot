@@ -1,6 +1,6 @@
 I want to get a clearer vision for this system and its future direction.
 
-Please review the available planning documents in `docs/plan`, especially the `vector_DB_app.md` and `vector_DB_core.md` files, because they were the first documents added to the repository. Also review the current implementation related to code search and RAG.
+Please review the available planning documents in `docs/plan`, especially the `vector_db_app.md` and `vector_db_core.md` files, because they were the first documents added to the repository. Also review the current implementation related to code search and RAG.
 
 My goal is to build a meaningful system that helps users search, understand, and reason about a code repository. I want the system to have a good architecture, be extensible, provide high-quality and accurate answers, and support real user needs.
 
