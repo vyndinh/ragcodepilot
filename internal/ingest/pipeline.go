@@ -75,7 +75,9 @@ func NewPipeline(cfg *config.Config, embedder embedding.Embedder, store vectorSt
 
 // Run walks the repository, chunks files, embeds them, and upserts to Qdrant.
 // On re-index, it uses file hashes to skip unchanged files, delete stale points,
-// and only re-embed files that have changed.
+// and avoid work when the corpus is unchanged. When any file changes, sparse
+// IDF is recomputed globally and all current chunks are re-upserted so sparse
+// weights stay consistent across the collection.
 func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 	absPath, err := filepath.Abs(repoPath)
 	if err != nil {
@@ -158,7 +160,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 	newCount := len(filesToIndex) - changedCount
 	staleCount := len(staleFiles)
 
-	fmt.Printf("Change detection: %d unchanged (skip), %d changed, %d new, %d stale\n",
+	fmt.Printf("Change detection: %d unchanged, %d changed, %d new, %d stale\n",
 		skipped, changedCount, newCount, staleCount)
 
 	// Step 6: Delete stale file points immediately (no replacement coming).
@@ -169,19 +171,20 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 		fmt.Printf("Deleted points for %d stale files\n", len(staleFiles))
 	}
 
-	if len(filesToIndex) == 0 {
-		if len(staleFiles) > 0 {
-			fmt.Println("Cleaned up stale files — no new indexing needed")
-		} else {
-			fmt.Println("Everything up to date — nothing to index")
-		}
+	if len(filesToIndex) == 0 && len(staleFiles) == 0 {
+		fmt.Println("Everything up to date — nothing to index")
+		return nil
+	}
+	if len(files) == 0 {
+		fmt.Println("Cleaned up stale files — no current source files to index")
 		return nil
 	}
 
-	// Step 7: Chunk files to index.
+	// Step 7: Chunk all current files. Sparse IDF is corpus-wide, so any
+	// collection-changing run must refresh unchanged files with the same IDF map.
 	indexedAt := time.Now().UTC().Format(time.RFC3339)
-	allChunks := make([]model.CodeChunk, 0, len(filesToIndex)*2)
-	for _, file := range filesToIndex {
+	allChunks := make([]model.CodeChunk, 0, len(files)*2)
+	for _, file := range files {
 		chunks, err := ChunkFile(file, absPath, repoName, p.chunkSize, p.chunkOverlap, p.cfg)
 		if err != nil {
 			fmt.Printf("warning: skipping %s: %v\n", file, err)
@@ -195,13 +198,21 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 		}
 		allChunks = append(allChunks, chunks...)
 	}
-	fmt.Printf("Generated %d chunks from %d files\n", len(allChunks), len(filesToIndex))
+	fmt.Printf("Generated %d chunks from %d files\n", len(allChunks), len(files))
 
 	if len(allChunks) == 0 {
 		return fmt.Errorf("no chunks generated from %s", repoName)
 	}
 
-	// Step 8: Embed and upsert in batches.
+	// Step 7.5: Build enriched texts once and compute global IDF over the full
+	// chunk corpus for this indexing run.
+	allTexts := make([]string, len(allChunks))
+	for i, chunk := range allChunks {
+		allTexts[i] = enrichForEmbedding(chunk)
+	}
+	idfMap := embedding.ComputeIDF(allTexts)
+
+	// Step 8: Embed and upsert in batches (dense + sparse).
 	const batchSize = 32
 	collectionReady := false
 	expectedDim := 0
@@ -213,12 +224,8 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 		}
 		batch := allChunks[start:end]
 
-		// Build enriched text for embedding (metadata + code).
-		// The raw chunk.Content is stored unchanged in Qdrant payload.
-		texts := make([]string, len(batch))
-		for i, chunk := range batch {
-			texts[i] = enrichForEmbedding(chunk)
-		}
+		// Reuse precomputed enriched texts for this batch.
+		texts := allTexts[start:end]
 
 		// Embed the batch.
 		vectors, err := p.embedder.Embed(ctx, texts)
@@ -235,6 +242,12 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 		}
 		expectedDim = detectedDim
 
+		// Build sparse vectors from the same enriched texts using global IDF.
+		sparseVectors := embedding.BuildSparseVectors(texts, idfMap)
+		if len(sparseVectors) != len(batch) {
+			return fmt.Errorf("building sparse vectors for batch %d-%d: expected %d vectors, got %d", start, end, len(batch), len(sparseVectors))
+		}
+
 		// After the first batch, infer dimension and ensure the collection.
 		if !collectionReady {
 			dim := uint64(detectedDim)
@@ -246,7 +259,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 		}
 
 		// Upsert to Qdrant.
-		if err := p.store.Upsert(ctx, p.collection, batch, vectors, nil); err != nil {
+		if err := p.store.Upsert(ctx, p.collection, batch, vectors, sparseVectors); err != nil {
 			return fmt.Errorf("upserting batch %d-%d: %w", start, end, err)
 		}
 

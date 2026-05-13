@@ -155,6 +155,9 @@ func TestPipeline_RunRejectsSecondBatchDimensionMismatchBeforeUpsert(t *testing.
 	if got := store.upsertBatchSizes[0]; got != firstBatchSize {
 		t.Fatalf("first upsert batch size = %d, want %d", got, firstBatchSize)
 	}
+	if got := store.upsertSparseSizes[0]; got != firstBatchSize {
+		t.Fatalf("first sparse batch size = %d, want %d", got, firstBatchSize)
+	}
 }
 
 func TestPipeline_RunEnsuresCollectionWithDetectedDimension(t *testing.T) {
@@ -188,6 +191,110 @@ func TestPipeline_RunEnsuresCollectionWithDetectedDimension(t *testing.T) {
 	}
 	if got := store.upsertBatchSizes[0]; got != 1 {
 		t.Fatalf("upsert batch size = %d, want 1", got)
+	}
+	if got := store.upsertSparseSizes[0]; got != 1 {
+		t.Fatalf("sparse batch size = %d, want 1", got)
+	}
+}
+
+func TestPipeline_RunGeneratesSparseVectorsPerBatch(t *testing.T) {
+	const totalFiles = 33 // 32 + 1 to force two batches
+	repoPath := writeTestRepo(t, totalFiles)
+	store := &recordingStore{}
+	p := NewPipeline(config.Default(), &fakeEmbedder{dim: 4}, store, "code_chunks")
+
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+
+	if store.upsertCalls != 2 {
+		t.Fatalf("Upsert calls = %d, want 2", store.upsertCalls)
+	}
+
+	wantBatchSizes := []int{32, 1}
+	if !reflect.DeepEqual(store.upsertBatchSizes, wantBatchSizes) {
+		t.Fatalf("upsert batch sizes = %v, want %v", store.upsertBatchSizes, wantBatchSizes)
+	}
+	if !reflect.DeepEqual(store.upsertSparseSizes, wantBatchSizes) {
+		t.Fatalf("sparse batch sizes = %v, want %v", store.upsertSparseSizes, wantBatchSizes)
+	}
+	if store.upsertSparseNonEmpty == 0 {
+		t.Fatal("expected non-empty sparse vectors across upsert batches")
+	}
+}
+
+func TestPipeline_RunRefreshesUnchangedFilesWhenAnyFileChanges(t *testing.T) {
+	repoPath := t.TempDir()
+	unchangedPath := filepath.Join(repoPath, "unchanged.py")
+	changedPath := filepath.Join(repoPath, "changed.py")
+	if err := os.WriteFile(unchangedPath, []byte("# stable helper\nprint('same')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(changedPath, []byte("# changed helper\nprint('new')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	unchangedHash, err := HashFile(unchangedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &recordingStore{
+		existingHashes: map[string]string{
+			"unchanged.py": unchangedHash,
+			"changed.py":   "old_hash_does_not_match",
+		},
+	}
+	p := NewPipeline(config.Default(), &fakeEmbedder{dim: 4}, store, "code_chunks")
+
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+
+	if store.upsertCalls != 1 {
+		t.Fatalf("Upsert calls = %d, want 1", store.upsertCalls)
+	}
+	if got := store.upsertBatchSizes[0]; got != 2 {
+		t.Fatalf("upsert batch size = %d, want 2 current files", got)
+	}
+	if got := store.upsertSparseSizes[0]; got != 2 {
+		t.Fatalf("sparse batch size = %d, want 2 current files", got)
+	}
+}
+
+func TestPipeline_RunRefreshesUnchangedFilesAfterStaleDelete(t *testing.T) {
+	repoPath := t.TempDir()
+	keptPath := filepath.Join(repoPath, "kept.py")
+	if err := os.WriteFile(keptPath, []byte("# kept helper\nprint('ok')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	keptHash, err := HashFile(keptPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &recordingStore{
+		existingHashes: map[string]string{
+			"kept.py":    keptHash,
+			"removed.py": "doesnt_matter",
+		},
+	}
+	p := NewPipeline(config.Default(), &fakeEmbedder{dim: 4}, store, "code_chunks")
+
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+
+	if store.deleteCalls != 1 {
+		t.Fatalf("Delete calls = %d, want 1", store.deleteCalls)
+	}
+	if !reflect.DeepEqual(store.deleteFilePaths, []string{"removed.py"}) {
+		t.Fatalf("deleted file paths = %v, want [removed.py]", store.deleteFilePaths)
+	}
+	if store.upsertCalls != 1 {
+		t.Fatalf("Upsert calls = %d, want 1 to refresh remaining sparse vectors", store.upsertCalls)
+	}
+	if got := store.upsertBatchSizes[0]; got != 1 {
+		t.Fatalf("upsert batch size = %d, want 1 current file", got)
 	}
 }
 
@@ -223,13 +330,16 @@ func (e *fakeEmbedder) Dimension() int {
 }
 
 type recordingStore struct {
-	ensureCalls      int
-	ensureCollection string
-	ensureSize       uint64
-	upsertCalls      int
-	upsertBatchSizes []int
-	deleteCalls      int
-	deleteFilePaths  []string
+	ensureCalls          int
+	ensureCollection     string
+	ensureSize           uint64
+	upsertCalls          int
+	upsertBatchSizes     []int
+	upsertSparseSizes    []int
+	upsertSparseNonEmpty int
+	deleteCalls          int
+	deleteFilePaths      []string
+	existingHashes       map[string]string
 }
 
 func (s *recordingStore) EnsureCollection(_ context.Context, name string, vectorSize uint64) error {
@@ -239,14 +349,22 @@ func (s *recordingStore) EnsureCollection(_ context.Context, name string, vector
 	return nil
 }
 
-func (s *recordingStore) Upsert(_ context.Context, _ string, chunks []model.CodeChunk, _ [][]float32, _ []embedding.SparseVector) error {
+func (s *recordingStore) Upsert(_ context.Context, _ string, chunks []model.CodeChunk, _ [][]float32, sparseVectors []embedding.SparseVector) error {
 	s.upsertCalls++
 	s.upsertBatchSizes = append(s.upsertBatchSizes, len(chunks))
+	s.upsertSparseSizes = append(s.upsertSparseSizes, len(sparseVectors))
+	for _, sv := range sparseVectors {
+		if len(sv.Indices) > 0 || len(sv.Values) > 0 {
+			s.upsertSparseNonEmpty++
+		}
+	}
 	return nil
 }
 
 func (s *recordingStore) ScrollFileHashes(_ context.Context, _, _ string, _ []string) (map[string]string, error) {
-	// Return empty — simulates first-time index.
+	if s.existingHashes != nil {
+		return s.existingHashes, nil
+	}
 	return make(map[string]string), nil
 }
 
