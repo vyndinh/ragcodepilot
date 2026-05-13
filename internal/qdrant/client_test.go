@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dinhvy/ragcodepilot/internal/embedding"
 	"github.com/dinhvy/ragcodepilot/internal/model"
 	pb "github.com/qdrant/go-client/qdrant"
 )
@@ -41,6 +42,13 @@ func TestClient_EnsureCollectionCreatesMissingCollection(t *testing.T) {
 	}
 	if got := params.GetDistance(); got != pb.Distance_Cosine {
 		t.Fatalf("created distance = %s, want %s", got, pb.Distance_Cosine)
+	}
+	sparseConfig := sdk.created.GetSparseVectorsConfig()
+	if sparseConfig == nil {
+		t.Fatal("expected sparse vectors config in created collection")
+	}
+	if _, ok := sparseConfig.GetMap()["sparse"]; !ok {
+		t.Fatal("expected named 'sparse' vector in sparse config")
 	}
 	// Verify payload indexes were created for filtered fields.
 	if sdk.fieldIndexCalls != 3 {
@@ -665,7 +673,7 @@ func TestClient_UpsertUsesNamedDenseVector(t *testing.T) {
 	}}
 	vectors := [][]float32{{1.0, 2.0, 3.0}}
 
-	err := client.Upsert(context.Background(), "code_chunks", chunks, vectors)
+	err := client.Upsert(context.Background(), "code_chunks", chunks, vectors, nil)
 	if err != nil {
 		t.Fatalf("Upsert() unexpected error: %v", err)
 	}
@@ -684,6 +692,9 @@ func TestClient_UpsertUsesNamedDenseVector(t *testing.T) {
 	}
 	if len(denseVec.GetDense().GetData()) != 3 {
 		t.Fatalf("dense vector length = %d, want 3", len(denseVec.GetDense().GetData()))
+	}
+	if _, ok := vectorsMap["sparse"]; ok {
+		t.Fatal("did not expect 'sparse' key when sparse vectors are omitted")
 	}
 }
 
@@ -708,7 +719,7 @@ func TestClient_UpsertBatchSplitting(t *testing.T) {
 		vectors[i] = []float32{1.0, 2.0, 3.0}
 	}
 
-	err := client.Upsert(context.Background(), "code_chunks", chunks, vectors)
+	err := client.Upsert(context.Background(), "code_chunks", chunks, vectors, nil)
 	if err != nil {
 		t.Fatalf("Upsert() unexpected error: %v", err)
 	}
@@ -738,6 +749,105 @@ func TestClient_UpsertBatchSplitting(t *testing.T) {
 	}
 	if totalPoints != totalChunks {
 		t.Fatalf("total upserted points = %d, want %d", totalPoints, totalChunks)
+	}
+}
+
+func TestClient_UpsertIncludesSparseVectorWhenProvided(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{}
+	client := &Client{conn: sdk}
+
+	chunks := []model.CodeChunk{{
+		ID:       "00000000-0000-0000-0000-000000000001",
+		Repo:     "testrepo",
+		FilePath: "main.go",
+		Language: "go",
+		Content:  "func main() {}",
+	}}
+	vectors := [][]float32{{1.0, 2.0, 3.0}}
+	sparseVectors := []embedding.SparseVector{{
+		Indices: []uint32{123, 456},
+		Values:  []float32{0.7, 0.4},
+	}}
+
+	err := client.Upsert(context.Background(), "code_chunks", chunks, vectors, sparseVectors)
+	if err != nil {
+		t.Fatalf("Upsert() unexpected error: %v", err)
+	}
+
+	point := sdk.upsertedReqs[0].GetPoints()[0]
+	vectorsMap := point.GetVectors().GetVectors().GetVectors()
+	if vectorsMap == nil {
+		t.Fatal("expected VectorsMap, got nil")
+	}
+	sparseVec, ok := vectorsMap["sparse"]
+	if !ok {
+		t.Fatal("expected 'sparse' key in VectorsMap")
+	}
+	gotIndices := sparseVec.GetSparse().GetIndices()
+	gotValues := sparseVec.GetSparse().GetValues()
+	if len(gotIndices) != 2 || gotIndices[0] != 123 || gotIndices[1] != 456 {
+		t.Fatalf("sparse indices = %v, want [123 456]", gotIndices)
+	}
+	if len(gotValues) != 2 || gotValues[0] != 0.7 || gotValues[1] != 0.4 {
+		t.Fatalf("sparse values = %v, want [0.7 0.4]", gotValues)
+	}
+}
+
+func TestClient_UpsertRejectsSparseLengthMismatch(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{}
+	client := &Client{conn: sdk}
+
+	chunks := []model.CodeChunk{{
+		ID:       "00000000-0000-0000-0000-000000000001",
+		Repo:     "testrepo",
+		FilePath: "main.go",
+		Language: "go",
+		Content:  "func main() {}",
+	}}
+	vectors := [][]float32{{1.0, 2.0, 3.0}}
+	sparseVectors := []embedding.SparseVector{}
+
+	err := client.Upsert(context.Background(), "code_chunks", chunks, vectors, sparseVectors)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "chunks and sparse vectors length mismatch") {
+		t.Fatalf("error = %q, want sparse length mismatch", err.Error())
+	}
+}
+
+func TestClient_UpsertRejectsSparseElementIndicesValuesMismatch(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{}
+	client := &Client{conn: sdk}
+
+	chunks := []model.CodeChunk{{
+		ID:       "00000000-0000-0000-0000-000000000001",
+		Repo:     "testrepo",
+		FilePath: "main.go",
+		Language: "go",
+		Content:  "func main() {}",
+	}}
+	vectors := [][]float32{{1.0, 2.0, 3.0}}
+	sparseVectors := []embedding.SparseVector{{
+		Indices: []uint32{123, 456},
+		Values:  []float32{0.7},
+	}}
+
+	err := client.Upsert(context.Background(), "code_chunks", chunks, vectors, sparseVectors)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "sparse vector 0 indices/values length mismatch") {
+		t.Fatalf("error = %q, want per-element sparse mismatch", err.Error())
+	}
+	if sdk.upsertCalls != 0 {
+		t.Fatalf("Upsert SDK calls = %d, want 0", sdk.upsertCalls)
 	}
 }
 
