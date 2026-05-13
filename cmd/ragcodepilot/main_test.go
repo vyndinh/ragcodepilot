@@ -3,7 +3,10 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/dinhvy/ragcodepilot/internal/eval"
 )
 
 func TestResolveIndexConfig_MissingUsesDefault(t *testing.T) {
@@ -87,4 +90,27 @@ func withTempWorkingDir(t *testing.T) {
 	t.Cleanup(func() {
 		_ = os.Chdir(filepath.Clean(originalWD))
 	})
+}
+
+func TestRunEvalRejectsLimitBelowDefault(t *testing.T) {
+	t.Parallel()
+
+	err := runEval(
+		"docs/eval/golden.yaml",
+		"code_chunks",
+		"human",
+		eval.DefaultLimit-1,
+		"",
+		"localhost",
+		6334,
+		"ollama",
+		"nomic-embed-text",
+		nil,
+	)
+	if err == nil {
+		t.Fatal("expected error for limit below default")
+	}
+	if !strings.Contains(err.Error(), "must be >=") {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }

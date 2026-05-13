@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/dinhvy/ragcodepilot/internal/config"
 	"github.com/dinhvy/ragcodepilot/internal/embedding"
+	"github.com/dinhvy/ragcodepilot/internal/eval"
 	"github.com/dinhvy/ragcodepilot/internal/ingest"
 	"github.com/dinhvy/ragcodepilot/internal/qdrant"
 	"github.com/dinhvy/ragcodepilot/internal/search"
@@ -131,6 +133,31 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "eval":
+		fs := flag.NewFlagSet("eval", flag.ExitOnError)
+		dataset := fs.String("dataset", "docs/eval/golden.yaml", "Path to the golden YAML dataset")
+		collection := fs.String("collection", "code_chunks", "Qdrant collection name")
+		output := fs.String("output", "human", "Output format: human, json")
+		limit := fs.Int("limit", eval.DefaultLimit, "Per-query result limit (must be >= 10 for recall@10)")
+		typeFilter := fs.String("type", "", "Filter queries by type (navigation, concept, behavior, negative)")
+		qdrantHost := fs.String("qdrant-host", "localhost", "Qdrant host")
+		qdrantPort := fs.Int("qdrant-port", 6334, "Qdrant gRPC port")
+		embedderType := fs.String("embedder", "ollama", "Embedder to use: ollama, fake")
+		ollamaURL := fs.String("ollama-url", "http://localhost:11434", "Ollama server URL")
+		ollamaModel := fs.String("ollama-model", "nomic-embed-text", "Ollama embedding model")
+		_ = fs.Parse(os.Args[2:])
+
+		emb, err := resolveEmbedder(*embedderType, *ollamaURL, *ollamaModel)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+
+		if err := runEval(*dataset, *collection, *output, *limit, *typeFilter, *qdrantHost, *qdrantPort, *embedderType, *ollamaModel, emb); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "version":
 		fmt.Printf("ragcodepilot %s\n", version)
 
@@ -147,6 +174,7 @@ func printUsage() {
 Usage:
   ragcodepilot index <repo-path> [flags]       Index a code repository
   ragcodepilot search <query> [flags]          Search indexed code
+  ragcodepilot eval [flags]                    Run retrieval evaluation against a golden dataset
   ragcodepilot collections list [flags]        List all collections
   ragcodepilot collections delete <name> [flags]  Delete a collection
   ragcodepilot version                         Print version
@@ -193,10 +221,10 @@ func parseLanguageFilter(lang string) []string {
 func resolveEmbedder(embedderType, ollamaURL, ollamaModel string) (embedding.Embedder, error) {
 	switch embedderType {
 	case "ollama":
-		fmt.Printf("Using Ollama embedder (model: %s, url: %s)\n", ollamaModel, ollamaURL)
+		fmt.Fprintf(os.Stderr, "Using Ollama embedder (model: %s, url: %s)\n", ollamaModel, ollamaURL)
 		return embedding.NewOllamaEmbedder(ollamaURL, ollamaModel), nil
 	case "fake":
-		fmt.Println("Using fake embedder (random vectors — search results will not be meaningful)")
+		fmt.Fprintln(os.Stderr, "Using fake embedder (random vectors — search results will not be meaningful)")
 		return embedding.NewFakeEmbedder(384), nil
 	default:
 		return nil, fmt.Errorf("unknown embedder %q (supported: ollama, fake)", embedderType)
@@ -278,6 +306,73 @@ func runCollectionsList(qdrantHost string, qdrantPort int) error {
 	}
 	for _, c := range collections {
 		fmt.Println(c)
+	}
+	return nil
+}
+
+func runEval(datasetPath, collection, output string, limit int, typeFilter, qdrantHost string, qdrantPort int, embedderType, model string, embedder embedding.Embedder) error {
+	ctx := context.Background()
+	if limit < eval.DefaultLimit {
+		return fmt.Errorf("invalid --limit %d: must be >= %d for recall@10", limit, eval.DefaultLimit)
+	}
+
+	ds, err := eval.LoadDataset(datasetPath)
+	if err != nil {
+		return err
+	}
+
+	if typeFilter != "" {
+		filtered := make([]eval.Query, 0, len(ds.Queries))
+		for _, q := range ds.Queries {
+			if string(q.Type) == typeFilter {
+				filtered = append(filtered, q)
+			}
+		}
+		if len(filtered) == 0 {
+			return fmt.Errorf("no queries match type %q", typeFilter)
+		}
+		ds.Queries = filtered
+	}
+
+	client, err := qdrant.NewClient(qdrantHost, qdrantPort)
+	if err != nil {
+		return fmt.Errorf("connecting to qdrant: %w", err)
+	}
+	defer func() { _ = client.Close() }()
+
+	embedderName := embedderType
+	if embedderType == "ollama" {
+		embedderName = fmt.Sprintf("ollama/%s", model)
+	}
+
+	searcher := search.NewSearcher(client, embedder)
+	runner := &eval.Runner{
+		Searcher:     searcher,
+		Collection:   collection,
+		Limit:        limit,
+		EmbedderName: embedderName,
+	}
+
+	report, err := runner.Run(ctx, datasetPath, ds)
+	if err != nil {
+		return err
+	}
+
+	switch output {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(report); err != nil {
+			return fmt.Errorf("encoding report: %w", err)
+		}
+	case "human", "":
+		fmt.Print(eval.FormatHuman(report))
+	default:
+		return fmt.Errorf("unknown output format %q (supported: human, json)", output)
+	}
+
+	if report.Aggregate.Errors > 0 {
+		return fmt.Errorf("%d queries failed (see report)", report.Aggregate.Errors)
 	}
 	return nil
 }

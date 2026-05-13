@@ -1,0 +1,254 @@
+# Golden query set for ragcodepilot retrieval evaluation.
+#
+# Targets ragcodepilot's own repo indexed under the default collection
+# ("code_chunks") with the default language filter (Go).
+#
+# Categories:
+#   navigation — exact-symbol / "where is X defined" queries
+#   concept    — natural-language explanatory queries ("how does Y work")
+#   behavior   — runtime-behavior queries ("what happens when Z")
+#   negative   — queries that should NOT have a strong top match
+
+queries:
+  - id: chunkfile_navigation
+    query: "where is ChunkFile defined"
+    type: navigation
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/ingest/chunker.go
+      symbols:
+        - ChunkFile
+
+  - id: ensure_collection_navigation
+    query: "EnsureCollection function on Qdrant client"
+    type: navigation
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/qdrant/client.go
+      symbols:
+        - EnsureCollection
+
+  - id: parse_language_filter_navigation
+    query: "where is parseLanguageFilter implemented"
+    type: navigation
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - cmd/ragcodepilot/main.go
+      symbols:
+        - parseLanguageFilter
+
+  - id: run_eval_navigation
+    query: "where is runEval function implemented"
+    type: navigation
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - cmd/ragcodepilot/main.go
+      symbols:
+        - runEval
+
+  - id: search_with_timings_navigation
+    query: "where is SearchWithTimings defined"
+    type: navigation
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/search/searcher.go
+      symbols:
+        - SearchWithTimings
+
+  - id: validate_collection_vector_size_navigation
+    query: "where is ValidateCollectionVectorSize defined"
+    type: navigation
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/qdrant/client.go
+      symbols:
+        - ValidateCollectionVectorSize
+
+  - id: load_dataset_navigation
+    query: "where is LoadDataset implemented"
+    type: navigation
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/eval/dataset.go
+      symbols:
+        - LoadDataset
+
+  - id: hihatk_navigation
+    query: "where is HitAtK function implemented"
+    type: navigation
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/eval/metrics.go
+      symbols:
+        - HitAtK
+
+  - id: chunking_concept
+    query: "how does code chunking work"
+    type: concept
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/ingest/chunker.go
+        - internal/ingest/chunker_go.go
+      symbols:
+        - ChunkFile
+
+  - id: ingestion_pipeline_concept
+    query: "how does the ingestion pipeline walk files and produce chunks"
+    type: concept
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/ingest/pipeline.go
+      symbols:
+        - Run
+
+  - id: config_language_detection_concept
+    query: "how does config detect language from file extension"
+    type: concept
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/config/config.go
+      symbols:
+        - DetectLanguage
+
+  - id: payload_indexes_concept
+    query: "how are payload indexes ensured in qdrant"
+    type: concept
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/qdrant/client.go
+      symbols:
+        - EnsurePayloadIndexes
+
+  - id: eval_aggregation_concept
+    query: "how does eval aggregate metrics by query type"
+    type: concept
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/eval/runner.go
+      symbols:
+        - breakdownByType
+
+  - id: enrichment_concept
+    query: "how is code enriched before embedding"
+    type: concept
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/ingest/enrichment.go
+      symbols:
+        - enrichForEmbedding
+
+  - id: hasher_concept
+    query: "how are file hashes computed for re-indexing"
+    type: concept
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/ingest/hasher.go
+      symbols:
+        - HashFile
+
+  - id: dimension_validation_behavior
+    query: "what happens when the embedder returns inconsistent vector dimensions"
+    type: behavior
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/embedding/validate.go
+      symbols:
+        - ValidateVectorBatch
+
+  - id: reindex_change_detection_behavior
+    query: "how does the system detect changed files when re-indexing"
+    type: behavior
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/ingest/pipeline.go
+        - internal/ingest/hasher.go
+
+  - id: collection_dimension_mismatch_behavior
+    query: "what happens when query vector dimension does not match collection"
+    type: behavior
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/search/searcher.go
+        - internal/qdrant/client.go
+      symbols:
+        - ValidateCollectionVectorSize
+
+  - id: eval_limit_guard_behavior
+    query: "what happens when eval limit is below 10"
+    type: behavior
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - cmd/ragcodepilot/main.go
+        - internal/eval/runner.go
+      symbols:
+        - runEval
+
+  - id: oauth_middleware_negative
+    query: "where is the OAuth middleware implemented"
+    type: negative
+    filters:
+      languages: ["go"]
+    negative:
+      top1_score_below: 0.55
+
+  - id: kubernetes_manifest_negative
+    query: "Kubernetes deployment manifest for the service"
+    type: negative
+    filters:
+      languages: ["go"]
+    negative:
+      top1_score_below: 0.55
+
+  - id: grpc_gateway_router_negative
+    query: "where is the grpc gateway HTTP router setup"
+    type: negative
+    filters:
+      languages: ["go"]
+    negative:
+      top1_score_below: 0.55
+
+  - id: terraform_module_negative
+    query: "terraform module for production networking"
+    type: negative
+    filters:
+      languages: ["go"]
+    negative:
+      top1_score_below: 0.55
