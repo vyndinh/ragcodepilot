@@ -12,10 +12,12 @@ This project is a learning implementation for vector database application design
 - Chunk enrichment prepends file/language/function metadata to embedding input for improved search relevance.
 - Search with dense vector lookup and optional language and repo payload filtering.
 - Embedding dimension auto-detection and validation (collection mismatch produces clear error with fix instructions).
+- Incremental re-indexing: only changed files are re-embedded; stale chunks from deleted/renamed files are cleaned up.
+- **Retrieval evaluation harness** (`ragcodepilot eval`) with golden dataset, `hit@k`, `MRR@5`, `recall@10`, and per-stage latency percentiles.
 - Collection list and delete commands.
 - `config.yaml` is auto-loaded during indexing when present; built-in defaults are used only when it is absent.
 
-Planned but not complete: regex chunkers for Python/Rust, re-index/delete-stale behavior, sparse vectors, and hybrid BM25/vector search.
+Planned but not complete: regex chunkers for Python/Rust, sparse vectors, hybrid BM25/vector search, and cross-encoder reranking. See [`docs/plan/mvp_roadmap.md`](docs/plan/mvp_roadmap.md) for the full roadmap.
 
 ## Architecture
 
@@ -36,6 +38,12 @@ CLI
   |     -> Qdrant vector search (with language/repo filters)
   |     -> terminal result formatter
   |
+  |-- eval --dataset <golden.yaml>
+  |     -> load golden queries
+  |     -> run each through search.Searcher
+  |     -> compute hit@k, MRR@5, recall@10, latency percentiles
+  |     -> JSON or human-readable report
+  |
   |-- collections list|delete
 ```
 
@@ -43,7 +51,7 @@ Qdrant runs locally through Docker Compose. The Go CLI runs on the host machine 
 
 ## Prerequisites
 
-- Go `1.26.1`
+- Go `1.26.3`
 - Docker and Docker Compose
 - [Ollama](https://ollama.com/) with `nomic-embed-text` model
 
@@ -110,6 +118,24 @@ Delete the default collection (required when changing embedding model or enrichm
 go run ./cmd/ragcodepilot collections delete code_chunks
 ```
 
+Run retrieval evaluation against the golden dataset:
+
+```bash
+go run ./cmd/ragcodepilot eval --dataset docs/eval/golden.yaml
+```
+
+Run eval with JSON output (for diffing baselines):
+
+```bash
+go run ./cmd/ragcodepilot eval --output json > docs/eval/baseline_v2.json
+```
+
+Filter eval to a specific query type:
+
+```bash
+go run ./cmd/ragcodepilot eval --type navigation
+```
+
 Stop Qdrant:
 
 ```bash
@@ -138,6 +164,21 @@ docker compose down
 | `-language` | (all) | Comma-separated language filter (e.g., `go,rust`) |
 | `-repo` | (all) | Comma-separated repo name filter (e.g., `ragcodepilot`) |
 | `-limit` | `5` | Maximum number of results |
+| `-embedder` | `ollama` | Embedder to use: `ollama`, `fake` |
+| `-ollama-url` | `http://localhost:11434` | Ollama server URL |
+| `-ollama-model` | `nomic-embed-text` | Ollama embedding model |
+| `-qdrant-host` | `localhost` | Qdrant host |
+| `-qdrant-port` | `6334` | Qdrant gRPC port |
+
+### Eval
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-dataset` | `docs/eval/golden.yaml` | Path to the golden YAML dataset |
+| `-collection` | `code_chunks` | Qdrant collection name |
+| `-output` | `human` | Output format: `human`, `json` |
+| `-limit` | `10` | Per-query result limit (must be ≥ 10 for recall@10) |
+| `-type` | (all) | Filter queries by type (`navigation`, `concept`, `behavior`, `negative`) |
 | `-embedder` | `ollama` | Embedder to use: `ollama`, `fake` |
 | `-ollama-url` | `http://localhost:11434` | Ollama server URL |
 | `-ollama-model` | `nomic-embed-text` | Ollama embedding model |
@@ -223,13 +264,14 @@ go run ./cmd/ragcodepilot index --language go .
 
 - Function-level chunking is Go-only (AST-based). Other languages use a sliding window.
 - Hybrid search, sparse vectors, BM25, and RRF fusion are not implemented yet.
-- Re-indexing does not delete stale chunks when files are removed or renamed.
 - Embedding dimension is auto-detected; switching models requires collection delete + re-index.
 
 ## Further docs
 
+- [MVP Roadmap](docs/plan/mvp_roadmap.md)
 - [System design](docs/plan/system_design.md)
-- [Progress checklist](docs/plan/checklist_2026-05-07.md)
+- [Progress checklist](docs/plan/checklist.md)
+- [Evaluation harness](docs/eval/README.md)
 - [Function-level chunker](docs/plan/function_level_chunker.md)
 - [Embedding dimension validation](docs/plan/embedding_dimension_validation.md)
 - [Chunk enrichment](docs/plan/chunk_enrichment.md)
