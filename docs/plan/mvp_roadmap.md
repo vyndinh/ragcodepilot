@@ -165,7 +165,7 @@ Focus: core retrieval quality. Explore Mode, TUI choices, and Phase C are explic
 
 **Chunker upgrade sub-phase:**
 
-- [ ] Pick one language. **Python** (highest user impact) or **Rust** (matches the Phase C ambition). Document the choice.
+- [ ] Pick one language. **Rust** (matches the Phase C ambition). Document the choice.
 - [ ] Evaluate AST parsing options:
   - tree-sitter-go bindings (CGo, build complexity).
   - Pure-Go ports (e.g. `go-tree-sitter-bare`).

@@ -155,6 +155,20 @@ func (c *Client) validateCollectionDimension(ctx context.Context, name string, e
 				name, actualSize, expectedSize,
 			)
 		}
+
+		// Verify the sparse slot exists. Collections created during the
+		// transitional dense-only phase pass dimension validation but would
+		// fail later at sparse upsert or hybrid search with an opaque error.
+		// Detect that here and surface a clear migration message.
+		sparseConfig := info.GetConfig().GetParams().GetSparseVectorsConfig()
+		if sparseConfig == nil || sparseConfig.GetMap()["sparse"] == nil {
+			return fmt.Errorf(
+				"collection %q has a named dense vector but no \"sparse\" slot; "+
+					"this collection predates sparse-vector support; "+
+					"delete and re-index:\n  ragcodepilot collections delete %s\n  ragcodepilot index <repo-path>",
+				name, name,
+			)
+		}
 		return nil
 	}
 

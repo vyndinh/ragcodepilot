@@ -85,6 +85,7 @@ type Report struct {
 	Dataset    string                      `json:"dataset"`
 	Collection string                      `json:"collection"`
 	Embedder   string                      `json:"embedder"`
+	Mode       search.SearchMode           `json:"mode"`
 	Limit      int                         `json:"limit"`
 	Aggregate  Aggregate                   `json:"aggregate"`
 	ByType     map[QueryType]TypeBreakdown `json:"by_type"`
@@ -103,6 +104,7 @@ type Runner struct {
 
 	// EmbedderName is used in the report; descriptive only.
 	EmbedderName string
+	Mode         search.SearchMode
 }
 
 // Run executes the dataset and returns a Report. Per-query errors are captured
@@ -113,18 +115,24 @@ func (r *Runner) Run(ctx context.Context, datasetPath string, ds *Dataset) (*Rep
 		return nil, fmt.Errorf("limit must be >= %d for recall@10, got %d", DefaultLimit, r.Limit)
 	}
 
+	mode, err := search.ParseSearchMode(string(r.Mode))
+	if err != nil {
+		return nil, err
+	}
+
 	report := &Report{
 		RunID:      time.Now().UTC().Format("2006-01-02T15-04-05Z"),
 		Dataset:    datasetPath,
 		Collection: r.Collection,
 		Embedder:   r.EmbedderName,
+		Mode:       mode,
 		Limit:      r.Limit,
 		ByType:     make(map[QueryType]TypeBreakdown),
 		Queries:    make([]QueryResult, 0, len(ds.Queries)),
 	}
 
 	for _, q := range ds.Queries {
-		qr := r.runQuery(ctx, q)
+		qr := r.runQuery(ctx, q, mode)
 		report.Queries = append(report.Queries, qr)
 	}
 
@@ -133,7 +141,7 @@ func (r *Runner) Run(ctx context.Context, datasetPath string, ds *Dataset) (*Rep
 	return report, nil
 }
 
-func (r *Runner) runQuery(ctx context.Context, q Query) QueryResult {
+func (r *Runner) runQuery(ctx context.Context, q Query, mode search.SearchMode) QueryResult {
 	qr := QueryResult{
 		ID:       q.ID,
 		Type:     q.Type,
@@ -142,7 +150,7 @@ func (r *Runner) runQuery(ctx context.Context, q Query) QueryResult {
 	}
 
 	results, timings, err := r.Searcher.SearchWithTimings(
-		ctx, r.Collection, q.Query, uint64(r.Limit), q.Filters.Languages, q.Filters.Repos,
+		ctx, r.Collection, q.Query, mode, uint64(r.Limit), q.Filters.Languages, q.Filters.Repos,
 	)
 	qr.EmbedMS = timings.Embed.Milliseconds()
 	qr.QdrantMS = timings.Qdrant.Milliseconds()
