@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/dinhvy/ragcodepilot/internal/config"
+	"github.com/dinhvy/ragcodepilot/internal/embedding"
 	"github.com/dinhvy/ragcodepilot/internal/model"
 )
 
@@ -238,7 +239,7 @@ func (s *recordingStore) EnsureCollection(_ context.Context, name string, vector
 	return nil
 }
 
-func (s *recordingStore) Upsert(_ context.Context, _ string, chunks []model.CodeChunk, _ [][]float32) error {
+func (s *recordingStore) Upsert(_ context.Context, _ string, chunks []model.CodeChunk, _ [][]float32, _ []embedding.SparseVector) error {
 	s.upsertCalls++
 	s.upsertBatchSizes = append(s.upsertBatchSizes, len(chunks))
 	return nil
@@ -318,7 +319,7 @@ func (s *orderingStore) DeleteStaleChunksByFilePath(_ context.Context, _, _, fil
 	return nil
 }
 
-func (s *orderingStore) Upsert(_ context.Context, _ string, chunks []model.CodeChunk, _ [][]float32) error {
+func (s *orderingStore) Upsert(_ context.Context, _ string, chunks []model.CodeChunk, _ [][]float32, _ []embedding.SparseVector) error {
 	s.ops = append(s.ops, "upsert")
 	return nil
 }

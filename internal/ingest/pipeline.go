@@ -14,7 +14,7 @@ import (
 type vectorStore interface {
 	EnsureCollection(ctx context.Context, name string, vectorSize uint64) error
 	EnsurePayloadIndexes(ctx context.Context, collection string) error
-	Upsert(ctx context.Context, collection string, chunks []model.CodeChunk, vectors [][]float32) error
+	Upsert(ctx context.Context, collection string, chunks []model.CodeChunk, vectors [][]float32, sparseVectors []embedding.SparseVector) error
 	ScrollFileHashes(ctx context.Context, collection, repo string, languages []string) (map[string]string, error)
 	DeleteByFilePaths(ctx context.Context, collection, repo string, filePaths []string) error
 	DeleteStaleChunksByFilePath(ctx context.Context, collection, repo, filePath, currentHash string) error
@@ -246,7 +246,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 		}
 
 		// Upsert to Qdrant.
-		if err := p.store.Upsert(ctx, p.collection, batch, vectors); err != nil {
+		if err := p.store.Upsert(ctx, p.collection, batch, vectors, nil); err != nil {
 			return fmt.Errorf("upserting batch %d-%d: %w", start, end, err)
 		}
 

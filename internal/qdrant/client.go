@@ -8,6 +8,7 @@ import (
 
 	pb "github.com/qdrant/go-client/qdrant"
 
+	"github.com/dinhvy/ragcodepilot/internal/embedding"
 	"github.com/dinhvy/ragcodepilot/internal/model"
 )
 
@@ -67,6 +68,9 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
 				Size:     vectorSize,
 				Distance: pb.Distance_Cosine,
 			},
+		}),
+		SparseVectorsConfig: pb.NewSparseVectorsConfig(map[string]*pb.SparseVectorParams{
+			"sparse": {},
 		}),
 	})
 	if err != nil {
@@ -173,18 +177,30 @@ func (c *Client) ValidateCollectionVectorSize(ctx context.Context, name string, 
 }
 
 // Upsert inserts or updates points in the collection.
-func (c *Client) Upsert(ctx context.Context, collection string, chunks []model.CodeChunk, vectors [][]float32) error {
+// sparseVectors is optional; when nil, sparse vectors are omitted from points.
+func (c *Client) Upsert(ctx context.Context, collection string, chunks []model.CodeChunk, vectors [][]float32, sparseVectors []embedding.SparseVector) error {
 	if len(chunks) != len(vectors) {
 		return fmt.Errorf("chunks and vectors length mismatch: %d vs %d", len(chunks), len(vectors))
+	}
+	if sparseVectors != nil && len(chunks) != len(sparseVectors) {
+		return fmt.Errorf("chunks and sparse vectors length mismatch: %d vs %d", len(chunks), len(sparseVectors))
 	}
 
 	points := make([]*pb.PointStruct, len(chunks))
 	for i, chunk := range chunks {
+		vectorsMap := map[string]*pb.Vector{
+			"dense": pb.NewVectorDense(vectors[i]),
+		}
+		if sparseVectors != nil {
+			if len(sparseVectors[i].Indices) != len(sparseVectors[i].Values) {
+				return fmt.Errorf("sparse vector %d indices/values length mismatch: %d vs %d", i, len(sparseVectors[i].Indices), len(sparseVectors[i].Values))
+			}
+			vectorsMap["sparse"] = pb.NewVectorSparse(sparseVectors[i].Indices, sparseVectors[i].Values)
+		}
+
 		points[i] = &pb.PointStruct{
-			Id: pb.NewID(chunk.ID),
-			Vectors: pb.NewVectorsMap(map[string]*pb.Vector{
-				"dense": pb.NewVectorDense(vectors[i]),
-			}),
+			Id:      pb.NewID(chunk.ID),
+			Vectors: pb.NewVectorsMap(vectorsMap),
 			Payload: pb.NewValueMap(map[string]any{
 				"repo":       chunk.Repo,
 				"file_path":  chunk.FilePath,
