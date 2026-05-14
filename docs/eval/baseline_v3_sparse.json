@@ -1,0 +1,1853 @@
+{
+  "run_id": "2026-05-14T16-58-19Z",
+  "dataset": "docs/eval/golden.yaml",
+  "collection": "code_chunks",
+  "embedder": "ollama/nomic-embed-text",
+  "mode": "sparse",
+  "limit": 10,
+  "aggregate": {
+    "queries": 23,
+    "positive_queries": 19,
+    "negative_queries": 4,
+    "errors": 0,
+    "hit_at_1": 0.42105263157894735,
+    "hit_at_3": 0.7368421052631579,
+    "hit_at_5": 0.7368421052631579,
+    "mrr_at_5": 0.5789473684210527,
+    "recall_at_10": 0.8157894736842105,
+    "negative_pass_rate": 0.25,
+    "latency_total_p50_ms": 1,
+    "latency_total_p95_ms": 81,
+    "latency_embed_p50_ms": 0,
+    "latency_embed_p95_ms": 0,
+    "latency_qdrant_p50_ms": 1,
+    "latency_qdrant_p95_ms": 81
+  },
+  "by_type": {
+    "behavior": {
+      "count": 4,
+      "hit_at_5": 1,
+      "mrr_at_5": 0.875
+    },
+    "concept": {
+      "count": 7,
+      "hit_at_5": 0.7142857142857143,
+      "mrr_at_5": 0.42857142857142855
+    },
+    "navigation": {
+      "count": 8,
+      "hit_at_5": 0.625,
+      "mrr_at_5": 0.5625
+    },
+    "negative": {
+      "count": 4,
+      "negative_pass_rate": 0.25
+    }
+  },
+  "queries": [
+    {
+      "id": "chunkfile_navigation",
+      "type": "navigation",
+      "query": "where is ChunkFile defined",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_10": 0,
+      "top_score": 6.7753687,
+      "embed_ms": 0,
+      "qdrant_ms": 2,
+      "total_ms": 2,
+      "top_results": [
+        {
+          "file_path": "internal/eval/dataset.go",
+          "score": 6.7753687,
+          "start_line": 1,
+          "end_line": 54
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "score": 5.9951587,
+          "start_line": 1,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/eval/metrics.go",
+          "name": "RecallAtK",
+          "score": 5.9928746,
+          "start_line": 64,
+          "end_line": 84
+        },
+        {
+          "file_path": "internal/eval/metrics.go",
+          "name": "HasAny",
+          "score": 5.54689,
+          "start_line": 23,
+          "end_line": 26
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 4.6705613,
+          "start_line": 181,
+          "end_line": 220
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 4.5898743,
+          "start_line": 216,
+          "end_line": 255
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "collectionInfoWithVectorSize",
+          "score": 3.805242,
+          "start_line": 312,
+          "end_line": 331
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "score": 2.9110203,
+          "start_line": 1,
+          "end_line": 47
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "name": "SearchWithTimings",
+          "score": 2.5765617,
+          "start_line": 76,
+          "end_line": 131
+        },
+        {
+          "file_path": "internal/ingest/chunker_go_test.go",
+          "name": "TestChunkGoFile_ChunkTypeAndLanguage",
+          "score": 2.184702,
+          "start_line": 215,
+          "end_line": 231
+        }
+      ]
+    },
+    {
+      "id": "ensure_collection_navigation",
+      "type": "navigation",
+      "query": "EnsureCollection function on Qdrant client",
+      "hit_at_1": false,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 0.5,
+      "recall_at_10": 1,
+      "top_score": 8.336758,
+      "embed_ms": 0,
+      "qdrant_ms": 81,
+      "total_ms": 81,
+      "top_results": [
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "TestClient_EnsurePayloadIndexesNoOpForMissingCollection",
+          "score": 8.336758,
+          "start_line": 740,
+          "end_line": 752
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "EnsurePayloadIndexes",
+          "score": 8.326327,
+          "start_line": 88,
+          "end_line": 101
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "ensurePayloadIndexes",
+          "score": 8.249939,
+          "start_line": 107,
+          "end_line": 124
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "TestClient_EnsureCollectionWrapsInfoError",
+          "score": 8.197194,
+          "start_line": 183,
+          "end_line": 202
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "TestClient_EnsureCollectionRejectsMismatchedExistingDimension",
+          "score": 8.111185,
+          "start_line": 96,
+          "end_line": 116
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "TestClient_EnsureCollectionWrapsExistenceError",
+          "score": 8.082103,
+          "start_line": 160,
+          "end_line": 181
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "TestClient_EnsureCollectionRejectsLegacyUnnamedSchema",
+          "score": 8.054419,
+          "start_line": 118,
+          "end_line": 137
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "TestClient_EnsureCollectionAcceptsMatchingExistingDimension",
+          "score": 8.053904,
+          "start_line": 68,
+          "end_line": 94
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "TestClient_EnsureCollectionRejectsDenseOnlySchema",
+          "score": 8.033737,
+          "start_line": 139,
+          "end_line": 158
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "TestClient_EnsurePayloadIndexesCreatesIndexesForExistingCollection",
+          "score": 7.859578,
+          "start_line": 720,
+          "end_line": 738
+        }
+      ]
+    },
+    {
+      "id": "parse_language_filter_navigation",
+      "type": "navigation",
+      "query": "where is parseLanguageFilter implemented",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 7.193681,
+      "embed_ms": 0,
+      "qdrant_ms": 87,
+      "total_ms": 87,
+      "top_results": [
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "parseLanguageFilter",
+          "score": 7.193681,
+          "start_line": 239,
+          "end_line": 255
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "score": 6.499982,
+          "start_line": 59,
+          "end_line": 98
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "main",
+          "score": 5.5990944,
+          "start_line": 24,
+          "end_line": 63
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "score": 5.2964754,
+          "start_line": 164,
+          "end_line": 191
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "score": 5.289298,
+          "start_line": 129,
+          "end_line": 168
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 4.882956,
+          "start_line": 181,
+          "end_line": 220
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 4.7599325,
+          "start_line": 216,
+          "end_line": 255
+        },
+        {
+          "file_path": "internal/search/searcher_test.go",
+          "name": "TestParseSearchModeRejectsUnknown",
+          "score": 4.500081,
+          "start_line": 44,
+          "end_line": 54
+        },
+        {
+          "file_path": "internal/search/searcher_test.go",
+          "name": "TestParseSearchMode",
+          "score": 4.475063,
+          "start_line": 14,
+          "end_line": 42
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "name": "ParseSearchMode",
+          "score": 4.4235973,
+          "start_line": 56,
+          "end_line": 68
+        }
+      ]
+    },
+    {
+      "id": "run_eval_navigation",
+      "type": "navigation",
+      "query": "where is runEval function implemented",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_10": 1,
+      "top_score": 6.7073193,
+      "embed_ms": 0,
+      "qdrant_ms": 2,
+      "total_ms": 2,
+      "top_results": [
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "score": 6.7073193,
+          "start_line": 1,
+          "end_line": 28
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main_test.go",
+          "name": "TestRunEvalRejectsLimitBelowDefault",
+          "score": 5.5299,
+          "start_line": 96,
+          "end_line": 118
+        },
+        {
+          "file_path": "internal/eval/runner_test.go",
+          "name": "TestRunnerRunRejectsLimitBelowDefault",
+          "score": 5.1643925,
+          "start_line": 9,
+          "end_line": 36
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 5.159052,
+          "start_line": 181,
+          "end_line": 220
+        },
+        {
+          "file_path": "internal/eval/dataset.go",
+          "score": 5.036432,
+          "start_line": 1,
+          "end_line": 54
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runEval",
+          "score": 4.9186654,
+          "start_line": 349,
+          "end_line": 415
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "name": "Run",
+          "score": 4.5777445,
+          "start_line": 110,
+          "end_line": 142
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "score": 4.4569135,
+          "start_line": 71,
+          "end_line": 109
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "score": 4.323676,
+          "start_line": 1,
+          "end_line": 47
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "collectionInfoWithVectorSize",
+          "score": 4.008405,
+          "start_line": 312,
+          "end_line": 331
+        }
+      ]
+    },
+    {
+      "id": "search_with_timings_navigation",
+      "type": "navigation",
+      "query": "where is SearchWithTimings defined",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 8.995476,
+      "embed_ms": 0,
+      "qdrant_ms": 2,
+      "total_ms": 2,
+      "top_results": [
+        {
+          "file_path": "internal/search/searcher.go",
+          "name": "SearchWithTimings",
+          "score": 8.995476,
+          "start_line": 76,
+          "end_line": 131
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "score": 8.7041645,
+          "start_line": 1,
+          "end_line": 47
+        },
+        {
+          "file_path": "internal/eval/dataset.go",
+          "score": 7.969689,
+          "start_line": 1,
+          "end_line": 54
+        },
+        {
+          "file_path": "internal/search/searcher_test.go",
+          "name": "TestSearchWithTimingsDefaultModeIsHybrid",
+          "score": 6.976508,
+          "start_line": 154,
+          "end_line": 170
+        },
+        {
+          "file_path": "internal/search/searcher_test.go",
+          "name": "TestSearchWithTimingsRejectsUnknownModeBeforeWork",
+          "score": 6.7140436,
+          "start_line": 172,
+          "end_line": 191
+        },
+        {
+          "file_path": "internal/search/searcher_test.go",
+          "name": "TestSearchWithTimingsSparseModeSkipsEmbedding",
+          "score": 6.592579,
+          "start_line": 94,
+          "end_line": 122
+        },
+        {
+          "file_path": "internal/search/searcher_test.go",
+          "name": "TestSearchWithTimingsHybridModeBuildsDenseAndSparseQueries",
+          "score": 6.470007,
+          "start_line": 124,
+          "end_line": 152
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "name": "runQuery",
+          "score": 6.341094,
+          "start_line": 144,
+          "end_line": 183
+        },
+        {
+          "file_path": "internal/search/searcher_test.go",
+          "name": "TestSearchWithTimingsDenseModeEmbedsAndValidates",
+          "score": 6.316078,
+          "start_line": 56,
+          "end_line": 92
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "name": "Search",
+          "score": 6.139969,
+          "start_line": 70,
+          "end_line": 74
+        }
+      ]
+    },
+    {
+      "id": "validate_collection_vector_size_navigation",
+      "type": "navigation",
+      "query": "where is ValidateCollectionVectorSize defined",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 11.456429,
+      "embed_ms": 0,
+      "qdrant_ms": 2,
+      "total_ms": 2,
+      "top_results": [
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "ValidateCollectionVectorSize",
+          "score": 11.456429,
+          "start_line": 187,
+          "end_line": 191
+        },
+        {
+          "file_path": "internal/search/searcher_test.go",
+          "name": "ValidateCollectionVectorSize",
+          "score": 11.38138,
+          "start_line": 231,
+          "end_line": 236
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "name": "SearchWithTimings",
+          "score": 11.344057,
+          "start_line": 76,
+          "end_line": 131
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "collectionInfoWithVectorSize",
+          "score": 11.057436,
+          "start_line": 312,
+          "end_line": 331
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "score": 10.913672,
+          "start_line": 1,
+          "end_line": 47
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 10.811369,
+          "start_line": 216,
+          "end_line": 255
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "validateCollectionDimension",
+          "score": 9.90702,
+          "start_line": 126,
+          "end_line": 185
+        },
+        {
+          "file_path": "internal/search/searcher_test.go",
+          "score": 9.904837,
+          "start_line": 212,
+          "end_line": 230
+        },
+        {
+          "file_path": "internal/search/searcher_test.go",
+          "name": "TestSearchWithTimingsHybridModeBuildsDenseAndSparseQueries",
+          "score": 9.465566,
+          "start_line": 124,
+          "end_line": 152
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "EnsureCollection",
+          "score": 9.453304,
+          "start_line": 51,
+          "end_line": 86
+        }
+      ]
+    },
+    {
+      "id": "load_dataset_navigation",
+      "type": "navigation",
+      "query": "where is LoadDataset implemented",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_10": 1,
+      "top_score": 8.941949,
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "name": "TestLoadDatasetNegativeAllowsNoExpected",
+          "score": 8.941949,
+          "start_line": 129,
+          "end_line": 141
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "name": "TestLoadDatasetEmpty",
+          "score": 8.851278,
+          "start_line": 76,
+          "end_line": 83
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "name": "TestLoadDatasetMissingID",
+          "score": 8.802607,
+          "start_line": 85,
+          "end_line": 96
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "name": "TestLoadDatasetMissingExpected",
+          "score": 8.802607,
+          "start_line": 116,
+          "end_line": 127
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "name": "TestLoadDatasetDuplicateID",
+          "score": 8.725889,
+          "start_line": 98,
+          "end_line": 114
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "name": "TestLoadDataset",
+          "score": 8.168784,
+          "start_line": 39,
+          "end_line": 74
+        },
+        {
+          "file_path": "internal/eval/dataset.go",
+          "name": "LoadDataset",
+          "score": 8.151942,
+          "start_line": 55,
+          "end_line": 94
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "score": 8.023281,
+          "start_line": 1,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/eval/dataset.go",
+          "score": 6.450374,
+          "start_line": 1,
+          "end_line": 54
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runEval",
+          "score": 6.0225906,
+          "start_line": 349,
+          "end_line": 415
+        }
+      ]
+    },
+    {
+      "id": "hihatk_navigation",
+      "type": "navigation",
+      "query": "where is HitAtK function implemented",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 9.328135,
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/eval/metrics.go",
+          "name": "HitAtK",
+          "score": 9.328135,
+          "start_line": 40,
+          "end_line": 50
+        },
+        {
+          "file_path": "internal/eval/metrics_test.go",
+          "name": "TestHitAtK",
+          "score": 9.250223,
+          "start_line": 45,
+          "end_line": 72
+        },
+        {
+          "file_path": "internal/eval/metrics_test.go",
+          "name": "TestHitAtKNoMatch",
+          "score": 9.238863,
+          "start_line": 74,
+          "end_line": 81
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "name": "runQuery",
+          "score": 8.607383,
+          "start_line": 144,
+          "end_line": 183
+        },
+        {
+          "file_path": "internal/eval/metrics.go",
+          "score": 7.815039,
+          "start_line": 1,
+          "end_line": 22
+        },
+        {
+          "file_path": "internal/eval/metrics.go",
+          "name": "MRRAtK",
+          "score": 4.749551,
+          "start_line": 52,
+          "end_line": 62
+        },
+        {
+          "file_path": "internal/eval/metrics_test.go",
+          "name": "TestRecallAtK",
+          "score": 4.69989,
+          "start_line": 114,
+          "end_line": 143
+        },
+        {
+          "file_path": "internal/eval/metrics.go",
+          "name": "RecallAtK",
+          "score": 4.607425,
+          "start_line": 64,
+          "end_line": 84
+        },
+        {
+          "file_path": "internal/eval/metrics_test.go",
+          "name": "TestMRRAtK",
+          "score": 4.577873,
+          "start_line": 83,
+          "end_line": 112
+        },
+        {
+          "file_path": "internal/eval/metrics_test.go",
+          "name": "TestRecallAtKDuplicateMatchesCountOnce",
+          "score": 4.561727,
+          "start_line": 145,
+          "end_line": 158
+        }
+      ]
+    },
+    {
+      "id": "chunking_concept",
+      "type": "concept",
+      "query": "how does code chunking work",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_10": 0,
+      "top_score": 15.219772,
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "score": 15.219772,
+          "start_line": 1,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/eval/runner_test.go",
+          "name": "TestRunnerRunRejectsLimitBelowDefault",
+          "score": 13.314412,
+          "start_line": 9,
+          "end_line": 36
+        },
+        {
+          "file_path": "internal/eval/dataset.go",
+          "score": 6.888255,
+          "start_line": 1,
+          "end_line": 54
+        },
+        {
+          "file_path": "internal/ingest/walker.go",
+          "score": 6.7560396,
+          "start_line": 1,
+          "end_line": 14
+        },
+        {
+          "file_path": "internal/search/searcher_test.go",
+          "name": "TestSearchWithTimingsRejectsUnknownModeBeforeWork",
+          "score": 6.104324,
+          "start_line": 172,
+          "end_line": 191
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "name": "TestLoadDataset",
+          "score": 4.5197754,
+          "start_line": 39,
+          "end_line": 74
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "score": 3.2043772,
+          "start_line": 1,
+          "end_line": 40
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "Run",
+          "score": 2.7871177,
+          "start_line": 76,
+          "end_line": 115
+        },
+        {
+          "file_path": "internal/ingest/chunker_go_test.go",
+          "name": "filterByType",
+          "score": 1.9287997,
+          "start_line": 252,
+          "end_line": 260
+        },
+        {
+          "file_path": "internal/model/chunk.go",
+          "score": 1.7787167,
+          "start_line": 1,
+          "end_line": 50
+        }
+      ]
+    },
+    {
+      "id": "ingestion_pipeline_concept",
+      "type": "concept",
+      "query": "how does the ingestion pipeline walk files and produce chunks",
+      "hit_at_1": false,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 0.5,
+      "recall_at_10": 1,
+      "top_score": 11.30211,
+      "embed_ms": 0,
+      "qdrant_ms": 2,
+      "total_ms": 2,
+      "top_results": [
+        {
+          "file_path": "internal/ingest/walker.go",
+          "score": 11.30211,
+          "start_line": 1,
+          "end_line": 14
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 11.261352,
+          "start_line": 1,
+          "end_line": 36
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "Run",
+          "score": 10.098732,
+          "start_line": 76,
+          "end_line": 115
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "WithLanguages",
+          "score": 10.037172,
+          "start_line": 47,
+          "end_line": 58
+        },
+        {
+          "file_path": "internal/ingest/walker.go",
+          "name": "WalkFiles",
+          "score": 8.689978,
+          "start_line": 15,
+          "end_line": 47
+        },
+        {
+          "file_path": "internal/ingest/enrichment_test.go",
+          "name": "TestEnrichForEmbedding",
+          "score": 8.469534,
+          "start_line": 10,
+          "end_line": 49
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "NewPipeline",
+          "score": 7.5141945,
+          "start_line": 60,
+          "end_line": 74
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "score": 7.4785037,
+          "start_line": 1,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/ingest/chunker.go",
+          "name": "ChunkFile",
+          "score": 7.398836,
+          "start_line": 20,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/eval/runner_test.go",
+          "name": "TestRunnerRunRejectsLimitBelowDefault",
+          "score": 6.864418,
+          "start_line": 9,
+          "end_line": 36
+        }
+      ]
+    },
+    {
+      "id": "config_language_detection_concept",
+      "type": "concept",
+      "query": "how does config detect language from file extension",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 13.445816,
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/config/config.go",
+          "name": "DetectLanguage",
+          "score": 13.445816,
+          "start_line": 79,
+          "end_line": 87
+        },
+        {
+          "file_path": "internal/config/config.go",
+          "name": "IsSourceFile",
+          "score": 7.5941553,
+          "start_line": 89,
+          "end_line": 94
+        },
+        {
+          "file_path": "internal/config/config.go",
+          "score": 6.9453278,
+          "start_line": 1,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/config/config.go",
+          "name": "buildIndexes",
+          "score": 6.9112115,
+          "start_line": 102,
+          "end_line": 117
+        },
+        {
+          "file_path": "internal/ingest/chunker.go",
+          "name": "ChunkFile",
+          "score": 6.4955077,
+          "start_line": 20,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/ingest/chunker_go.go",
+          "name": "chunkGoFile",
+          "score": 5.222682,
+          "start_line": 20,
+          "end_line": 59
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "score": 5.1625705,
+          "start_line": 1,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "validateCollectionDimension",
+          "score": 5.1354446,
+          "start_line": 126,
+          "end_line": 185
+        },
+        {
+          "file_path": "internal/ingest/chunker.go",
+          "name": "chunkGeneric",
+          "score": 5.020028,
+          "start_line": 30,
+          "end_line": 87
+        },
+        {
+          "file_path": "internal/eval/runner_test.go",
+          "name": "TestRunnerRunRejectsLimitBelowDefault",
+          "score": 4.7384424,
+          "start_line": 9,
+          "end_line": 36
+        }
+      ]
+    },
+    {
+      "id": "payload_indexes_concept",
+      "type": "concept",
+      "query": "how are payload indexes ensured in qdrant",
+      "hit_at_1": false,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 0.5,
+      "recall_at_10": 1,
+      "top_score": 11.00584,
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "TestClient_EnsureCollectionAcceptsMatchingExistingDimension",
+          "score": 11.00584,
+          "start_line": 68,
+          "end_line": 94
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "EnsurePayloadIndexes",
+          "score": 9.039051,
+          "start_line": 88,
+          "end_line": 101
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "ensurePayloadIndexes",
+          "score": 8.998773,
+          "start_line": 107,
+          "end_line": 124
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "TestClient_EnsurePayloadIndexesNoOpForMissingCollection",
+          "score": 8.736392,
+          "start_line": 740,
+          "end_line": 752
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "TestClient_EnsurePayloadIndexesCreatesIndexesForExistingCollection",
+          "score": 8.591525,
+          "start_line": 720,
+          "end_line": 738
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "score": 8.030516,
+          "start_line": 711,
+          "end_line": 719
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "EnsureCollection",
+          "score": 7.7403674,
+          "start_line": 51,
+          "end_line": 86
+        },
+        {
+          "file_path": "internal/ingest/pipeline_test.go",
+          "name": "EnsurePayloadIndexes",
+          "score": 7.7089615,
+          "start_line": 422,
+          "end_line": 422
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "Run",
+          "score": 7.4379153,
+          "start_line": 76,
+          "end_line": 115
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "score": 5.1591916,
+          "start_line": 1,
+          "end_line": 28
+        }
+      ]
+    },
+    {
+      "id": "eval_aggregation_concept",
+      "type": "concept",
+      "query": "how does eval aggregate metrics by query type",
+      "hit_at_1": false,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 0.5,
+      "recall_at_10": 1,
+      "top_score": 13.633486,
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/eval/dataset.go",
+          "score": 13.633486,
+          "start_line": 1,
+          "end_line": 54
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "score": 11.813477,
+          "start_line": 71,
+          "end_line": 109
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "score": 10.078913,
+          "start_line": 36,
+          "end_line": 75
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "score": 10.0303545,
+          "start_line": 1,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/eval/format.go",
+          "name": "FormatHuman",
+          "score": 9.424951,
+          "start_line": 9,
+          "end_line": 48
+        },
+        {
+          "file_path": "internal/eval/runner_test.go",
+          "name": "TestRunnerRunRejectsLimitBelowDefault",
+          "score": 9.369114,
+          "start_line": 9,
+          "end_line": 36
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "name": "Run",
+          "score": 8.496182,
+          "start_line": 110,
+          "end_line": 142
+        },
+        {
+          "file_path": "internal/eval/metrics.go",
+          "score": 8.106385,
+          "start_line": 1,
+          "end_line": 22
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runEval",
+          "score": 7.6900334,
+          "start_line": 349,
+          "end_line": 415
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "name": "aggregate",
+          "score": 6.77302,
+          "start_line": 199,
+          "end_line": 270
+        }
+      ]
+    },
+    {
+      "id": "enrichment_concept",
+      "type": "concept",
+      "query": "how is code enriched before embedding",
+      "hit_at_1": false,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 0.5,
+      "recall_at_10": 1,
+      "top_score": 6.7530556,
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 6.7530556,
+          "start_line": 251,
+          "end_line": 290
+        },
+        {
+          "file_path": "internal/ingest/enrichment.go",
+          "name": "enrichForEmbedding",
+          "score": 6.248038,
+          "start_line": 10,
+          "end_line": 35
+        },
+        {
+          "file_path": "internal/ingest/pipeline_test.go",
+          "name": "TestPipeline_RunValidatesEmbeddingBatchBeforeStore",
+          "score": 5.6185207,
+          "start_line": 62,
+          "end_line": 121
+        },
+        {
+          "file_path": "internal/embedding/ollama.go",
+          "name": "Dimension",
+          "score": 5.412259,
+          "start_line": 105,
+          "end_line": 111
+        },
+        {
+          "file_path": "internal/search/searcher_test.go",
+          "name": "TestSearchWithTimingsRejectsUnknownModeBeforeWork",
+          "score": 5.330261,
+          "start_line": 172,
+          "end_line": 191
+        },
+        {
+          "file_path": "internal/embedding/sparse.go",
+          "name": "splitCamel",
+          "score": 5.1605988,
+          "start_line": 112,
+          "end_line": 160
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "score": 5.1591916,
+          "start_line": 1,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 5.0606556,
+          "start_line": 216,
+          "end_line": 255
+        },
+        {
+          "file_path": "internal/eval/runner_test.go",
+          "name": "TestRunnerRunRejectsLimitBelowDefault",
+          "score": 4.735553,
+          "start_line": 9,
+          "end_line": 36
+        },
+        {
+          "file_path": "internal/ingest/pipeline_test.go",
+          "name": "TestPipeline_RunRejectsSecondBatchDimensionMismatchBeforeUpsert",
+          "score": 4.453215,
+          "start_line": 123,
+          "end_line": 161
+        }
+      ]
+    },
+    {
+      "id": "hasher_concept",
+      "type": "concept",
+      "query": "how are file hashes computed for re-indexing",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_10": 0,
+      "top_score": 12.6055355,
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 12.6055355,
+          "start_line": 181,
+          "end_line": 220
+        },
+        {
+          "file_path": "internal/embedding/sparse.go",
+          "score": 9.901596,
+          "start_line": 181,
+          "end_line": 188
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "Run",
+          "score": 9.318104,
+          "start_line": 76,
+          "end_line": 115
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "ScrollFileHashes",
+          "score": 9.233814,
+          "start_line": 457,
+          "end_line": 521
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 9.00268,
+          "start_line": 111,
+          "end_line": 150
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "validateCollectionDimension",
+          "score": 6.326747,
+          "start_line": 126,
+          "end_line": 185
+        },
+        {
+          "file_path": "internal/model/chunk.go",
+          "score": 5.9805574,
+          "start_line": 1,
+          "end_line": 50
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "score": 5.1609964,
+          "start_line": 1,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/eval/runner_test.go",
+          "name": "TestRunnerRunRejectsLimitBelowDefault",
+          "score": 4.7369976,
+          "start_line": 9,
+          "end_line": 36
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "TestClient_EnsureCollectionRejectsLegacyUnnamedSchema",
+          "score": 3.824435,
+          "start_line": 118,
+          "end_line": 137
+        }
+      ]
+    },
+    {
+      "id": "dimension_validation_behavior",
+      "type": "behavior",
+      "query": "what happens when the embedder returns inconsistent vector dimensions",
+      "hit_at_1": false,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 0.5,
+      "recall_at_10": 1,
+      "top_score": 12.276835,
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/ingest/pipeline_test.go",
+          "name": "TestPipeline_RunValidatesEmbeddingBatchBeforeStore",
+          "score": 12.276835,
+          "start_line": 62,
+          "end_line": 121
+        },
+        {
+          "file_path": "internal/embedding/validate.go",
+          "name": "ValidateVectorBatch",
+          "score": 11.83995,
+          "start_line": 5,
+          "end_line": 38
+        },
+        {
+          "file_path": "internal/embedding/validate_test.go",
+          "name": "TestValidateVectorBatch",
+          "score": 8.36707,
+          "start_line": 7,
+          "end_line": 85
+        },
+        {
+          "file_path": "internal/embedding/ollama.go",
+          "name": "Dimension",
+          "score": 6.914794,
+          "start_line": 105,
+          "end_line": 111
+        },
+        {
+          "file_path": "internal/embedding/embedder.go",
+          "score": 6.8616276,
+          "start_line": 1,
+          "end_line": 16
+        },
+        {
+          "file_path": "internal/ingest/pipeline_test.go",
+          "name": "TestPipeline_RunDeletesStaleFiles",
+          "score": 6.0684433,
+          "start_line": 536,
+          "end_line": 572
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "languageKeys",
+          "score": 5.929524,
+          "start_line": 314,
+          "end_line": 325
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main_test.go",
+          "name": "TestResolveIndexConfig_UnreadableReturnsError",
+          "score": 5.7484565,
+          "start_line": 65,
+          "end_line": 76
+        },
+        {
+          "file_path": "internal/eval/metrics.go",
+          "name": "RecallAtK",
+          "score": 5.306244,
+          "start_line": 64,
+          "end_line": 84
+        },
+        {
+          "file_path": "internal/ingest/pipeline_test.go",
+          "score": 5.253934,
+          "start_line": 318,
+          "end_line": 323
+        }
+      ]
+    },
+    {
+      "id": "reindex_change_detection_behavior",
+      "type": "behavior",
+      "query": "how does the system detect changed files when re-indexing",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_10": 0.5,
+      "top_score": 13.084837,
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 13.084837,
+          "start_line": 111,
+          "end_line": 150
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 11.80361,
+          "start_line": 181,
+          "end_line": 220
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "Run",
+          "score": 11.579254,
+          "start_line": 76,
+          "end_line": 115
+        },
+        {
+          "file_path": "internal/ingest/pipeline_test.go",
+          "name": "TestPipeline_RunRefreshesUnchangedFilesWhenAnyFileChanges",
+          "score": 9.735851,
+          "start_line": 226,
+          "end_line": 262
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "validateCollectionDimension",
+          "score": 8.837806,
+          "start_line": 126,
+          "end_line": 185
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "ScrollFileHashes",
+          "score": 8.807854,
+          "start_line": 457,
+          "end_line": 521
+        },
+        {
+          "file_path": "internal/eval/metrics.go",
+          "name": "RecallAtK",
+          "score": 8.669865,
+          "start_line": 64,
+          "end_line": 84
+        },
+        {
+          "file_path": "internal/model/chunk.go",
+          "score": 7.9008574,
+          "start_line": 1,
+          "end_line": 50
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 7.8481607,
+          "start_line": 146,
+          "end_line": 185
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 7.7286024,
+          "start_line": 286,
+          "end_line": 297
+        }
+      ]
+    },
+    {
+      "id": "collection_dimension_mismatch_behavior",
+      "type": "behavior",
+      "query": "what happens when query vector dimension does not match collection",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 8.995102,
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/search/searcher.go",
+          "name": "SearchWithTimings",
+          "score": 8.995102,
+          "start_line": 76,
+          "end_line": 131
+        },
+        {
+          "file_path": "internal/eval/dataset.go",
+          "score": 8.380588,
+          "start_line": 1,
+          "end_line": 54
+        },
+        {
+          "file_path": "internal/embedding/validate.go",
+          "name": "ValidateVectorBatch",
+          "score": 7.9395247,
+          "start_line": 5,
+          "end_line": 38
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "ValidateCollectionVectorSize",
+          "score": 7.6823854,
+          "start_line": 187,
+          "end_line": 191
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "validateCollectionDimension",
+          "score": 7.2097273,
+          "start_line": 126,
+          "end_line": 185
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "EnsureCollection",
+          "score": 7.0661907,
+          "start_line": 51,
+          "end_line": 86
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "ScrollFileHashes",
+          "score": 6.994623,
+          "start_line": 457,
+          "end_line": 521
+        },
+        {
+          "file_path": "internal/eval/metrics_test.go",
+          "name": "TestHitAtKNoMatch",
+          "score": 6.75723,
+          "start_line": 74,
+          "end_line": 81
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "score": 6.7452526,
+          "start_line": 305,
+          "end_line": 344
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "TestClient_EnsureCollectionRejectsMismatchedExistingDimension",
+          "score": 6.6134796,
+          "start_line": 96,
+          "end_line": 116
+        }
+      ]
+    },
+    {
+      "id": "eval_limit_guard_behavior",
+      "type": "behavior",
+      "query": "what happens when eval limit is below 10",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 11.412056,
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/eval/runner.go",
+          "score": 11.412056,
+          "start_line": 1,
+          "end_line": 40
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main_test.go",
+          "name": "TestRunEvalRejectsLimitBelowDefault",
+          "score": 11.003582,
+          "start_line": 96,
+          "end_line": 118
+        },
+        {
+          "file_path": "internal/eval/runner_test.go",
+          "name": "TestRunnerRunRejectsLimitBelowDefault",
+          "score": 10.693571,
+          "start_line": 9,
+          "end_line": 36
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "name": "runQuery",
+          "score": 9.133285,
+          "start_line": 144,
+          "end_line": 183
+        },
+        {
+          "file_path": "internal/eval/dataset.go",
+          "score": 8.68182,
+          "start_line": 1,
+          "end_line": 54
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "score": 8.676735,
+          "start_line": 129,
+          "end_line": 168
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runEval",
+          "score": 8.323987,
+          "start_line": 349,
+          "end_line": 415
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "name": "Run",
+          "score": 8.055311,
+          "start_line": 110,
+          "end_line": 142
+        },
+        {
+          "file_path": "internal/eval/metrics.go",
+          "name": "RecallAtK",
+          "score": 7.473299,
+          "start_line": 64,
+          "end_line": 84
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "printUsage",
+          "score": 6.6200237,
+          "start_line": 193,
+          "end_line": 237
+        }
+      ]
+    },
+    {
+      "id": "oauth_middleware_negative",
+      "type": "negative",
+      "query": "where is the OAuth middleware implemented",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_10": 0,
+      "top_score": 20.98681,
+      "negative": {
+        "threshold": 0.55,
+        "pass": false
+      },
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "score": 20.98681,
+          "start_line": 1,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/embedding/ollama.go",
+          "name": "setDim",
+          "score": 5.6717954,
+          "start_line": 113,
+          "end_line": 117
+        },
+        {
+          "file_path": "internal/embedding/ollama.go",
+          "name": "Dimension",
+          "score": 5.6244807,
+          "start_line": 105,
+          "end_line": 111
+        },
+        {
+          "file_path": "internal/embedding/ollama.go",
+          "name": "Embed",
+          "score": 5.0052743,
+          "start_line": 45,
+          "end_line": 103
+        },
+        {
+          "file_path": "internal/config/config.go",
+          "name": "buildIndexes",
+          "score": 4.1387024,
+          "start_line": 102,
+          "end_line": 117
+        },
+        {
+          "file_path": "internal/config/config.go",
+          "score": 4.0154586,
+          "start_line": 1,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "collectionInfoWithVectorSize",
+          "score": 3.803852,
+          "start_line": 312,
+          "end_line": 331
+        },
+        {
+          "file_path": "internal/eval/dataset.go",
+          "score": 3.0824242,
+          "start_line": 1,
+          "end_line": 54
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 3.0321062,
+          "start_line": 216,
+          "end_line": 255
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "score": 2.909957,
+          "start_line": 1,
+          "end_line": 47
+        }
+      ]
+    },
+    {
+      "id": "kubernetes_manifest_negative",
+      "type": "negative",
+      "query": "Kubernetes deployment manifest for the service",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_10": 0,
+      "top_score": 0,
+      "negative": {
+        "threshold": 0.55,
+        "pass": true
+      },
+      "embed_ms": 0,
+      "qdrant_ms": 0,
+      "total_ms": 0
+    },
+    {
+      "id": "grpc_gateway_router_negative",
+      "type": "negative",
+      "query": "where is the grpc gateway HTTP router setup",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_10": 0,
+      "top_score": 6.9849524,
+      "negative": {
+        "threshold": 0.55,
+        "pass": false
+      },
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/ingest/chunker_go_test.go",
+          "score": 6.9849524,
+          "start_line": 261,
+          "end_line": 263
+        },
+        {
+          "file_path": "internal/embedding/sparse_test.go",
+          "name": "TestSplitCamel_AllUpper",
+          "score": 4.46265,
+          "start_line": 99,
+          "end_line": 101
+        },
+        {
+          "file_path": "internal/embedding/sparse_test.go",
+          "name": "TestSplitCamel_Acronym",
+          "score": 4.46265,
+          "start_line": 87,
+          "end_line": 89
+        },
+        {
+          "file_path": "internal/embedding/sparse_test.go",
+          "name": "TestTokenize_UppercaseAcronym",
+          "score": 4.4363236,
+          "start_line": 35,
+          "end_line": 39
+        },
+        {
+          "file_path": "internal/eval/dataset_test.go",
+          "score": 4.307985,
+          "start_line": 1,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/embedding/ollama.go",
+          "score": 4.196985,
+          "start_line": 1,
+          "end_line": 24
+        },
+        {
+          "file_path": "internal/qdrant/client_test.go",
+          "name": "collectionInfoWithVectorSize",
+          "score": 3.803852,
+          "start_line": 312,
+          "end_line": 331
+        },
+        {
+          "file_path": "internal/embedding/sparse.go",
+          "name": "splitCamel",
+          "score": 3.7969286,
+          "start_line": 112,
+          "end_line": 160
+        },
+        {
+          "file_path": "internal/embedding/ollama.go",
+          "name": "NewOllamaEmbedder",
+          "score": 3.7006776,
+          "start_line": 25,
+          "end_line": 34
+        },
+        {
+          "file_path": "internal/embedding/ollama.go",
+          "name": "Embed",
+          "score": 3.5914192,
+          "start_line": 45,
+          "end_line": 103
+        }
+      ]
+    },
+    {
+      "id": "terraform_module_negative",
+      "type": "negative",
+      "query": "terraform module for production networking",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_10": 0,
+      "top_score": 3.8752153,
+      "negative": {
+        "threshold": 0.55,
+        "pass": false
+      },
+      "embed_ms": 0,
+      "qdrant_ms": 1,
+      "total_ms": 1,
+      "top_results": [
+        {
+          "file_path": "internal/eval/runner.go",
+          "score": 3.8752153,
+          "start_line": 71,
+          "end_line": 109
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "name": "SearchWithTimings",
+          "score": 3.084533,
+          "start_line": 76,
+          "end_line": 131
+        },
+        {
+          "file_path": "internal/embedding/sparse_test.go",
+          "name": "TestTokenize_IndexQueryParity",
+          "score": 3.0246174,
+          "start_line": 417,
+          "end_line": 475
+        }
+      ]
+    }
+  ]
+}

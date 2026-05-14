@@ -10,7 +10,7 @@ The current system indexes code, embeds chunks, stores vectors in Qdrant, and re
 
 Add evaluation as a near-term project phase before hybrid search.
 
-The evaluation harness should become the scoreboard for retrieval improvements such as chunk enrichment, function-level chunking, embedding model changes, filters, hybrid BM25, and reranking.
+The evaluation harness should become the scoreboard for retrieval improvements such as chunk enrichment, function-level chunking, embedding model changes, filters, hybrid search (BM25 + dense + RRF), and reranking.
 
 ## Retrieval Metrics
 

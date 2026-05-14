@@ -159,7 +159,18 @@ func splitCamel(s string) []string {
 	return parts
 }
 
-// --- TF-IDF -------------------------------------------------------------
+// --- BM25 ---------------------------------------------------------------
+
+// BM25 parameters. k1 is softened from the Elasticsearch default (1.2)
+// because Round 1 eval showed that aggressive saturation pulled
+// identifier-overlap chunks above semantically-closer chunks on a concept
+// query. k1 = 0.5 keeps the saturation curve flatter, which behaves closer
+// to TF-IDF when term frequencies are low — the typical case in short
+// code chunks — while still capping pathological repeats.
+const (
+	bm25K1 = 0.5
+	bm25B  = 0.75
+)
 
 // tokenHash returns the CRC32 hash of a token, used as the sparse vector
 // index. CRC32 with ~1M unique tokens gives ~120 expected collisions
@@ -168,24 +179,36 @@ func tokenHash(token string) uint32 {
 	return crc32.ChecksumIEEE([]byte(token))
 }
 
-// ComputeIDF computes the inverse document frequency for each unique token
-// across the full corpus. Call this once per indexing run with all chunk texts.
+// CorpusStats holds the per-corpus statistics needed to compute BM25 weights.
+// Computed once per indexing run and shared across all batches.
+type CorpusStats struct {
+	IDF       map[string]float64 // BM25-smoothed inverse document frequency
+	AvgDocLen float64            // average document length in tokens
+}
+
+// ComputeCorpusStats walks the corpus once, computing:
+//   - document frequency df(t) for every token
+//   - BM25-smoothed idf(t) = log((N - df(t) + 0.5) / (df(t) + 0.5) + 1)
+//   - the average document length avgdl (in tokens)
 //
-//	idf(t) = log(N / df(t))
+// Compared to classic log(N/df), the BM25 smoothing keeps idf strictly
+// positive even for tokens appearing in more than half the corpus, so common
+// tokens still contribute (weakly) rather than dropping to zero.
 //
-// where N is the total number of documents and df(t) is the number of
-// documents containing token t.
-func ComputeIDF(texts []string) map[string]float64 {
+// Returns the zero value if texts is empty.
+func ComputeCorpusStats(texts []string) CorpusStats {
 	n := len(texts)
 	if n == 0 {
-		return nil
+		return CorpusStats{}
 	}
 
-	// Count document frequency for each token.
 	df := make(map[string]int)
+	totalDocLen := 0
 	for _, text := range texts {
-		seen := make(map[string]struct{})
-		for _, tok := range Tokenize(text) {
+		tokens := Tokenize(text)
+		totalDocLen += len(tokens)
+		seen := make(map[string]struct{}, len(tokens))
+		for _, tok := range tokens {
 			if _, ok := seen[tok]; ok {
 				continue
 			}
@@ -194,23 +217,31 @@ func ComputeIDF(texts []string) map[string]float64 {
 		}
 	}
 
-	// Compute IDF.
-	idf := make(map[string]float64, len(df))
 	nf := float64(n)
+	idf := make(map[string]float64, len(df))
 	for tok, count := range df {
-		idf[tok] = math.Log(nf / float64(count))
+		idf[tok] = math.Log((nf-float64(count)+0.5)/(float64(count)+0.5) + 1)
 	}
-	return idf
+
+	return CorpusStats{
+		IDF:       idf,
+		AvgDocLen: float64(totalDocLen) / nf,
+	}
 }
 
-// BuildSparseVectors generates one SparseVector per input text using TF-IDF
-// weights. The idfMap should come from ComputeIDF over the full corpus.
+// BuildSparseVectors generates one SparseVector per input text using BM25
+// weights. The stats should come from ComputeCorpusStats over the full
+// corpus indexed in this run.
 //
-// For each document:
+// For each document d and term t with raw count f = tf(t,d):
 //
-//	tf(t,d) = count(t,d) / len(d)
-//	weight(t,d) = tf(t,d) * idf(t)
-func BuildSparseVectors(texts []string, idfMap map[string]float64) []SparseVector {
+//	lenNorm = 1 - b + b * (|d| / avgdl)
+//	weight  = idf(t) * (f * (k1 + 1)) / (f + k1 * lenNorm)
+//
+// The k1 term saturates the effect of repeated tokens (so client × 30 no
+// longer dominates client × 5). The b term penalizes docs longer than the
+// corpus average.
+func BuildSparseVectors(texts []string, stats CorpusStats) []SparseVector {
 	result := make([]SparseVector, len(texts))
 
 	for i, text := range texts {
@@ -226,22 +257,30 @@ func BuildSparseVectors(texts []string, idfMap map[string]float64) []SparseVecto
 			tf[tok]++
 		}
 
+		// Length normalization. Falls back to 1.0 if the corpus is empty
+		// (avgdl == 0) so we never divide by zero.
+		docLen := float64(len(tokens))
+		lenNorm := 1.0
+		if stats.AvgDocLen > 0 {
+			lenNorm = 1 - bm25B + bm25B*(docLen/stats.AvgDocLen)
+		}
+
 		// Build sparse vector keyed by hashed index. Different tokens that
 		// hash to the same uint32 (CRC32 collision) naturally merge into one
 		// dimension because the map key is the hash — duplicate writes use
 		// += to sum weights. This makes the output's "one dimension per
 		// unique hash" property a structural guarantee.
-		docLen := float64(len(tokens))
 		hashWeights := make(map[uint32]float32, len(tf))
 
 		for tok, count := range tf {
-			idf, ok := idfMap[tok]
-			if !ok {
-				// Token not in IDF map (shouldn't happen if idfMap came from
-				// the same corpus, but be defensive).
+			idf, ok := stats.IDF[tok]
+			if !ok || idf <= 0 {
+				// Token not in IDF map (shouldn't happen if stats came from
+				// the same corpus), or zero/negative IDF — skip.
 				continue
 			}
-			weight := (float64(count) / docLen) * idf
+			f := float64(count)
+			weight := idf * f * (bm25K1 + 1) / (f + bm25K1*lenNorm)
 			if weight <= 0 {
 				continue
 			}

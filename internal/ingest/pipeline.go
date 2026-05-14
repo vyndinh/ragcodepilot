@@ -207,11 +207,10 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 	// Step 7.5: Build enriched texts once and compute global IDF over the full
 	// chunk corpus for this indexing run.
 	//
-	// IDF scope caveat: this map is computed over the chunks being indexed in
-	// THIS run, after the language filter (see p.languageKeys()) and after the
-	// change-detection filter (only new/changed files are in allChunks). When
-	// re-indexing a single language with --language go, the IDF reflects only
-	// Go chunks — other languages already in the collection keep the IDF
+	// IDF scope caveat: this map is computed over all current chunks in this
+	// run's indexing scope after the language filter (see p.languageKeys()).
+	// When re-indexing a single language with --language go, the IDF reflects
+	// only Go chunks. Other languages already in the collection keep the IDF
 	// weights they were written with. For a multi-language collection this
 	// produces inconsistent sparse weighting across languages, which is fine
 	// for filtered search (where the filter narrows results to one language
@@ -222,7 +221,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 	for i, chunk := range allChunks {
 		allTexts[i] = enrichForEmbedding(chunk)
 	}
-	idfMap := embedding.ComputeIDF(allTexts)
+	corpusStats := embedding.ComputeCorpusStats(allTexts)
 
 	// Step 8: Embed and upsert in batches (dense + sparse).
 	const batchSize = 32
@@ -254,8 +253,9 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 		}
 		expectedDim = detectedDim
 
-		// Build sparse vectors from the same enriched texts using global IDF.
-		sparseVectors := embedding.BuildSparseVectors(texts, idfMap)
+		// Build sparse vectors from the same enriched texts using BM25 over
+		// the global corpus stats (IDF + average document length).
+		sparseVectors := embedding.BuildSparseVectors(texts, corpusStats)
 		if len(sparseVectors) != len(batch) {
 			return fmt.Errorf("building sparse vectors for batch %d-%d: expected %d vectors, got %d", start, end, len(batch), len(sparseVectors))
 		}

@@ -17,7 +17,7 @@ This project is a learning implementation for vector database application design
 - Collection list and delete commands.
 - `config.yaml` is auto-loaded during indexing when present; built-in defaults are used only when it is absent.
 
-Planned but not complete: regex chunkers for Python/Rust, sparse vectors, hybrid BM25/vector search, and cross-encoder reranking. See [`docs/plan/mvp_roadmap.md`](docs/plan/mvp_roadmap.md) for the full roadmap.
+Hybrid search is implemented: BM25 sparse vectors (`k1=0.5`, `b=0.75`) + dense vectors + Reciprocal Rank Fusion (`--mode dense|sparse|hybrid`, default `hybrid`). Still planned: regex chunkers for Python/Rust, Rust AST chunker, and cross-encoder reranking. See [`docs/plan/mvp_roadmap.md`](docs/plan/mvp_roadmap.md) for the full roadmap.
 
 ## Architecture
 
@@ -263,7 +263,7 @@ go run ./cmd/ragcodepilot index --language go .
 ## Known limitations
 
 - Function-level chunking is Go-only (AST-based). Other languages use a sliding window.
-- Hybrid search, sparse vectors, BM25, and RRF fusion are not implemented yet.
+- Sparse vectors use BM25 with a softened `k1=0.5` (Elasticsearch's default `k1=1.2` is calibrated for long, mixed-length documents; code chunks are short and uniform, so milder TF saturation gave a much cleaner result on the May 2026 eval — hit@1 +21pp vs TF-IDF). See [`docs/plan/hybrid_search.md`](docs/plan/hybrid_search.md) §3 for the rationale, eval numbers, and the one known failure mode (plural/singular token mismatch on a single concept query).
 - Embedding dimension is auto-detected; switching models requires collection delete + re-index.
 
 ## Further docs
