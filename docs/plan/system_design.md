@@ -117,7 +117,7 @@ Search:
     │                                         │
     │  Collection: "code_chunks"              │
     │  ├── dense vector (auto-detected, cosine)│
-    │  ├── sparse vector (BM25, optional)     │
+    │  ├── sparse vector (BM25, optional)    │
     │  └── payload:                           │
     │       ├── repo: string                  │
     │       ├── file_path: string             │
@@ -285,7 +285,7 @@ User query → Embed query → Search mode selection:
 
 ### Phase 3: Hybrid search
 
-- Add sparse vectors for BM25-style keyword matching
+- Add sparse vectors for BM25 keyword matching (the May 2026 eval pivoted from TF-IDF back to BM25 with softened `k1=0.5` after hit@1 lifted +21pp; see `hybrid_search.md` §3 for the rationale and numbers)
 - Implement hybrid search with RRF fusion
 - Add exact function name search alongside semantic
 - **Goal**: hybrid search finds code by both meaning and keywords

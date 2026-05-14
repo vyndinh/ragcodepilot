@@ -137,7 +137,7 @@ This is a minor improvement and can be deferred.
 
 - **Function-level chunking**: enrichment improves matching for existing chunks, but a 40-line sliding window still splits functions mid-body. Function-level chunking (Phase 2 checklist) is a separate, complementary improvement.
 - **Dimension mismatches**: enrichment does not affect vector shape. See `embedding_dimension_validation.md` for that problem.
-- **Keyword search**: enrichment helps the semantic model, but exact keyword matches (e.g., searching for a function name `WalkFiles`) still need BM25/hybrid search (Phase 3).
+- **Keyword search**: enrichment helps the semantic model, but exact keyword matches (e.g., searching for a function name `WalkFiles`) still need hybrid search (BM25 sparse vectors + dense + RRF — implemented in Phase 2, see `hybrid_search.md`).
 
 ## Test scenarios
 
