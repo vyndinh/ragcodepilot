@@ -32,9 +32,12 @@ Each chunk stored in Qdrant now carries a `file_hash` payload — the SHA-256 he
 │       │ New       │ file on disk, not in Qdrant              │  │
 │       │ Stale     │ file in Qdrant, not on disk              │  │
 │       └───────────┴──────────────────────────────────────────┘  │
-│  5. Delete points for changed + stale files (filter delete)     │
-│  6. Chunk + embed + upsert only new + changed files             │
-│  7. Print summary                                               │
+│  5. Delete stale files (no replacement coming)                  │
+│  6. If nothing to index AND no stale deletions → stop early      │
+│  7. Chunk ALL current files (IDF must be corpus-wide)            │
+│  8. Embed + upsert in batches (dense + sparse)                  │
+│  9. Delete orphaned chunks for changed files (late deletion)     │
+│ 10. Print summary                                               │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -47,13 +50,23 @@ Walk → Hash → Scroll (empty map) → All files classified as "new"
 → Chunk all → Embed all → Upsert all
 ```
 
-**Re-index** (collection exists):
+**Re-index** (collection exists, corpus changed):
 
 ```
 Walk → Hash → Scroll (populated map) → Classify
-→ Skip 42 unchanged
-→ Delete 3 changed + 2 stale
-→ Chunk + Embed + Upsert 3 changed + 5 new
+→ 42 unchanged, 3 changed, 5 new, 2 stale
+→ Delete 2 stale files immediately (no replacement)
+→ Chunk ALL 50 current files (IDF must be consistent)
+→ Embed + Upsert all chunks with fresh IDF weights
+→ Delete orphaned chunks for 3 changed files (late deletion)
+```
+
+**Re-index** (collection exists, nothing changed):
+
+```
+Walk → Hash → Scroll (populated map) → Classify
+→ 50 unchanged, 0 changed, 0 new, 0 stale
+→ Stop early: "Everything up to date — nothing to index"
 ```
 
 ## Implementation Details
@@ -73,19 +86,21 @@ HashFiles(paths[]) → { path → hex_sha256 }
 
 Every point upserted to Qdrant now includes `file_hash` in its payload alongside existing fields (`repo`, `file_path`, `language`, `content`, etc.).
 
-This field is not indexed — it's only read during scroll, never used in search filters.
+This field is not payload-indexed (not in `ensurePayloadIndexes`) — it's only read during scroll for change detection and used as a `MustNot` filter in `DeleteStaleChunksByFilePath`.
 
 ### Scrolling existing hashes (`ScrollFileHashes`)
 
 ```
-ScrollFileHashes(collection, repo) → { file_path → file_hash }
+ScrollFileHashes(collection, repo, languages[]) → { file_path → file_hash }
 
   if collection does not exist → return empty map
-  scroll all points WHERE repo = repoName
+  scroll all points WHERE repo = repoName (AND language IN languages, if provided)
     requesting only file_path and file_hash fields
   deduplicate by file_path (multiple chunks share the same hash)
   return { file_path → file_hash }
 ```
+
+The `languages` parameter is critical: without it, a `--language go` re-index would see Python points, classify them as stale, and delete them.
 
 ### File classification in `Pipeline.Run()`
 
@@ -109,7 +124,9 @@ for each file in existing_hashes:
         → STALE — mark for delete
 ```
 
-### Deleting stale/changed points (`DeleteByFilePaths`)
+### Deleting stale files (`DeleteByFilePaths`)
+
+Stale files (in Qdrant but not on disk) are deleted immediately — no replacement is coming:
 
 ```
 DeleteByFilePaths(collection, repo, file_paths[]):
@@ -121,24 +138,52 @@ DeleteByFilePaths(collection, repo, file_paths[]):
 
 This deletes **all chunks** for those files in a single gRPC call. The `file_path` field is already indexed (from `ensurePayloadIndexes`), so the filter is efficient.
 
+### Deleting orphaned chunks for changed files (`DeleteStaleChunksByFilePath`)
+
+Changed files use **late deletion**: upsert new chunks first, then remove only the orphaned old-hash chunks. This avoids a data-loss window if embedding fails mid-run.
+
+```
+DeleteStaleChunksByFilePath(collection, repo, file_path, current_hash):
+
+  delete all points WHERE
+    repo = repoName
+    AND file_path = file_path
+    AND file_hash != current_hash    ← preserves freshly upserted chunks
+```
+
 ### Pipeline output
 
 ```
 Found 50 source files in ragcodepilot
-Change detection: 42 unchanged (skip), 3 changed, 5 new, 2 stale
-Deleted points for 5 files
-Generated 24 chunks from 8 files
+Change detection: 42 unchanged, 3 changed, 5 new, 2 stale
+Deleted points for 2 stale files
+Generated 300 chunks from 50 files
 Detected vector dimension: 768
-Indexed 24/24 chunks
-Successfully indexed 24 chunks into collection "code_chunks"
+Indexed 32/300 chunks
+Indexed 64/300 chunks
+...
+Indexed 300/300 chunks
+Cleaned up stale chunks for 3 changed files
+Successfully indexed 300 chunks into collection "code_chunks"
 ```
+
+Note: even though only 8 files changed, all 50 are re-chunked and re-embedded because IDF must be corpus-wide.
 
 When everything is up to date:
 
 ```
 Found 50 source files in ragcodepilot
-Change detection: 50 unchanged (skip), 0 changed, 0 new, 0 stale
+Change detection: 50 unchanged, 0 changed, 0 new, 0 stale
 Everything up to date — nothing to index
+```
+
+When only stale files are cleaned up (no current files to index):
+
+```
+Found 0 source files in ragcodepilot
+Change detection: 0 unchanged, 0 changed, 0 new, 2 stale
+Deleted points for 2 stale files
+Cleaned up stale files — no current source files to index
 ```
 
 ## Files
@@ -147,8 +192,8 @@ Everything up to date — nothing to index
 |------|---------|
 | `internal/model/chunk.go` | `FileHash` field added to `CodeChunk` |
 | `internal/ingest/hasher.go` | `HashFile`, `HashFiles` — SHA-256 file hashing |
-| `internal/ingest/pipeline.go` | `Run()` rewritten with change detection flow |
-| `internal/qdrant/client.go` | `ScrollFileHashes`, `DeleteByFilePaths`, `file_hash` in payload |
+| `internal/ingest/pipeline.go` | `Run()` with change detection, corpus-wide IDF, and late deletion |
+| `internal/qdrant/client.go` | `ScrollFileHashes`, `DeleteByFilePaths`, `DeleteStaleChunksByFilePath`, `file_hash` in payload |
 
 ## Design Decisions
 
