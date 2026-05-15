@@ -26,18 +26,34 @@ type Prompt struct {
 }
 
 // ChunkContext is a single retrieved code chunk prepared for the LLM prompt.
-// It contains enough metadata for the model to cite sources by number.
+// It contains enough metadata for the model to cite sources by number and to
+// disambiguate chunks that share a file path across repositories.
 type ChunkContext struct {
 	// Index is the 1-based citation number shown in the prompt (e.g., [1]).
 	Index int
 
+	// Repo is the repository name the chunk came from. Rendered as a path
+	// prefix in the prompt header so multi-repo collections don't produce
+	// ambiguous citations (two repos can share a relative file path).
+	Repo string
+
 	// FilePath is the relative file path within the repository.
 	FilePath string
+
+	// Language is the programming language ("go", "rust", ...). Carried for
+	// downstream use; v0 does not render it in the prompt header because
+	// the file extension already conveys it.
+	Language string
+
+	// ChunkType describes what the chunk represents ("function", "method",
+	// "type", "block", "file"). Used as the label in front of Symbol so the
+	// header reads accurately for non-function chunks.
+	ChunkType string
 
 	// Lines is the line range as a string (e.g., "42-78").
 	Lines string
 
-	// Symbol is the function, method, or type name, if any.
+	// Symbol is the function, method, struct, or other named entity, if any.
 	Symbol string
 
 	// Content is the raw source code text of the chunk.

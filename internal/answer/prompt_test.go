@@ -19,30 +19,36 @@ func TestBuildPrompt_TwoChunksGolden(t *testing.T) {
 
 	chunks := []ChunkContext{
 		{
-			Index:    1,
-			FilePath: "internal/ingest/pipeline.go",
-			Lines:    "42-78",
-			Symbol:   "Pipeline.Run",
-			Content:  "func (p *Pipeline) Run() {\n\treturn nil\n}",
+			Index:     1,
+			Repo:      "ragcodepilot",
+			FilePath:  "internal/ingest/pipeline.go",
+			Language:  "go",
+			ChunkType: "function",
+			Lines:     "42-78",
+			Symbol:    "Pipeline.Run",
+			Content:   "func (p *Pipeline) Run() {\n\treturn nil\n}",
 		},
 		{
-			Index:    2,
-			FilePath: "internal/qdrant/client.go",
-			Lines:    "120-145",
-			Symbol:   "EnsureCollection",
-			Content:  "func EnsureCollection() error {\n\treturn nil\n}",
+			Index:     2,
+			Repo:      "ragcodepilot",
+			FilePath:  "internal/qdrant/client.go",
+			Language:  "go",
+			ChunkType: "function",
+			Lines:     "120-145",
+			Symbol:    "EnsureCollection",
+			Content:   "func EnsureCollection() error {\n\treturn nil\n}",
 		},
 	}
 
 	wantUser := "Question: how does indexing work?\n" +
 		"\n" +
 		"Context:\n" +
-		"[1] internal/ingest/pipeline.go:42-78, function: Pipeline.Run\n" +
+		"[1] ragcodepilot/internal/ingest/pipeline.go:42-78, function: Pipeline.Run\n" +
 		"func (p *Pipeline) Run() {\n" +
 		"\treturn nil\n" +
 		"}\n" +
 		"\n" +
-		"[2] internal/qdrant/client.go:120-145, function: EnsureCollection\n" +
+		"[2] ragcodepilot/internal/qdrant/client.go:120-145, function: EnsureCollection\n" +
 		"func EnsureCollection() error {\n" +
 		"\treturn nil\n" +
 		"}\n" +
@@ -55,27 +61,106 @@ func TestBuildPrompt_TwoChunksGolden(t *testing.T) {
 	}
 }
 
-func TestBuildPrompt_ChunkWithoutSymbol(t *testing.T) {
+func TestBuildPrompt_ChunkTypeLabelsNonFunction(t *testing.T) {
+	t.Parallel()
+
+	// Each case asserts the label produced by ChunkType, not a hardcoded
+	// "function:". Regression test for the prior bug where a struct chunk
+	// would have been mislabeled "function: CodeChunk".
+	cases := []struct {
+		name       string
+		chunk      ChunkContext
+		wantHeader string
+	}{
+		{
+			name: "struct uses chunk_type label",
+			chunk: ChunkContext{
+				Index: 1, Repo: "ragcodepilot",
+				FilePath: "internal/model/chunk.go", ChunkType: "struct",
+				Lines: "5-44", Symbol: "CodeChunk", Content: "type CodeChunk struct{}",
+			},
+			wantHeader: "[1] ragcodepilot/internal/model/chunk.go:5-44, struct: CodeChunk",
+		},
+		{
+			name: "block chunk without symbol renders bare chunk_type",
+			chunk: ChunkContext{
+				Index: 1, Repo: "myrepo",
+				FilePath: "scripts/setup.sh", ChunkType: "block",
+				Lines: "1-40", Content: "echo hi",
+			},
+			wantHeader: "[1] myrepo/scripts/setup.sh:1-40, block",
+		},
+		{
+			name: "file chunk without symbol renders bare chunk_type",
+			chunk: ChunkContext{
+				Index: 1, Repo: "myrepo",
+				FilePath: "README.md", ChunkType: "file",
+				Lines: "1-200", Content: "# Title",
+			},
+			wantHeader: "[1] myrepo/README.md:1-200, file",
+		},
+		{
+			name: "no chunk_type and no symbol drops the segment entirely",
+			chunk: ChunkContext{
+				Index: 1, FilePath: "anonymous.txt", Lines: "1-1", Content: "x",
+			},
+			wantHeader: "[1] anonymous.txt:1-1",
+		},
+		{
+			name: "no chunk_type but symbol present falls back to bare symbol",
+			chunk: ChunkContext{
+				Index: 1, FilePath: "legacy.go", Lines: "1-1", Symbol: "Foo", Content: "x",
+			},
+			wantHeader: "[1] legacy.go:1-1, Foo",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, gotUser := BuildPrompt("q", []ChunkContext{tc.chunk})
+			if !strings.Contains(gotUser, tc.wantHeader+"\n") {
+				t.Errorf("expected header %q in prompt; got:\n%s", tc.wantHeader, gotUser)
+			}
+			if strings.Contains(gotUser, "function:") && tc.chunk.ChunkType != "function" {
+				t.Errorf("header should not say 'function:' when ChunkType=%q\ngot:\n%s", tc.chunk.ChunkType, gotUser)
+			}
+		})
+	}
+}
+
+func TestBuildPrompt_RepoPrefixesPath(t *testing.T) {
+	t.Parallel()
+
+	// Two chunks with identical file paths from different repos must produce
+	// distinct citations. Regression test for the multi-repo ambiguity bug.
+	chunks := []ChunkContext{
+		{Index: 1, Repo: "repo-a", FilePath: "internal/foo.go", ChunkType: "function", Lines: "10-20", Symbol: "Foo", Content: "a"},
+		{Index: 2, Repo: "repo-b", FilePath: "internal/foo.go", ChunkType: "function", Lines: "10-20", Symbol: "Foo", Content: "b"},
+	}
+
+	_, gotUser := BuildPrompt("which one?", chunks)
+
+	if !strings.Contains(gotUser, "[1] repo-a/internal/foo.go:10-20") {
+		t.Errorf("expected repo-a prefix on chunk 1; got:\n%s", gotUser)
+	}
+	if !strings.Contains(gotUser, "[2] repo-b/internal/foo.go:10-20") {
+		t.Errorf("expected repo-b prefix on chunk 2; got:\n%s", gotUser)
+	}
+}
+
+func TestBuildPrompt_NoRepoOmitsPrefix(t *testing.T) {
 	t.Parallel()
 
 	chunks := []ChunkContext{
-		{
-			Index:    1,
-			FilePath: "internal/config/config.go",
-			Lines:    "1-20",
-			// Symbol intentionally empty
-			Content: "package config\n",
-		},
+		{Index: 1, FilePath: "internal/config/config.go", ChunkType: "file", Lines: "1-20", Content: "package config\n"},
 	}
 
 	_, gotUser := BuildPrompt("what is config?", chunks)
 
-	headerLine := "[1] internal/config/config.go:1-20\n"
+	headerLine := "[1] internal/config/config.go:1-20, file\n"
 	if !strings.Contains(gotUser, headerLine) {
-		t.Errorf("header without symbol should be %q\ngot:\n%s", strings.TrimSuffix(headerLine, "\n"), gotUser)
-	}
-	if strings.Contains(gotUser, "function:") {
-		t.Errorf("header should omit 'function:' segment when Symbol is empty\ngot:\n%s", gotUser)
+		t.Errorf("header without Repo should not include a slash prefix; want %q\ngot:\n%s", strings.TrimSuffix(headerLine, "\n"), gotUser)
 	}
 }
 
