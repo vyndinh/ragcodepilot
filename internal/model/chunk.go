@@ -37,6 +37,17 @@ type CodeChunk struct {
 	// FileHash is the SHA-256 hash of the source file content at indexing time.
 	// Used for change detection during re-indexing.
 	FileHash string `json:"file_hash,omitempty"`
+
+	// IndexVersion is the retrieval representation version used when this chunk
+	// was indexed. Bump it when tokenization or sparse weighting changes.
+	IndexVersion string `json:"index_version,omitempty"`
+}
+
+// FileIndexState captures the per-file payload state needed for incremental
+// indexing decisions.
+type FileIndexState struct {
+	FileHash     string
+	IndexVersion string
 }
 
 // SearchResult represents a single result returned from a search query.

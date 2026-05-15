@@ -455,14 +455,15 @@ Qdrant sees integer dimensions and weights, while the tokenizer remains the sour
 
 ### Why BM25 (and why `k1 = 0.5`)?
 
-ragcodepilot originally shipped TF-IDF in 2026-05-13. A 2026-05-15 spike re-ran the eval with BM25:
+ragcodepilot originally shipped TF-IDF in 2026-05-13. A 2026-05-15 spike re-ran the eval with BM25, and a same-day follow-up added additive Snowball stemming:
 
-| Mode | hit@1 | hit@3 | hit@5 | MRR@5 | p95 ms |
-|---|---|---|---|---|---|
-| baseline_v2 (TF-IDF hybrid) | 0.421 | 0.737 | 0.895 | 0.607 | 173 |
-| baseline_v3 (BM25 `k1=0.5` hybrid) | **0.632** | **0.789** | 0.842 | **0.706** | **119** |
+| Mode | hit@1 | hit@3 | hit@5 | MRR@5 | con h@5 | p95 ms |
+|---|---|---|---|---|---|---|
+| baseline_v2 (TF-IDF hybrid) | 0.421 | 0.737 | 0.895 | 0.607 | 1.000 | 173 |
+| baseline_v3 (BM25 `k1=0.5` hybrid) | 0.632 | 0.789 | 0.842 | 0.706 | 0.857 | 119 |
+| **baseline_v4 (BM25 + stemming hybrid)** | **0.579** | **0.789** | **0.895** | **0.699** | **1.000** | **141** |
 
-Hit@1 went from 42% to 63% — four queries gained the top-1 slot, none regressed. One concept query (`hasher_concept`) dropped out of top-5, but that's a tokenizer issue (plural `hashes` vs singular `hash`) that BM25 with any `k1` can't fix; it lives at the stemmer or reranker layer.
+`baseline_v3` lifted hit@1 by 21pp but lost one concept query (`hasher_concept`) — a tokenizer plural/singular issue (`hashes` vs `hash`). `baseline_v4` added additive Snowball stemming (emitting both `hashes` and `hash`), recovering full hit@5 and concept score while keeping hit@1 substantially above the original TF-IDF baseline. **`baseline_v4` is Pareto-better than `baseline_v2` on every metric.**
 
 `k1 = 0.5` was chosen over Elasticsearch's default `1.2` because code chunks are short and uniform. Aggressive saturation (`k1 = 1.2`) lifted hit@1 by +10.5pp; softer saturation (`k1 = 0.5`) lifted it by +21.1pp. Going lower (`k1 = 0`) would disable saturation entirely — equivalent to IDF-only ranking. See `docs/plan/hybrid_search.md` §3 for the full history and trade-off analysis.
 
@@ -611,7 +612,7 @@ This section is an honest, beginner-friendly assessment. The goal is not to over
 
 ### 14.1 What the numbers actually say
 
-The most recent eval (committed at [`hybrid_search.md`](../plan/hybrid_search.md), dated 2026-05-13) ran the system against **its own Go source code**: 350 chunks, 32 files, 23 hand-crafted queries (19 positive, 4 negative). Results in **hybrid mode** (the default):
+The most recent eval ([`baseline_v4.json`](../eval/baseline_v4.json), 2026-05-15 — see [`hybrid_search.md`](../plan/hybrid_search.md) for the full matrix) ran the system against **its own Go source code**: 350 chunks, 32 files, 23 hand-crafted queries (19 positive, 4 negative). Results in **hybrid mode** (the default, BM25 + additive Snowball stemming + dense + RRF):
 
 These numbers are tied to that exact indexed corpus. For algorithm comparisons, compare runs against the same corpus; if chunking changes or new files are added, re-capture the baseline first. See [`../eval/README.md`](../eval/README.md) for the corpus-stability rule.
 
@@ -620,19 +621,19 @@ Future mixed-language baselines, such as a Phase 3 Go+Rust corpus, should be rea
 | Metric | Value | Plain-English meaning |
 |---|---|---|
 | **hit@5** | **0.895** | For 9 out of 10 queries, the correct chunk appears in the top 5 results |
-| hit@3 | 0.737 | ~3 out of 4 times, it's in the top 3 |
-| hit@1 | 0.421 | Only ~42% of the time is the very first result the right one |
-| MRR@5 | 0.607 | Average position of the correct answer is around #2 in the top 5 |
+| hit@3 | 0.789 | ~4 out of 5 times, it's in the top 3 |
+| hit@1 | 0.579 | The very first result is right about 58% of the time |
+| MRR@5 | 0.699 | Average position of the correct answer is ~1.4 in the top 5 |
 | Navigation hit@5 (exact-symbol queries) | 0.750 | Hybrid mode finds named symbols in top 5 for 3 of 4 such queries |
 | Concept hit@5 | 1.000 | Conceptual queries always have a correct hit in top 5 |
 | Negative queries (should return nothing on-topic) | 1.000 pass | No false matches on out-of-scope questions |
-| p50 / p95 latency | 29ms / 173ms | Fast enough for interactive search at the terminal |
+| p50 / p95 latency | 28ms / 141ms | Fast enough for interactive search at the terminal |
 
 **What these numbers mean for you as a user:**
 
-- **You usually need to read 3–5 results, not 1.** Top-1 accuracy is only 42%. This is normal for first-pass RAG without reranking; treat the top-5 as a candidate list to skim.
+- **The first result is usually right; if it isn't, the right one is in the top 5.** Hit@1 = 0.579 and hit@5 = 0.895. You'll see the answer in the very first result the majority of the time, and almost always within the first five.
 - **Conceptual questions work very well.** "Find the code that does X" is the sweet spot — concept hit@5 is 100% on this corpus.
-- **Exact-symbol questions improved a lot from hybrid.** Going from dense-only (50% hit@5) to hybrid (75%) is the single biggest win in the project so far.
+- **Exact-symbol questions improved a lot from hybrid.** Going from dense-only (50% hit@5) to hybrid (75%) is one of the biggest wins in the project.
 - **Latency is comfortable.** ~30ms p50 means searches feel instant in the terminal.
 
 > ⚠️ **Scale caveat.** These numbers are from a **350-chunk** corpus. The design target is **200K chunks** ([`system_design.md`](../plan/system_design.md)). Quality and latency at that scale are *projected*, not measured. Expect surprises when you index 5–10 large repos.
@@ -674,15 +675,15 @@ In short: **AST chunking ≠ AST understanding**. The parser tells us *where* a 
 | **Symbol-aware deduplication** in results | ❌ No | If three chunks all mention `WalkFiles`, they may all rank in the top 5 even though one would be enough. |
 | **Cross-language consistent sparse weights** when re-indexing one language at a time | ⚠️ Known limit | Documented in `internal/ingest/pipeline.go` step 7.5: per-language `--language go` re-index updates IDF only for Go chunks. |
 
-### 14.4 Why hit@1 is only 42% — and how to read around it
+### 14.4 Why hit@1 isn't higher — and what could improve it
 
-42% is mediocre on its face, but the structural reasons are:
+Hit@1 is 0.579 today (up from 0.421 under TF-IDF). It's a respectable number for a system without reranking, but it's the metric with the most remaining headroom. The structural reasons:
 
 1. **No reranking layer.** RRF merges dense + sparse ranks but never re-evaluates the top candidates with a stronger model. A cross-encoder reranker over the top 20 candidates typically lifts hit@1 by 10–20pp in published benchmarks.
 2. **Code naturally repeats itself.** Test code shares tokens with the code it tests. A query like *"where is `ChunkFile` defined?"* may rank `TestChunkFile_RoutesGoFiles` very close to the actual `ChunkFile` declaration. The eval doc calls this out explicitly.
 3. **No query understanding.** Natural-language queries are embedded as-is; there's no expansion or rewriting.
 
-**Practical implication:** treat the top-5 as the answer surface, not the top-1. Hit@5 of 89.5% means "in nearly every case, scrolling 3–5 results gives you what you want." That's a perfectly usable workflow at the CLI.
+**Practical implication:** the first result is the right answer the majority of the time; when it isn't, the answer is almost always within the top 5. Hit@5 = 0.895. Under the RAG-readiness framework in [`retrieval_quality_decisions.md`](retrieval_quality_decisions.md), hit@5 matters more than hit@1 anyway — it's the size of the context window the LLM gets to work with.
 
 ### 14.5 Honest summary
 
@@ -698,7 +699,7 @@ In short: **AST chunking ≠ AST understanding**. The parser tells us *where* a 
 - Returns flat, isolated chunks. No structural understanding of the codebase.
 - No call graph, no cross-references, no component map.
 - No LLM yet → no current synthesis, summaries, or guided multi-hop exploration.
-- No reranking yet → top-1 accuracy is only ~42%.
+- No reranking yet → top-1 accuracy is 58% (up from 42% under TF-IDF); reranking could lift this to 70–80%.
 - AST-quality chunking is Go-only.
 - Untested at the 200K-chunk design target.
 - No visualization layer.

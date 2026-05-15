@@ -216,16 +216,17 @@ func (c *Client) Upsert(ctx context.Context, collection string, chunks []model.C
 			Id:      pb.NewID(chunk.ID),
 			Vectors: pb.NewVectorsMap(vectorsMap),
 			Payload: pb.NewValueMap(map[string]any{
-				"repo":       chunk.Repo,
-				"file_path":  chunk.FilePath,
-				"language":   chunk.Language,
-				"chunk_type": chunk.ChunkType,
-				"name":       chunk.Name,
-				"content":    chunk.Content,
-				"start_line": chunk.StartLine,
-				"end_line":   chunk.EndLine,
-				"indexed_at": chunk.IndexedAt,
-				"file_hash":  chunk.FileHash,
+				"repo":          chunk.Repo,
+				"file_path":     chunk.FilePath,
+				"language":      chunk.Language,
+				"chunk_type":    chunk.ChunkType,
+				"name":          chunk.Name,
+				"content":       chunk.Content,
+				"start_line":    chunk.StartLine,
+				"end_line":      chunk.EndLine,
+				"indexed_at":    chunk.IndexedAt,
+				"file_hash":     chunk.FileHash,
+				"index_version": chunk.IndexVersion,
 			}),
 		}
 	}
@@ -441,21 +442,37 @@ func (c *Client) DeleteCollection(ctx context.Context, name string) error {
 // payloadToChunk extracts a CodeChunk from a Qdrant point payload.
 func payloadToChunk(payload map[string]*pb.Value) model.CodeChunk {
 	return model.CodeChunk{
-		Repo:      getStringValue(payload, "repo"),
-		FilePath:  getStringValue(payload, "file_path"),
-		Language:  getStringValue(payload, "language"),
-		ChunkType: getStringValue(payload, "chunk_type"),
-		Name:      getStringValue(payload, "name"),
-		Content:   getStringValue(payload, "content"),
-		StartLine: getIntValue(payload, "start_line"),
-		EndLine:   getIntValue(payload, "end_line"),
-		IndexedAt: getStringValue(payload, "indexed_at"),
-		FileHash:  getStringValue(payload, "file_hash"),
+		Repo:         getStringValue(payload, "repo"),
+		FilePath:     getStringValue(payload, "file_path"),
+		Language:     getStringValue(payload, "language"),
+		ChunkType:    getStringValue(payload, "chunk_type"),
+		Name:         getStringValue(payload, "name"),
+		Content:      getStringValue(payload, "content"),
+		StartLine:    getIntValue(payload, "start_line"),
+		EndLine:      getIntValue(payload, "end_line"),
+		IndexedAt:    getStringValue(payload, "indexed_at"),
+		FileHash:     getStringValue(payload, "file_hash"),
+		IndexVersion: getStringValue(payload, "index_version"),
 	}
 }
 
 // ScrollFileHashes retrieves all unique {file_path: file_hash} pairs for a given
-// repo from the collection. Used for change detection during re-indexing.
+// repo from the collection. Used by older callers that only need content hashes.
+func (c *Client) ScrollFileHashes(ctx context.Context, collection, repo string, languages []string) (map[string]string, error) {
+	states, err := c.ScrollFileStates(ctx, collection, repo, languages)
+	if err != nil {
+		return nil, err
+	}
+
+	hashes := make(map[string]string, len(states))
+	for filePath, state := range states {
+		hashes[filePath] = state.FileHash
+	}
+	return hashes, nil
+}
+
+// ScrollFileStates retrieves all unique file payload states for a given repo
+// from the collection. Used for change detection during re-indexing.
 //
 // When languages is non-empty, only points matching those languages are returned.
 // This prevents language-scoped re-indexing (e.g. --language go) from seeing
@@ -463,13 +480,13 @@ func payloadToChunk(payload map[string]*pb.Value) model.CodeChunk {
 // deleted.
 //
 // Paginates through all points to handle repos with more than one page of chunks.
-func (c *Client) ScrollFileHashes(ctx context.Context, collection, repo string, languages []string) (map[string]string, error) {
+func (c *Client) ScrollFileStates(ctx context.Context, collection, repo string, languages []string) (map[string]model.FileIndexState, error) {
 	exists, err := c.conn.CollectionExists(ctx, collection)
 	if err != nil {
 		return nil, fmt.Errorf("checking collection %s: %w", collection, err)
 	}
 	if !exists {
-		return make(map[string]string), nil
+		return make(map[string]model.FileIndexState), nil
 	}
 
 	// Build scroll filter: repo is always required, language is optional.
@@ -487,26 +504,29 @@ func (c *Client) ScrollFileHashes(ctx context.Context, collection, repo string, 
 	}
 
 	const pageSize = 1000
-	result := make(map[string]string)
+	result := make(map[string]model.FileIndexState)
 	var offset *pb.PointId
 
 	for {
 		points, nextOffset, err := c.conn.ScrollAndOffset(ctx, &pb.ScrollPoints{
 			CollectionName: collection,
 			Filter:         &pb.Filter{Must: mustConditions},
-			WithPayload:    pb.NewWithPayloadInclude("file_path", "file_hash"),
+			WithPayload:    pb.NewWithPayloadInclude("file_path", "file_hash", "index_version"),
 			Limit:          pb.PtrOf(uint32(pageSize)),
 			Offset:         offset,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("scrolling file hashes for repo %s: %w", repo, err)
+			return nil, fmt.Errorf("scrolling file states for repo %s: %w", repo, err)
 		}
 
 		for _, point := range points {
 			filePath := getStringValue(point.Payload, "file_path")
 			fileHash := getStringValue(point.Payload, "file_hash")
 			if filePath != "" {
-				result[filePath] = fileHash
+				result[filePath] = model.FileIndexState{
+					FileHash:     fileHash,
+					IndexVersion: getStringValue(point.Payload, "index_version"),
+				}
 			}
 		}
 

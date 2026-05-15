@@ -8,10 +8,17 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+
+	"github.com/kljensen/snowball/english"
 )
 
+// SparseIndexVersion identifies the sparse retrieval representation. Bump this
+// whenever tokenization, stemming, or BM25 weighting changes in a way that makes
+// existing sparse vectors stale.
+const SparseIndexVersion = "sparse-bm25-snowball-v1"
+
 // SparseVector represents a sparse vector as parallel index/value arrays.
-// Indices are CRC32 hashes of tokens; values are TF-IDF weights.
+// Indices are CRC32 hashes of tokens; values are BM25 weights.
 type SparseVector struct {
 	Indices []uint32
 	Values  []float32
@@ -59,10 +66,19 @@ var stopWords = map[string]struct{}{
 //   - Keep digit runs attached: "sha256Hash" → ["sha256", "hash"].
 //   - Lowercase all tokens.
 //   - Remove stop words (Go keywords + common English).
+//   - Additive stemming: if a token has a stemmed form
+//     (e.g. "hashes" → "hash", "computing" → "comput"), both the
+//     original AND the stemmed variant are emitted. This preserves
+//     exact-match recall while allowing morphological cross-matching.
+//     Uses the Snowball English stemmer (Porter2).
 //
 // This function is the single source of truth — BuildSparseVectors and
 // TokenizeQuery both call it internally.
 func Tokenize(text string) []string {
+	return tokenize(text, true)
+}
+
+func tokenize(text string, includeStems bool) []string {
 	// Step 1: Split on whitespace and punctuation into raw words.
 	rawWords := splitOnBoundaries(text)
 
@@ -79,9 +95,46 @@ func Tokenize(text string) []string {
 				continue
 			}
 			tokens = append(tokens, lower)
+
+			if !includeStems {
+				continue
+			}
+
+			// Step 3: Additive stemming via Snowball (Porter2).
+			// If the token has a stemmed form, emit it too.
+			// BM25 length normalization uses the original token count; stems are
+			// added only as extra matching dimensions.
+			if stemmed := stemToken(lower); stemmed != lower {
+				if _, stop := stopWords[stemmed]; !stop {
+					tokens = append(tokens, stemmed)
+				}
+			}
 		}
 	}
 	return tokens
+}
+
+// stemToken applies the Snowball English stemmer (Porter2 algorithm) to
+// produce a morphological root. Returns the original token unchanged if
+// the stemmer produces no change or an empty result.
+//
+// Examples: "hashes" → "hash", "computing" → "comput", "files" → "file",
+//
+//	"entries" → "entri", "chunk" → "chunk" (no change).
+//
+// The stemmed form is used additively — it is emitted alongside the
+// original, never as a replacement. This means ugly stems like "comput"
+// are harmless: they only need to match at index-time and query-time,
+// not be human-readable.
+func stemToken(token string) string {
+	// We apply the project's stop-word list before this point. Keep Snowball's
+	// larger natural-language stop-word list out of the decision by stemming
+	// every token that survived project filtering.
+	stemmed := english.Stem(token, true)
+	if stemmed == "" {
+		return token
+	}
+	return stemmed
 }
 
 // splitOnBoundaries splits text on any character that is not a letter, digit,
@@ -206,7 +259,7 @@ func ComputeCorpusStats(texts []string) CorpusStats {
 	totalDocLen := 0
 	for _, text := range texts {
 		tokens := Tokenize(text)
-		totalDocLen += len(tokens)
+		totalDocLen += len(tokenize(text, false))
 		seen := make(map[string]struct{}, len(tokens))
 		for _, tok := range tokens {
 			if _, ok := seen[tok]; ok {
@@ -259,7 +312,7 @@ func BuildSparseVectors(texts []string, stats CorpusStats) []SparseVector {
 
 		// Length normalization. Falls back to 1.0 if the corpus is empty
 		// (avgdl == 0) so we never divide by zero.
-		docLen := float64(len(tokens))
+		docLen := float64(len(tokenize(text, false)))
 		lenNorm := 1.0
 		if stats.AvgDocLen > 0 {
 			lenNorm = 1 - bm25B + bm25B*(docLen/stats.AvgDocLen)

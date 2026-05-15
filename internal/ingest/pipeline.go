@@ -15,7 +15,7 @@ type vectorStore interface {
 	EnsureCollection(ctx context.Context, name string, vectorSize uint64) error
 	EnsurePayloadIndexes(ctx context.Context, collection string) error
 	Upsert(ctx context.Context, collection string, chunks []model.CodeChunk, vectors [][]float32, sparseVectors []embedding.SparseVector) error
-	ScrollFileHashes(ctx context.Context, collection, repo string, languages []string) (map[string]string, error)
+	ScrollFileStates(ctx context.Context, collection, repo string, languages []string) (map[string]model.FileIndexState, error)
 	DeleteByFilePaths(ctx context.Context, collection, repo string, filePaths []string) error
 	DeleteStaleChunksByFilePath(ctx context.Context, collection, repo, filePath, currentHash string) error
 }
@@ -106,13 +106,13 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 		return fmt.Errorf("hashing files: %w", err)
 	}
 
-	// Step 4: Get existing file hashes from Qdrant.
+	// Step 4: Get existing file hashes and index versions from Qdrant.
 	// Scope the scroll to the same languages being indexed, so language-filtered
 	// re-indexing (e.g. --language go) doesn't see points for other languages
 	// and misclassify them as stale.
-	existingHashes, err := p.store.ScrollFileHashes(ctx, p.collection, repoName, p.languageKeys())
+	existingStates, err := p.store.ScrollFileStates(ctx, p.collection, repoName, p.languageKeys())
 	if err != nil {
-		return fmt.Errorf("scrolling existing hashes: %w", err)
+		return fmt.Errorf("scrolling existing file states: %w", err)
 	}
 
 	// Step 5: Classify files.
@@ -120,6 +120,8 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 	var filesToIndex []string // new or changed files (absolute paths)
 	var staleFiles []string   // exist in Qdrant but not on disk (relative paths)
 	var changedFiles []string // exist in Qdrant with different hash (relative paths)
+	versionRefreshes := 0
+	newFiles := 0
 	skipped := 0
 
 	relHashes := make(map[string]string, len(diskHashes))
@@ -135,33 +137,39 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 
 	for absFile, hash := range diskHashes {
 		rel := absToRel[absFile]
-		existingHash, exists := existingHashes[rel]
-		if exists && existingHash == hash {
-			// File unchanged — skip.
+		existingState, exists := existingStates[rel]
+		hashMatches := exists && existingState.FileHash == hash
+		versionMatches := exists && existingState.IndexVersion == embedding.SparseIndexVersion
+		if hashMatches && versionMatches {
+			// File unchanged and already indexed with the current sparse representation.
 			skipped++
 			continue
 		}
-		if exists {
+		if !exists {
+			newFiles++
+		} else if !hashMatches {
 			// File changed — mark for post-upsert cleanup.
 			changedFiles = append(changedFiles, rel)
+		} else {
+			// File content is unchanged, but tokenizer/sparse representation changed.
+			versionRefreshes++
 		}
-		// New or changed — add to index list.
+		// New, changed, or stale-index-version files are re-indexed.
 		filesToIndex = append(filesToIndex, absFile)
 	}
 
 	// Stale files: exist in Qdrant but not on disk.
-	for existingRel := range existingHashes {
+	for existingRel := range existingStates {
 		if _, onDisk := relHashes[existingRel]; !onDisk {
 			staleFiles = append(staleFiles, existingRel)
 		}
 	}
 
 	changedCount := len(changedFiles)
-	newCount := len(filesToIndex) - changedCount
 	staleCount := len(staleFiles)
 
-	fmt.Printf("Change detection: %d unchanged, %d changed, %d new, %d stale\n",
-		skipped, changedCount, newCount, staleCount)
+	fmt.Printf("Change detection: %d unchanged, %d changed, %d new, %d stale, %d index-version refresh\n",
+		skipped, changedCount, newFiles, staleCount, versionRefreshes)
 
 	// Step 6: Delete stale file points immediately (no replacement coming).
 	if len(staleFiles) > 0 {
@@ -195,6 +203,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 		for i := range chunks {
 			chunks[i].IndexedAt = indexedAt
 			chunks[i].FileHash = hash
+			chunks[i].IndexVersion = embedding.SparseIndexVersion
 		}
 		allChunks = append(allChunks, chunks...)
 	}
