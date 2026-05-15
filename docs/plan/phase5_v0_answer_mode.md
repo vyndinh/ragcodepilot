@@ -287,10 +287,217 @@ else:
 - **Streaming.** v0 is synchronous. v1 can switch to streaming once the prompt + model choice are settled.
 - **Multi-turn / conversational.** v0 is single-shot question → answer. No history, no follow-ups.
 - **Refuse-on-low-confidence guardrail.** v0 always generates. v1 can refuse when top-1 retrieval score is below threshold.
-- **External LLM providers (Anthropic, OpenAI).** v0 stays Ollama-only. v1 might add a generic HTTP client interface.
+- **External LLM providers (Anthropic, OpenAI, etc.).** v0 stays Ollama-only. v1 adds support via a generic HTTP client interface — design notes in §"v1: multi-provider support" below.
 - **Token budget management.** v0 always sends top-5 chunks; if they exceed the model's context window, the model will truncate or error. v1 adds a budget-aware packing algorithm.
 - **Cost tracking.** Not relevant for local Ollama.
 - **Chunk expansion (sibling chunks, parent class context).** v0 sends what retrieval returns. v1 might expand the context.
+
+---
+
+## v1: multi-provider support (forward-compatibility notes)
+
+> v0 ships Ollama-only by design — minimum surface area to answer "is generation valuable?" Once v0 dogfooding confirms value, v1 adds cloud LLM providers (OpenAI, Anthropic, OpenRouter, etc.). This section captures the design choices v0 must NOT close off, plus the recommended v1 shape.
+
+### v0 forward-compatibility checklist
+
+Things v0 should NOT bake in:
+
+1. **Don't assume the generator runs locally / for free.** Future providers cost real money per call. v0 code must not silently issue retries, parallel calls, or unbounded chunk expansion. One question → one Generate call.
+2. **Don't bake Ollama-specific error strings or response fields into the `Generator` interface.** Provider-specific quirks belong inside each implementation, not the interface. Errors should normalize to a small set of recoverable cases — auth failure, rate limit, network, model-not-found, context-too-large.
+3. **Don't put API keys, base URLs, or model names in the prompt builder.** Those are configuration. Prompt builder takes (question, chunks) and nothing else.
+4. **Don't overload `--ollama-*` flags.** The CLI namespace should support per-provider configuration (`--openai-*`, `--anthropic-*`) cleanly. Reuse a single `--generator` switch + per-provider flag groups.
+5. **Don't tune the prompt to Ollama-specific quirks.** Wording that works on `qwen2.5-coder:7b` may need adjusting on Claude/GPT. v0 freezes one prompt template; v1 may need per-provider variants — keep `prompt.go` generic enough to swap templates by provider.
+
+### v1 recommended shape
+
+```
+internal/answer/
+    generator.go       // interface (unchanged from v0)
+    ollama.go          // existing, unchanged
+    openai_compat.go   // NEW — covers OpenAI, OpenRouter, LM Studio, vLLM, Groq, Together AI, etc.
+    anthropic.go       // NEW (optional) — native Messages API for prompt caching, tool use
+    fake.go            // existing
+    prompt.go          // existing, may grow per-provider variants
+```
+
+Implementation order for v1:
+
+- **OpenAI-compatible HTTP client first.** One implementation covers OpenAI, OpenRouter, LM Studio, vLLM, Together AI, Groq, and most self-hosted servers that speak the Chat Completions API. Plain `net/http` + JSON marshaling — no SDK dependencies. This is the maximum value-per-line-of-code.
+- **Native Anthropic client second** (only if v1 dogfooding shows it's needed). The Messages API differs enough that wrapping through OpenAI-compat loses meaningful features (prompt caching, system blocks, tool use). Worth a separate implementation when those features matter.
+- **Skip vendor SDKs.** Most pull in large dependency trees ragcodepilot doesn't need. Pure-Go binary stays a goal.
+
+### Cross-cutting concerns v1 must address
+
+These are policy questions v0 hides because Ollama is local and free:
+
+| Concern | Default policy for v1 |
+|---|---|
+| **API key handling** | Env vars only (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`). Never CLI flags or config files. Redact from any logged HTTP request. |
+| **Privacy disclosure** | First-run warning when using a cloud provider: *"Code chunks will be sent to <provider>. Press Ctrl+C to cancel."* Document in README. |
+| **Cost guardrails** | Log token usage per call. Consider a `--max-cost-per-query` flag that estimates and refuses before sending. Out of v1 v0 scope; revisit if cost surprises become a real complaint. |
+| **Network dependency** | `--answer --generator=openai` fails clearly when offline. `--generator=ollama` stays offline-capable. |
+| **Context window limits** | v0's top-5 chunks fit every provider's window. If v1 ever wants top-20 or chunk expansion, add per-provider token-aware packing. |
+| **Rate limits** | Surface provider 429s clearly. No automatic retry-with-backoff in v1 — gives users control over re-running. |
+
+### CLI flag namespace (proposed)
+
+```
+--answer                                  Existing, unchanged.
+--generator string                        "ollama" | "openai" | "anthropic" | "fake". Default "ollama".
+--ollama-url string                       Existing, unchanged.
+--ollama-generative-model string          Existing, unchanged (default "qwen2.5-coder:7b").
+--openai-model string                     e.g. "gpt-4o-mini".
+--openai-base-url string                  For OpenAI-compatible proxies (default "https://api.openai.com").
+--anthropic-model string                  e.g. "claude-sonnet-4-6".
+```
+
+API keys come from env, never from flags. `--generator` defaults to `ollama` so existing users see no behavior change after v1 ships.
+
+### Discovery and defaults
+
+Without these, users would need to type `--generator openai --openai-model gpt-4o-mini` on every query. With them, the daily workflow becomes `ragcodepilot search "X" --answer` and the configured default kicks in.
+
+- **`ragcodepilot models list`** — enumerates available models per provider, marks which have credentials configured and which require setup. Auto-detection runs against env vars; when keys are present, optionally hits the provider's `/v1/models` endpoint to enumerate. For Ollama, queries `ollama list` for locally-pulled models.
+- **`ragcodepilot config set-default-model <name>`** — persists the user's preferred generator+model to `~/.config/ragcodepilot/config.yaml`. Subsequent `--answer` calls use it unless overridden by a flag.
+- **`~/.config/ragcodepilot/config.yaml`** — single source of truth for defaults and per-provider settings. Schema is small in v1 (default_model, optional base_urls); kept minimal to avoid lock-in.
+
+These three pieces deliver most of the discoverability benefit that an interactive REPL would provide, at a fraction of the implementation cost. They also pave the way cleanly for a future REPL mode — see §"v2+: REPL mode" below.
+
+### Out of scope even for v1
+
+These are v2+ candidates, called out so v1 doesn't drift:
+
+- Streaming responses (v0 and v1 both synchronous).
+- Provider failover or multi-provider parallel calls.
+- Prompt caching abstraction (Anthropic has native, OpenAI/Ollama don't).
+- Smart cost routing (cheap model for simple questions, expensive for complex).
+- Multi-modal inputs (images, screenshots).
+
+---
+
+## v2+: REPL mode (design sketch, deferred)
+
+> Decision date: 2026-05-15. While sketching v1's multi-provider scope, the question came up: should `--answer` be a flag, or should users enter an interactive mode and pick a model via `/model` (OpenCode-style)?
+>
+> Chosen direction: keep `--answer` as a flag in v0 and v1, then add a separate `ragcodepilot chat` REPL subcommand as a v2 effort — only if v0/v1 dogfooding confirms users want multi-turn exploration. This section captures the design sketch so future-us doesn't have to re-derive it.
+
+### Why this is a v2 question, not v0 or v1
+
+A REPL changes the product shape. ragcodepilot today is a **one-shot CLI** in the same family as `gh`, `git`, `jq`, `rg` — atomic invocations, pipe-friendly, scriptable. Adding a REPL puts it in a different family (`OpenCode`, `Aider`, `Claude Code`) where the **conversation is the point**.
+
+That's a real product decision, and it should be made on evidence:
+
+- v0 answers: *does generation add value at all?*
+- v1 answers: *do users want multiple providers?*
+- v2 answers (only if v0 and v1 both said yes): *do users want multi-turn exploration?*
+
+Building a REPL before knowing the answer to the third question is premature. Building it after — with v0 and v1's seams in place — is straightforward.
+
+### Three options considered (2026-05-15)
+
+| Option | Description | Effort | Verdict |
+|---|---|---|---|
+| **A. CLI-only with better defaults** | `ragcodepilot models list`, config file, default-model setting | S | ✅ **Part of v1 scope** — see "Discovery and defaults" above. |
+| **B. CLI default + `chat` subcommand for REPL** | `ragcodepilot chat` enters REPL; `ragcodepilot` with no args prints help | M–L | ✅ **v2 candidate (chosen).** Matches the tool family ragcodepilot grew from. |
+| **C. REPL default for no-args** | `ragcodepilot` with no args enters REPL; `chat` subcommand unnecessary | M–L | ⚠️ Defensible alternative — see "B vs C" below. Same code as B; differs only in the no-args handler. Swing from B to C is ~1 day. |
+
+> Earlier drafts of this doc claimed Option C "would break scripting." That was inaccurate. In both B and C, every named subcommand (`search`, `index`, `eval`, `collections`) stays one-shot and pipeable; only the no-args entry point differs. Scripting is preserved in both. The 2026-05-15 doc revision corrects this.
+
+### Option B sketch (for the eventual v2 plan)
+
+```
+$ ragcodepilot search "X" --answer            # one-shot, scriptable, unchanged
+$ ragcodepilot chat                           # REPL with slash commands
+```
+
+Inside the REPL:
+
+```
+> /model
+  1. ollama:    qwen2.5-coder:7b   (local, configured)
+  2. openai:    gpt-4o-mini        (OPENAI_API_KEY set)
+  3. anthropic: claude-sonnet-4-6  (no key — /login anthropic to enable)
+Select [1-3]: 2
+
+> /login anthropic
+Paste API key (input hidden): ********
+Saved to ~/.config/ragcodepilot/credentials.
+
+> how does change detection work?
+< answer >
+< sources >
+
+> explain the version-refresh path further
+< answer using prior turn as context >
+< sources >
+
+> /search ChunkFile
+< retrieval-only output, no LLM >
+
+> /clear
+> /exit
+```
+
+Implementation notes:
+
+- **TUI library:** `bubbletea` (the de-facto Go TUI library). Adds ~3–4 MB to the binary; acceptable.
+- **Slash-command parser:** lives inside the REPL loop, separate from CLI flag parsing.
+- **Session state:** in-memory only for v2.0 (no persistence between `chat` invocations). v2.1 could add history.
+- **Credentials storage:** OS keychain via `github.com/zalando/go-keyring` or similar; fallback to a config file with `0600` permissions and a clear warning printed at write time.
+- **Scripting compatibility:** every existing subcommand stays unchanged. The REPL is purely additive.
+- **Reuse v1's seams:** `models list`, the config file, and `resolveGenerator(name, config) → Generator` are all called by both surfaces.
+
+Expected effort: M–L (~1–2 weeks for a polished first version).
+
+### Trigger criteria — when to start the v2 plan
+
+Don't open the v2 plan until **at least two** of the following appear from v0/v1 dogfooding:
+
+- Users issue ≥3 follow-up `--answer` queries in a session, with the follow-ups clearly building on the prior turn (*"and also explain..."*, *"refine that..."*, *"what about for X instead?"*).
+- Provider/model selection becomes a daily friction (users typing `--model openai/gpt-4o-mini` repeatedly even after setting a default).
+- The flag set on `search --answer` grows beyond 5–6 generator-related flags.
+- A user specifically asks for "interactive mode" or "I want to keep my last question in context."
+
+Until those signals appear, the one-shot CLI + Option A defaults is the right product shape.
+
+### What v1 must set up to make v2 cheap (already in v1 scope)
+
+Even though v2 is deferred, v1 should make a few choices that keep the door open. None of these are extra work for v1 — they're choices about *where* to put code v1 needs anyway:
+
+1. **`models list` subcommand** — already in v1 scope. v2's `/model` slash command calls the same code.
+2. **Config file at `~/.config/ragcodepilot/config.yaml`** — schema defined in v1 (default_model, per-provider base URLs). v2's `chat` reads/writes the same file.
+3. **Generator selection factored out of `cmd/`** — `resolveGenerator(name, config) → Generator` lives in `internal/answer/`, not `cmd/ragcodepilot/`, so both the CLI and the eventual REPL can call it.
+4. **Credentials abstraction** — even though v1 reads from env vars only, define a small `Credentials` interface (`Get(provider) → key`). v2 swaps in keychain access without touching providers.
+
+### B vs C — the small distinction
+
+B and C share **identical implementations** for everything but the no-args entry point. Slash commands, REPL behavior, credential storage, config file, CLI subcommands, scripting compatibility — all the same. The only difference:
+
+- **Option B:** `ragcodepilot` (no args) → print help / usage; `ragcodepilot chat` → enter REPL.
+- **Option C:** `ragcodepilot` (no args) → enter REPL; `chat` subcommand is unnecessary.
+
+This is a tone/convention call, not a behavioral chasm. The choice signals which family of CLI tools ragcodepilot wants to feel like:
+
+| Tool family | No-args behavior | Examples |
+|---|---|---|
+| CLI tools (ragcodepilot's current family) | Print help and exit | `gh`, `git`, `kubectl`, `jq`, `rg`, `cargo`, `npm` |
+| REPL tools | Drop into interactive shell | `python`, `node`, `psql`, `redis-cli`, `irb` |
+
+#### Why pick B for the initial v2 ship
+
+1. **Convention match.** ragcodepilot grew from a search-CLI lineage. `--help` is the universal expectation for first-time users.
+2. **Surprise factor.** Typing `ragcodepilot` to "see what this is" and landing in a REPL with no obvious exit is jarring. Mitigable with a clear welcome header, but the convention is worth respecting unless there's a strong reason to break it.
+3. **CI / installation-check ergonomics.** Health-check scripts that run `ragcodepilot` (no args) to verify installation expect help output and a clean exit code — not a process that blocks on stdin.
+
+#### When to swing from B to C
+
+Switching is genuinely cheap — the no-args handler is one function, and the REPL infrastructure is the same. Reconsider C if any of these become true after v2 ships:
+
+- Users frequently launch `ragcodepilot chat` and forget the subcommand name; the `chat` step feels like ceremony.
+- Product direction moves toward "code companion / agent" (closer to OpenCode than to `rg`). Then the REPL *is* the primary surface and the help-screen default looks like a vestige.
+- Telemetry (if added) shows users mostly invoking the tool interactively rather than via scripts.
+
+Until those signals appear, B is the more conservative pick. **Crucially: nothing in v2's implementation has to change to swing from B to C later — just the no-args handler.** Don't burn the bridge.
 
 ---
 

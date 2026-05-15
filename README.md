@@ -1,8 +1,18 @@
 # ragcodepilot
 
-`ragcodepilot` is a local semantic code search CLI. It indexes source code from local repositories, stores code chunks and vector embeddings in Qdrant, then searches the indexed code from the terminal using natural language.
+**Search your codebase using plain English, right from the terminal.**
 
-This project is a learning implementation for vector database application design. It focuses on retrieval, not answer generation: search returns ranked code chunks, not LLM-generated summaries.
+`ragcodepilot` is a local **RAG** (Retrieval-Augmented Generation) code search CLI. The full RAG idea has three steps:
+
+1. **Retrieve** — find the most relevant pieces of source code for a given question.
+2. **Augment** — feed those code snippets into a prompt as context.
+3. **Generate** — have an LLM produce an answer grounded in the retrieved code.
+
+Today, **step 1 (retrieval) is fully implemented**. You can point the tool at a local repository, index it, and search with natural language queries like *"how does the chunking work?"*. Steps 2 and 3 (answer generation) are planned as the [next phase](docs/plan/mvp_roadmap.md) — starting with local Ollama models, with support for different LLM providers (OpenAI, Anthropic, etc.) planned for the future.
+
+Answer mode is **opt-in** — without it, the tool works as a pure code search engine. Both scripting (CLI one-liners) and interactive (REPL) usage are supported.
+
+**How retrieval works:** The tool breaks source code into small chunks (functions, blocks of lines), converts each chunk into a numerical "fingerprint" (embedding) that captures its meaning, and stores everything in a local vector database ([Qdrant](https://qdrant.tech/)). It also builds a keyword index (BM25) alongside the embeddings and combines both signals for better results. When you search, your query is matched against the stored chunks to find the closest results.
 
 ## Current status
 
@@ -17,7 +27,7 @@ This project is a learning implementation for vector database application design
 - Collection list and delete commands.
 - `config.yaml` is auto-loaded during indexing when present; built-in defaults are used only when it is absent.
 
-Hybrid search is implemented: BM25 sparse vectors (`k1=0.5`, `b=0.75`) + dense vectors + Reciprocal Rank Fusion (`--mode dense|sparse|hybrid`, default `hybrid`). Still planned: regex chunkers for Python/Rust, Rust AST chunker, and cross-encoder reranking. See [`docs/plan/mvp_roadmap.md`](docs/plan/mvp_roadmap.md) for the full roadmap.
+Hybrid search is implemented: BM25 sparse vectors (`k1=0.5`, `b=0.75`) + dense vectors + Reciprocal Rank Fusion (`--mode dense|sparse|hybrid`, default `hybrid`), with additive Snowball stemming on the BM25 path. Latest baseline (`baseline_v4`): `hit@5 = 0.895`, `hit@1 = 0.579`, `MRR@5 = 0.699`. Cross-encoder reranking, the Rust AST chunker, and UX polish are tracked on the roadmap — see [`docs/plan/mvp_roadmap.md`](docs/plan/mvp_roadmap.md).
 
 ## Architecture
 
@@ -163,6 +173,7 @@ docker compose down
 | `-collection` | `code_chunks` | Qdrant collection name |
 | `-language` | (all) | Comma-separated language filter (e.g., `go,rust`) |
 | `-repo` | (all) | Comma-separated repo name filter (e.g., `ragcodepilot`) |
+| `-mode` | `hybrid` | Retrieval mode: `dense`, `sparse`, `hybrid` |
 | `-limit` | `5` | Maximum number of results |
 | `-embedder` | `ollama` | Embedder to use: `ollama`, `fake` |
 | `-ollama-url` | `http://localhost:11434` | Ollama server URL |
@@ -179,6 +190,7 @@ docker compose down
 | `-output` | `human` | Output format: `human`, `json` |
 | `-limit` | `10` | Per-query result limit (must be ≥ 10 for recall@10) |
 | `-type` | (all) | Filter queries by type (`navigation`, `concept`, `behavior`, `negative`) |
+| `-mode` | `hybrid` | Retrieval mode: `dense`, `sparse`, `hybrid` |
 | `-embedder` | `ollama` | Embedder to use: `ollama`, `fake` |
 | `-ollama-url` | `http://localhost:11434` | Ollama server URL |
 | `-ollama-model` | `nomic-embed-text` | Ollama embedding model |
@@ -263,12 +275,15 @@ go run ./cmd/ragcodepilot index --language go .
 ## Known limitations
 
 - Function-level chunking is Go-only (AST-based). Other languages use a sliding window.
-- Sparse vectors use BM25 with a softened `k1=0.5` (Elasticsearch's default `k1=1.2` is calibrated for long, mixed-length documents; code chunks are short and uniform, so milder TF saturation gave a much cleaner result on the May 2026 eval — hit@1 +21pp vs TF-IDF). See [`docs/plan/hybrid_search.md`](docs/plan/hybrid_search.md) §3 for the rationale, eval numbers, and the one known failure mode (plural/singular token mismatch on a single concept query).
+- Sparse vectors use BM25 with a softened `k1=0.5` (Elasticsearch's default `k1=1.2` is calibrated for long, mixed-length documents; code chunks are short and uniform, so milder TF saturation gave a much cleaner result on the May 2026 eval — hit@1 +21pp vs TF-IDF). The original plural/singular token-mismatch regression on the `hasher_concept` query was resolved on 2026-05-15 by additive Snowball stemming (`baseline_v4`). See [`docs/plan/hybrid_search.md`](docs/plan/hybrid_search.md) §3 for the full history and eval matrix.
 - Embedding dimension is auto-detected; switching models requires collection delete + re-index.
 
 ## Further docs
 
 - [MVP Roadmap](docs/plan/mvp_roadmap.md)
+- [Phase 5 v0 — `--answer` mode plan](docs/plan/phase5_v0_answer_mode.md)
+- [Hybrid search design + eval matrix](docs/plan/hybrid_search.md)
+- [Retrieval quality decisions](docs/knowledge/retrieval_quality_decisions.md)
 - [System design](docs/plan/system_design.md)
 - [Progress checklist](docs/plan/checklist.md)
 - [Evaluation harness](docs/eval/README.md)
