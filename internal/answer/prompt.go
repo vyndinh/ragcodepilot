@@ -10,9 +10,10 @@ import (
 // bracket number. v1 may make this configurable; v0 hardcodes it so golden
 // tests can lock the contract.
 const SystemPrompt = "You are answering questions about a code repository. Use only the provided\n" +
-	"code chunks to answer. If the chunks don't contain enough information,\n" +
-	"say so explicitly — do not invent details. Reference specific chunks by\n" +
-	"their number in brackets like [1] when citing code."
+	"code chunks to answer. If the chunks do not contain enough information,\n" +
+	"say so explicitly and do not invent details. Cite the chunk numbers that\n" +
+	"support your answer using brackets like [1]. Do not cite chunks that were\n" +
+	"not provided."
 
 // BuildPrompt renders the system and user messages for the v0 answer prompt.
 // The system message is the frozen SystemPrompt constant. The user message
