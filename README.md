@@ -8,7 +8,7 @@
 2. **Augment** — feed those code snippets into a prompt as context.
 3. **Generate** — have an LLM produce an answer grounded in the retrieved code.
 
-Today, **step 1 (retrieval) is fully implemented**. You can point the tool at a local repository, index it, and search with natural language queries like *"how does the chunking work?"*. Steps 2 and 3 (answer generation) are planned as the [next phase](docs/plan/mvp_roadmap.md) — starting with local Ollama models, with support for different LLM providers (OpenAI, Anthropic, etc.) planned for the future.
+**Retrieval is fully implemented** — you can point the tool at a local repository, index it, and search with natural language queries like *"how does the chunking work?"*. Answer generation is planned as the [next phase](docs/plan/mvp_roadmap.md), starting with local Ollama models and with support for different LLM providers (OpenAI, Anthropic, etc.) in the future.
 
 Answer mode is **opt-in** — without it, the tool works as a pure code search engine. Both scripting (CLI one-liners) and interactive (REPL) usage are supported.
 
