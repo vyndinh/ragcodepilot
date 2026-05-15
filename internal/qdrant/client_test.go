@@ -821,6 +821,40 @@ func TestClient_ScrollFileHashesEmptyWhenNoCollection(t *testing.T) {
 	}
 }
 
+func TestClient_ScrollFileStatesIncludesIndexVersion(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{
+		exists: true,
+		scrollResult: []*pb.RetrievedPoint{
+			{
+				Payload: map[string]*pb.Value{
+					"file_path":     {Kind: &pb.Value_StringValue{StringValue: "internal/main.go"}},
+					"file_hash":     {Kind: &pb.Value_StringValue{StringValue: "abc123"}},
+					"index_version": {Kind: &pb.Value_StringValue{StringValue: embedding.SparseIndexVersion}},
+				},
+			},
+		},
+	}
+	client := &Client{conn: sdk}
+
+	states, err := client.ScrollFileStates(context.Background(), "code_chunks", "ragcodepilot", nil)
+	if err != nil {
+		t.Fatalf("ScrollFileStates() unexpected error: %v", err)
+	}
+
+	state, ok := states["internal/main.go"]
+	if !ok {
+		t.Fatal("missing internal/main.go state")
+	}
+	if state.FileHash != "abc123" {
+		t.Fatalf("file hash = %q, want abc123", state.FileHash)
+	}
+	if state.IndexVersion != embedding.SparseIndexVersion {
+		t.Fatalf("index version = %q, want %q", state.IndexVersion, embedding.SparseIndexVersion)
+	}
+}
+
 // --- DeleteByFilePaths tests ---
 
 func TestClient_DeleteStaleChunksByFilePath(t *testing.T) {
@@ -1033,6 +1067,34 @@ func TestClient_UpsertIncludesSparseVectorWhenProvided(t *testing.T) {
 	}
 	if len(gotValues) != 2 || gotValues[0] != 0.7 || gotValues[1] != 0.4 {
 		t.Fatalf("sparse values = %v, want [0.7 0.4]", gotValues)
+	}
+}
+
+func TestClient_UpsertIncludesIndexVersionPayload(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{}
+	client := &Client{conn: sdk}
+
+	chunks := []model.CodeChunk{{
+		ID:           "00000000-0000-0000-0000-000000000001",
+		Repo:         "testrepo",
+		FilePath:     "main.go",
+		Language:     "go",
+		Content:      "func main() {}",
+		IndexVersion: embedding.SparseIndexVersion,
+	}}
+	vectors := [][]float32{{1.0, 2.0, 3.0}}
+
+	err := client.Upsert(context.Background(), "code_chunks", chunks, vectors, nil)
+	if err != nil {
+		t.Fatalf("Upsert() unexpected error: %v", err)
+	}
+
+	point := sdk.upsertedReqs[0].GetPoints()[0]
+	got := point.GetPayload()["index_version"].GetStringValue()
+	if got != embedding.SparseIndexVersion {
+		t.Fatalf("index_version payload = %q, want %q", got, embedding.SparseIndexVersion)
 	}
 }
 

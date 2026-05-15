@@ -22,7 +22,7 @@ func TestTokenize_SnakeCase(t *testing.T) {
 
 func TestTokenize_MixedCamelCase(t *testing.T) {
 	got := Tokenize("NewVectorInputSparse")
-	want := []string{"new", "vector", "input", "sparse"}
+	want := []string{"new", "vector", "input", "sparse", "spars"}
 	assertTokens(t, got, want)
 }
 
@@ -52,6 +52,7 @@ func TestTokenize_MixedContent(t *testing.T) {
 	assertContains(t, got, "ensure")
 	assertContains(t, got, "collection")
 	assertContains(t, got, "creates")
+	assertContains(t, got, "creat") // additive stemming (Snowball: creates → creat)
 	assertContains(t, got, "exist")
 	assertNotContains(t, got, "a")
 	assertNotContains(t, got, "if")
@@ -75,6 +76,83 @@ func TestTokenize_WhitespaceOnly(t *testing.T) {
 	got := Tokenize("   \t\n  ")
 	if len(got) != 0 {
 		t.Errorf("expected empty, got %v", got)
+	}
+}
+
+// --- Additive stemming tests --------------------------------------------
+
+func TestTokenize_AdditiveStem_Hashes(t *testing.T) {
+	// This is the specific bug: query "hashes" must also emit "hash"
+	// so it matches index-time token "hash" from "HashFiles".
+	got := Tokenize("hashes")
+	assertContains(t, got, "hashes") // original kept
+	assertContains(t, got, "hash")   // stemmed variant added
+}
+
+func TestTokenize_AdditiveStem_Files(t *testing.T) {
+	got := Tokenize("files")
+	assertContains(t, got, "files")
+	assertContains(t, got, "file")
+}
+
+func TestTokenize_AdditiveStem_NoChange(t *testing.T) {
+	// "chunk" is already a root — should emit only "chunk".
+	got := Tokenize("chunk")
+	assertTokens(t, got, []string{"chunk"})
+}
+
+func TestTokenize_AdditiveStem_Computing(t *testing.T) {
+	// Snowball handles -ing: "computing" → "comput".
+	// This goes beyond plurals — it's the main advantage over custom rules.
+	got := Tokenize("computing")
+	assertContains(t, got, "computing")
+	assertContains(t, got, "comput")
+}
+
+func TestTokenize_AdditiveStem_Entries(t *testing.T) {
+	got := Tokenize("entries")
+	assertContains(t, got, "entries")
+	// Snowball stems "entries" to "entri", not "entry".
+	// Ugly, but consistent at index-time and query-time.
+	assertContains(t, got, "entri")
+}
+
+// --- stemToken unit tests -----------------------------------------------
+
+func TestStemToken(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		// Plurals
+		{"hashes", "hash"},
+		{"files", "file"},
+		{"chunks", "chunk"},
+		{"vectors", "vector"},
+		{"results", "result"},
+		{"classes", "class"},
+		{"indexes", "index"},
+		// -ing forms
+		{"computing", "comput"},
+		{"running", "run"},
+		{"indexing", "index"},
+		// -ed forms
+		{"computed", "comput"},
+		{"hashed", "hash"},
+		// -tion forms
+		{"collection", "collect"},
+		// No change expected
+		{"hash", "hash"},
+		{"chunk", "chunk"},
+		{"class", "class"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			got := stemToken(tt.in)
+			if got != tt.want {
+				t.Errorf("stemToken(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -194,6 +272,22 @@ func TestComputeCorpusStats_TokenInAllDocs(t *testing.T) {
 	if stats.IDF["hello"] >= stats.IDF["world"] {
 		t.Errorf("IDF should be monotonic in 1/df: hello (%.4f) should be less than world (%.4f)",
 			stats.IDF["hello"], stats.IDF["world"])
+	}
+}
+
+func TestComputeCorpusStats_StemExpansionDoesNotInflateDocLength(t *testing.T) {
+	texts := []string{"hashes", "hash"}
+
+	stats := ComputeCorpusStats(texts)
+
+	if math.Abs(stats.AvgDocLen-1.0) > 0.001 {
+		t.Fatalf("avgdl = %.4f, want 1.0 from original tokens only", stats.AvgDocLen)
+	}
+	if _, ok := stats.IDF["hashes"]; !ok {
+		t.Fatal("expected original token IDF for hashes")
+	}
+	if _, ok := stats.IDF["hash"]; !ok {
+		t.Fatal("expected stemmed token IDF for hash")
 	}
 }
 

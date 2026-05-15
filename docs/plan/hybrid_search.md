@@ -12,10 +12,18 @@ Add keyword-based sparse vector search alongside dense vector search so exact-sy
 
 Run on ragcodepilot's own Go corpus (~350 chunks, 32 files), 23 golden queries (19 positive, 4 negative), `nomic-embed-text` 768d, Qdrant v1.17.1, RRF `k=60`, prefetch limit `2×limit`.
 
-**Canonical baseline:** `docs/eval/baseline_v3.json` (hybrid, BM25 `k1=0.5`).
-**Previous baseline:** `docs/eval/baseline_v2.json` (hybrid, TF-IDF). Kept for the historical comparison.
+**Canonical baseline:** `docs/eval/baseline_v4.json` (hybrid, BM25 `k1=0.5` + additive Snowball stemming).
+**Previous baselines:** `baseline_v3.json` (BM25 without stemming), `baseline_v2.json` (TF-IDF). Kept for the historical comparison.
 
-### 2026-05-15: Switched from TF-IDF to BM25 (`k1=0.5`)
+### Algorithm history (latest first)
+
+| Date | Change | Canonical artifact |
+|---|---|---|
+| 2026-05-15 | Add additive Snowball stemming + `index_version` payload | `baseline_v4.json` |
+| 2026-05-15 | Switch sparse from TF-IDF to BM25 (`k1=0.5`) | `baseline_v3.json` |
+| 2026-05-13 | Original Phase 2 ship with TF-IDF hybrid | `baseline_v2.json` |
+
+### Full eval matrix
 
 | Mode | hit@1 | hit@3 | hit@5 | MRR@5 | recall@10 | nav h@5 | con h@5 | beh h@5 | neg pass | p50/p95 ms |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -25,11 +33,40 @@ Run on ragcodepilot's own Go corpus (~350 chunks, 32 files), 23 golden queries (
 | hybrid (P2 TF-IDF) | 0.421 | 0.737 | 0.895 | 0.607 | 0.816 | 0.750 | 1.000 | 1.000 | 1.000 | 29/173 |
 | dense (P3 BM25) | 0.526 | 0.737 | 0.789 | 0.625 | 0.711 | 0.500 | 1.000 | 1.000 | 1.000 | 28/161 |
 | sparse (P3 BM25) | 0.421 | 0.737 | 0.737 | 0.579 | 0.816 | 0.625 | 0.714 | 1.000 | 0.250 | 1/81 |
-| **hybrid (P3 BM25)** | **0.632** | **0.789** | 0.842 | **0.706** | 0.842 | **0.750** | 0.857 | 1.000 | 1.000 | **28/119** |
+| hybrid (P3 BM25) | 0.632 | 0.789 | 0.842 | 0.706 | 0.842 | 0.750 | 0.857 | 1.000 | 1.000 | 28/119 |
+| dense (P4 BM25+stem) | 0.526 | 0.737 | 0.789 | 0.625 | 0.711 | 0.500 | 1.000 | 1.000 | 1.000 | 29/126 |
+| sparse (P4 BM25+stem) | 0.579 | 0.737 | 0.737 | 0.658 | 0.816 | 0.625 | 0.714 | 1.000 | 0.250 | 1/87 |
+| **hybrid (P4 BM25+stem)** | **0.579** | **0.789** | **0.895** | **0.699** | **0.842** | **0.750** | **1.000** | **1.000** | **1.000** | **28/141** |
 
-**Hybrid-mode delta (BM25 vs TF-IDF):** hit@1 **+21.1pp**, hit@3 +5.3pp, hit@5 −5.3pp (one displaced query), MRR@5 **+9.9pp**, recall@10 +2.6pp, navigation h@5 ±0pp, concept h@5 −14.3pp (one displaced query), behavior h@5 ±0pp, negative pass ±0pp, p95 latency 173→119ms.
+#### Hybrid-mode delta (P4 BM25+stem vs P2 TF-IDF)
 
-The dense rows are identical between P2 and P3 (sanity check — dense path is unchanged). Sparse-only is more aggressive on identifier matches with BM25, gaining hit@5 on positive queries but losing negative-pass and concept robustness; **hybrid mode damps both extremes via RRF**, which is why hybrid is the user-facing default.
+| metric | TF-IDF | BM25+stem | delta |
+|---|---|---|---|
+| hit@1 | 0.421 | 0.579 | **+15.8pp** |
+| hit@3 | 0.737 | 0.789 | +5.3pp |
+| hit@5 | 0.895 | 0.895 | ±0pp |
+| MRR@5 | 0.607 | 0.699 | **+9.2pp** |
+| recall@10 | 0.816 | 0.842 | +2.6pp |
+| navigation h@5 | 0.750 | 0.750 | ±0pp |
+| concept h@5 | 1.000 | 1.000 | ±0pp |
+| behavior h@5 | 1.000 | 1.000 | ±0pp |
+| negative pass | 1.000 | 1.000 | ±0pp |
+| p95 latency | 173 ms | 141 ms | −19% |
+
+**P4 is Pareto-better than P2 on every metric** — no regressions, hit@1 and MRR@5 substantially improved. This is the strongest single result on the project.
+
+#### Hybrid-mode delta (P4 vs P3, the stemming follow-up)
+
+| metric | P3 BM25 | P4 BM25+stem | delta | per-query change |
+|---|---|---|---|---|
+| hit@1 | 0.632 | 0.579 | −5.3pp | lost `run_eval_navigation`, `hihatk_navigation`; gained `chunking_concept` |
+| hit@5 | 0.842 | 0.895 | **+5.3pp** | `hasher_concept` recovered |
+| MRR@5 | 0.706 | 0.699 | −0.7pp (noise) | — |
+| concept h@5 | 0.857 | **1.000** | **+14.3pp** | `hasher_concept` recovered |
+
+The trade is exactly what the [retrieval-quality framework](../knowledge/retrieval_quality_decisions.md) predicted: a small hit@1 navigation cost in exchange for full hit@5 recovery and the disappearance of the only known regression from the BM25 switch. Under the RAG-readiness gate (hit@5 ≥ 0.80), P4 is the recommended baseline.
+
+The dense rows are identical across P2, P3, and P4 (sanity check — dense path is unchanged). Sparse-only with stemming gains hit@1 (0.421 → 0.579) and MRR@5 (0.579 → 0.658) but still has the same low negative-pass rate (0.25) and concept ceiling (0.714) as sparse-only without stemming — pure keyword retrieval still hallucinates on out-of-scope queries. **Hybrid mode damps this via RRF**, which is why hybrid is the user-facing default.
 
 ### Exit-criteria check (P2 TF-IDF, original Phase 2 gate)
 
@@ -168,9 +205,17 @@ Elasticsearch defaults `k1=1.2` are calibrated for long, mixed-length documents 
 
 `b=0.75` is the standard value and was not tuned. If a future corpus has highly variable chunk lengths (e.g., adding markdown docs to the same collection), `b` is the parameter to revisit.
 
-#### Known regression: tokenizer stemming
+#### Stemming follow-up (shipped 2026-05-15, baseline_v4)
 
-`hasher_concept` regressed under BM25 due to plural/singular token mismatch (`hashes` vs `hash`). The fix lives at the tokenizer layer (add a light stemmer) or the reranker layer (Phase 3 — cross-encoder sees the full query text and disambiguates). It is **not** a tuning issue. BM25 with any `k1` cannot recover this query as long as `Tokenize("hashes") ≠ Tokenize("hash")`.
+`hasher_concept` regressed under BM25 due to plural/singular token mismatch (`hashes` vs `hash`). This is not a BM25 tuning issue: BM25 with any `k1` cannot recover the query while the tokenizer treats those forms as unrelated.
+
+The tokenizer now uses additive Snowball stemming via [`github.com/kljensen/snowball`](https://github.com/kljensen/snowball): `Tokenize("hashes")` emits both `hashes` and `hash`, preserving exact tokens while adding a normalized matching dimension. The stem is filtered through the stop-word list so that, e.g., `having → have` (stop word) is dropped consistently. BM25's `docLen` uses the **unstemmed** token count so the doubled token list doesn't inflate length normalization.
+
+Because this change affects stored sparse vectors even when source files don't change, indexed chunks now carry an `index_version` payload (current value: `sparse-bm25-snowball-v1`). The ingestion pipeline classifies files into a fifth category — *index-version refresh* — and re-embeds them when the stored version differs from `embedding.SparseIndexVersion`, eliminating manual `collections delete` for future tokenizer or weighting changes.
+
+**Result:** `hasher_concept` recovered (concept hit@5 back to 1.000), overall hit@5 returned to the TF-IDF level (0.895), MRR@5 stayed within 0.7pp of P3 (0.699 vs 0.706). Cost: 2 navigation queries dropped from hit@1 (`run_eval_navigation`, `hihatk_navigation`) — expected stemming cost as the expanded token space adds competition for exact-identifier queries; 1 concept query gained hit@1 (`chunking_concept`). Net top-1 change vs P3: −5.3pp. Net top-5 change vs P3: +5.3pp.
+
+Under the RAG-readiness framework in [`retrieval_quality_decisions.md`](../knowledge/retrieval_quality_decisions.md) (hit@5 is the floor, MRR@5 is the headline), this is the strongest single result on the project — Pareto-better than P2 (TF-IDF) on every metric.
 
 ---
 
@@ -202,6 +247,7 @@ Code-aware tokenizer that produces `SparseVector` values:
 - Keep digit runs attached: `sha256Hash` → `["sha256", "hash"]`
 - Lowercase all tokens
 - Remove Go keywords and common English stop words
+- Add stemmed variants without replacing originals: `hashes` → `["hashes", "hash"]`
 
 **Key invariant:** The public `Tokenize(text) → tokens[]` function is the **single source of truth** for tokenization. Both `BuildSparseVectors` (index-time) and `TokenizeQuery` (query-time) MUST call it internally. If they diverge (one lowercases, the other doesn't; one splits on underscores, the other doesn't), exact matches fail silently.
 
@@ -229,8 +275,9 @@ function TokenizeQuery(query) → SparseVector
 **Test cases:**
 - camelCase: `"ChunkFile"` → `["chunk", "file"]`
 - snake_case: `"chunk_file"` → `["chunk", "file"]`
-- Mixed: `"NewVectorInputSparse"` → `["new", "vector", "input", "sparse"]`
+- Mixed: `"NewVectorInputSparse"` → `["new", "vector", "input", "sparse", "spars"]`
 - Numbers: `"sha256Hash"` → `["sha256", "hash"]`
+- Stemming: `"hashes"` preserves `hashes` and adds `hash`
 - Stop word removal
 - Sparse vector output: keys are uint32, values are positive floats
 - Empty input handling

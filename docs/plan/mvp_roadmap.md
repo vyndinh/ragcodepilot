@@ -14,7 +14,7 @@ Product direction: ragcodepilot is evolving toward a full local RAG pipeline. Ph
 | Phase | Goal | Size | Exit criterion | Status |
 |---|---|---|---|---|
 | 1 | Evaluation foundation | S | `hit@5` baseline metrics committed; `ragcodepilot eval` CLI works | ✅ Done |
-| 2 | Hybrid search (BM25 + dense + RRF) | L | Eval shows ≥10pp `hit@5` improvement on exact-symbol queries | ✅ Done — hit@5 = 0.842, hit@1 = 0.632 with BM25 k1=0.5 (baseline_v3); switched from TF-IDF after 2026-05-15 spike |
+| 2 | Hybrid search (BM25 + dense + RRF) | L | Eval shows ≥10pp `hit@5` improvement on exact-symbol queries | ✅ Done — `baseline_v4.json`: hit@5 = 0.895, hit@1 = 0.579, MRR@5 = 0.699 with BM25 `k1=0.5` + additive Snowball stemming. Switched from TF-IDF on 2026-05-15 and shipped stemming the same day to recover the one concept regression. |
 | 5 v0 | Minimal `--answer` mode (RAG seam) | S | `ragcodepilot search --answer "q"` returns LLM answer + source chunks via local Ollama | **▶ Next** — plan at `phase5_v0_answer_mode.md` |
 | 3 | Reranking + Rust AST chunker | M | Cross-encoder lifts `MRR@5` measurably; Rust chunker ships | ⏸ Deferred pending Phase 5 v0 signal |
 | 4 | UX polish | S | JSON output mode, context-lines flag, faster startup *(detail TBD when reached)* | ⏸ Deferred (some items may be shaped by Phase 5 v0 output) |
@@ -93,7 +93,7 @@ Reranking, Rust AST chunking, and output UX remain important supporting improvem
 
 **Why now:** Pure vector search misses exact-symbol queries. BM25 sparse vectors catch identifier matches. RRF is a well-understood combiner. Vision review's #3 P1 weakness.
 
-**Algorithm history:** Original plan said BM25. Initial implementation in 2026-05-13 shipped as TF-IDF after the `hybrid_search.md` plan review argued BM25's length normalization adds little value on short, uniform-length code chunks. A 2026-05-15 follow-up spike re-ran the eval with BM25 (smoothed IDF, `k1=0.5`, `b=0.75`) and saw hit@1 +21.1pp, MRR@5 +9.9pp, p95 latency 173→119ms, with one concept-query regression caused by a plural/singular tokenizer mismatch (orthogonal to the scoring function). BM25 is now the shipped algorithm; see `hybrid_search.md` §3 for the full rationale and the eval table.
+**Algorithm history:** Original plan said BM25. Initial implementation in 2026-05-13 shipped as TF-IDF after the `hybrid_search.md` plan review argued BM25's length normalization adds little value on short, uniform-length code chunks. A 2026-05-15 spike re-ran the eval with BM25 (`k1=0.5`, `b=0.75`) — hit@1 jumped +21.1pp, MRR@5 +9.9pp, but one concept query (`hasher_concept`) regressed due to a plural/singular tokenizer mismatch. A same-day follow-up added additive Snowball stemming (`baseline_v4.json`), which recovered the regression while keeping hit@1 at +15.8pp and MRR@5 at +9.2pp vs the TF-IDF baseline — Pareto-better on every metric. See `hybrid_search.md` §3 for the full history and eval matrix.
 
 **Exit criterion:** Eval shows ≥10pp `hit@5` improvement on exact-symbol queries (a tag in the golden set), with no regression on concept queries.
 

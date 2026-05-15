@@ -298,6 +298,76 @@ func TestPipeline_RunRefreshesUnchangedFilesAfterStaleDelete(t *testing.T) {
 	}
 }
 
+func TestPipeline_RunSkipsWhenHashAndIndexVersionMatch(t *testing.T) {
+	repoPath := t.TempDir()
+	filePath := filepath.Join(repoPath, "app.py")
+	if err := os.WriteFile(filePath, []byte("# stable helper\nprint('same')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	hash, err := HashFile(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &recordingStore{
+		existingStates: map[string]model.FileIndexState{
+			"app.py": {
+				FileHash:     hash,
+				IndexVersion: embedding.SparseIndexVersion,
+			},
+		},
+	}
+	p := NewPipeline(config.Default(), &scriptedEmbedder{}, store, "code_chunks")
+
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+	if store.upsertCalls != 0 {
+		t.Fatalf("Upsert calls = %d, want 0", store.upsertCalls)
+	}
+	if store.ensureCalls != 0 {
+		t.Fatalf("EnsureCollection calls = %d, want 0", store.ensureCalls)
+	}
+}
+
+func TestPipeline_RunRefreshesFileWhenIndexVersionChanges(t *testing.T) {
+	repoPath := t.TempDir()
+	filePath := filepath.Join(repoPath, "app.py")
+	if err := os.WriteFile(filePath, []byte("# stable helper\nprint('same')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	hash, err := HashFile(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &recordingStore{
+		existingStates: map[string]model.FileIndexState{
+			"app.py": {
+				FileHash:     hash,
+				IndexVersion: "sparse-bm25-before-stemming",
+			},
+		},
+	}
+	p := NewPipeline(config.Default(), &fakeEmbedder{dim: 4}, store, "code_chunks")
+
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+	if store.upsertCalls != 1 {
+		t.Fatalf("Upsert calls = %d, want 1", store.upsertCalls)
+	}
+	if store.deleteCalls != 0 {
+		t.Fatalf("Delete calls = %d, want 0 for same-hash version refresh", store.deleteCalls)
+	}
+	if len(store.upsertedChunks) != 1 {
+		t.Fatalf("upserted chunks = %d, want 1", len(store.upsertedChunks))
+	}
+	if got := store.upsertedChunks[0].IndexVersion; got != embedding.SparseIndexVersion {
+		t.Fatalf("upserted index version = %q, want %q", got, embedding.SparseIndexVersion)
+	}
+}
+
 type scriptedEmbedder struct {
 	batches [][][]float32
 	calls   int
@@ -337,9 +407,11 @@ type recordingStore struct {
 	upsertBatchSizes     []int
 	upsertSparseSizes    []int
 	upsertSparseNonEmpty int
+	upsertedChunks       []model.CodeChunk
 	deleteCalls          int
 	deleteFilePaths      []string
 	existingHashes       map[string]string
+	existingStates       map[string]model.FileIndexState
 }
 
 func (s *recordingStore) EnsureCollection(_ context.Context, name string, vectorSize uint64) error {
@@ -353,6 +425,7 @@ func (s *recordingStore) Upsert(_ context.Context, _ string, chunks []model.Code
 	s.upsertCalls++
 	s.upsertBatchSizes = append(s.upsertBatchSizes, len(chunks))
 	s.upsertSparseSizes = append(s.upsertSparseSizes, len(sparseVectors))
+	s.upsertedChunks = append(s.upsertedChunks, chunks...)
 	for _, sv := range sparseVectors {
 		if len(sv.Indices) > 0 || len(sv.Values) > 0 {
 			s.upsertSparseNonEmpty++
@@ -361,11 +434,21 @@ func (s *recordingStore) Upsert(_ context.Context, _ string, chunks []model.Code
 	return nil
 }
 
-func (s *recordingStore) ScrollFileHashes(_ context.Context, _, _ string, _ []string) (map[string]string, error) {
-	if s.existingHashes != nil {
-		return s.existingHashes, nil
+func (s *recordingStore) ScrollFileStates(_ context.Context, _, _ string, _ []string) (map[string]model.FileIndexState, error) {
+	if s.existingStates != nil {
+		return s.existingStates, nil
 	}
-	return make(map[string]string), nil
+	if s.existingHashes != nil {
+		states := make(map[string]model.FileIndexState, len(s.existingHashes))
+		for filePath, hash := range s.existingHashes {
+			states[filePath] = model.FileIndexState{
+				FileHash:     hash,
+				IndexVersion: embedding.SparseIndexVersion,
+			}
+		}
+		return states, nil
+	}
+	return make(map[string]model.FileIndexState), nil
 }
 
 func (s *recordingStore) EnsurePayloadIndexes(_ context.Context, _ string) error {
@@ -421,8 +504,15 @@ type orderingStore struct {
 func (s *orderingStore) EnsureCollection(context.Context, string, uint64) error { return nil }
 func (s *orderingStore) EnsurePayloadIndexes(context.Context, string) error     { return nil }
 
-func (s *orderingStore) ScrollFileHashes(_ context.Context, _, _ string, _ []string) (map[string]string, error) {
-	return s.existingHashes, nil
+func (s *orderingStore) ScrollFileStates(_ context.Context, _, _ string, _ []string) (map[string]model.FileIndexState, error) {
+	states := make(map[string]model.FileIndexState, len(s.existingHashes))
+	for filePath, hash := range s.existingHashes {
+		states[filePath] = model.FileIndexState{
+			FileHash:     hash,
+			IndexVersion: embedding.SparseIndexVersion,
+		}
+	}
+	return states, nil
 }
 
 func (s *orderingStore) DeleteByFilePaths(_ context.Context, _, _ string, filePaths []string) error {
