@@ -128,7 +128,7 @@ func TestBuildPrompt_PreservesChunkOrder(t *testing.T) {
 	idxFirst := strings.Index(gotUser, "First")
 	idxSecond := strings.Index(gotUser, "Second")
 	idxThird := strings.Index(gotUser, "Third")
-	if !(idxFirst < idxSecond && idxSecond < idxThird) {
+	if idxFirst >= idxSecond || idxSecond >= idxThird {
 		t.Errorf("chunks should appear in input order; got positions First=%d Second=%d Third=%d", idxFirst, idxSecond, idxThird)
 	}
 }

@@ -106,11 +106,8 @@ func TestFakeGenerator_DefaultResponse(t *testing.T) {
 func TestFakeGenerator_ImplementsInterface(t *testing.T) {
 	t.Parallel()
 
-	// Compile-time check is in fake.go; this test confirms at runtime.
-	var g Generator = NewFakeGenerator("ok")
-	if g == nil {
-		t.Fatal("generator should not be nil")
-	}
+	// Compile-time check is in fake.go (var _ Generator = (*FakeGenerator)(nil)).
+	// No runtime test needed — the compiler enforces this.
 }
 
 func TestChunkContext_ZeroValue(t *testing.T) {
