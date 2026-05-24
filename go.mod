@@ -9,7 +9,7 @@ require (
 )
 
 require (
-	github.com/qdrant/go-client v1.18.1
+	github.com/qdrant/go-client v1.18.2
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
