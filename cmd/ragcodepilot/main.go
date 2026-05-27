@@ -9,10 +9,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/dinhvy/ragcodepilot/internal/answer"
 	"github.com/dinhvy/ragcodepilot/internal/config"
 	"github.com/dinhvy/ragcodepilot/internal/embedding"
 	"github.com/dinhvy/ragcodepilot/internal/eval"
 	"github.com/dinhvy/ragcodepilot/internal/ingest"
+	"github.com/dinhvy/ragcodepilot/internal/model"
 	"github.com/dinhvy/ragcodepilot/internal/qdrant"
 	"github.com/dinhvy/ragcodepilot/internal/search"
 )
@@ -71,6 +73,9 @@ func main() {
 		embedderType := fs.String("embedder", "ollama", "Embedder to use: ollama, fake")
 		ollamaURL := fs.String("ollama-url", "http://localhost:11434", "Ollama server URL")
 		ollamaModel := fs.String("ollama-model", "nomic-embed-text", "Ollama embedding model")
+		answerMode := fs.Bool("answer", false, "Generate an answer from the retrieved chunks (RAG mode)")
+		generatorType := fs.String("generator", "ollama", "Generator for --answer: ollama, fake")
+		generativeModel := fs.String("ollama-generative-model", answer.DefaultGenerativeModel, "Ollama generative model for --answer")
 		_ = fs.Parse(os.Args[2:])
 
 		if fs.NArg() < 1 {
@@ -98,7 +103,16 @@ func main() {
 			os.Exit(1)
 		}
 
-		if err := runSearch(query, *collection, languages, repos, searchMode, *limit, *qdrantHost, *qdrantPort, emb); err != nil {
+		var gen answer.Generator
+		if *answerMode {
+			gen, err = resolveGenerator(*generatorType, *ollamaURL, *generativeModel)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				os.Exit(1)
+			}
+		}
+
+		if err := runSearch(query, *collection, languages, repos, searchMode, *limit, *qdrantHost, *qdrantPort, emb, gen); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
@@ -219,6 +233,9 @@ Search flags:
   -embedder string       Embedder to use: ollama, fake (default "ollama")
   -ollama-url string     Ollama server URL (default "http://localhost:11434")
   -ollama-model string   Ollama embedding model (default "nomic-embed-text")
+  -answer                Generate an answer from the retrieved chunks (RAG mode)
+  -generator string      Generator for --answer: ollama, fake (default "ollama")
+  -ollama-generative-model string  Ollama generative model for --answer (default "qwen2.5-coder:7b")
   -qdrant-host string    Qdrant host (default "localhost")
   -qdrant-port int       Qdrant gRPC port (default 6334)
 
@@ -267,6 +284,22 @@ func resolveEmbedder(embedderType, ollamaURL, ollamaModel string) (embedding.Emb
 	}
 }
 
+// resolveGenerator builds the answer Generator selected by --generator.
+// NOTE: v1 moves this into internal/answer/ so the eventual REPL can share it
+// (see docs/plan/phase5_v0_answer_mode.md). v0 keeps it in cmd/ for simplicity.
+func resolveGenerator(generatorType, ollamaURL, generativeModel string) (answer.Generator, error) {
+	switch generatorType {
+	case "ollama":
+		fmt.Fprintf(os.Stderr, "Using Ollama generator (model: %s, url: %s)\n", generativeModel, ollamaURL)
+		return answer.NewOllamaGenerator(ollamaURL, generativeModel), nil
+	case "fake":
+		fmt.Fprintln(os.Stderr, "Using fake generator (canned response — for testing only)")
+		return answer.NewFakeGenerator(""), nil
+	default:
+		return nil, fmt.Errorf("unknown generator %q (supported: ollama, fake)", generatorType)
+	}
+}
+
 func runIndex(repoPath, collection string, languages []string, qdrantHost string, qdrantPort int, embedder embedding.Embedder) error {
 	ctx := context.Background()
 	cfg, err := resolveIndexConfig()
@@ -304,7 +337,10 @@ func resolveIndexConfig() (*config.Config, error) {
 	return cfg, nil
 }
 
-func runSearch(query, collection string, languages, repos []string, mode search.SearchMode, limit int, qdrantHost string, qdrantPort int, embedder embedding.Embedder) error {
+// runSearch runs hybrid retrieval. When gen is non-nil (--answer), it additionally
+// synthesizes an answer from the retrieved chunks and prints it above the sources.
+// When gen is nil, the output is byte-identical to the retrieval-only path.
+func runSearch(query, collection string, languages, repos []string, mode search.SearchMode, limit int, qdrantHost string, qdrantPort int, embedder embedding.Embedder, gen answer.Generator) error {
 	ctx := context.Background()
 
 	client, err := qdrant.NewClient(qdrantHost, qdrantPort)
@@ -319,8 +355,46 @@ func runSearch(query, collection string, languages, repos []string, mode search.
 		return err
 	}
 
-	fmt.Print(search.FormatResults(results))
+	if gen == nil {
+		fmt.Print(search.FormatResults(results))
+		return nil
+	}
+
+	// Pre-load the model (if the generator supports it) so the cold-start cost
+	// is paid here, not bundled into the timed Generate call below.
+	if w, ok := gen.(answer.Warmer); ok {
+		fmt.Fprintln(os.Stderr, "Warming up generative model (first call may take a while)...")
+		if err := w.Warmup(ctx); err != nil {
+			return fmt.Errorf("warming up generator: %w", err)
+		}
+	}
+
+	prompt := answer.Prompt{Question: query, Chunks: resultsToChunkContext(results)}
+	text, err := gen.Generate(ctx, prompt)
+	if err != nil {
+		return fmt.Errorf("generating answer: %w", err)
+	}
+
+	fmt.Printf("Answer: %s\n\nSources:\n%s", text, search.FormatResults(results))
 	return nil
+}
+
+// resultsToChunkContext maps search results into the 1-based, citation-ready
+// chunk contexts the answer prompt expects.
+func resultsToChunkContext(results []model.SearchResult) []answer.ChunkContext {
+	chunks := make([]answer.ChunkContext, len(results))
+	for i, r := range results {
+		chunks[i] = answer.ChunkContext{
+			Index:     i + 1,
+			Repo:      r.Chunk.Repo,
+			FilePath:  r.Chunk.FilePath,
+			Lines:     fmt.Sprintf("%d-%d", r.Chunk.StartLine, r.Chunk.EndLine),
+			Symbol:    r.Chunk.Name,
+			ChunkType: r.Chunk.ChunkType,
+			Content:   r.Chunk.Content,
+		}
+	}
+	return chunks
 }
 
 func runCollectionsList(qdrantHost string, qdrantPort int) error {

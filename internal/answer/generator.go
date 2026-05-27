@@ -14,6 +14,18 @@ type Generator interface {
 	Generate(ctx context.Context, prompt Prompt) (string, error)
 }
 
+// Warmer is an optional interface a Generator may implement to pre-load its
+// model before the first Generate call. Warming moves the one-time cold-start
+// cost (loading a multi-GB model into memory) out of the timed generation path,
+// so Generate's timeout budget covers only generation. Generators that need no
+// warmup — FakeGenerator, future stateless cloud providers — simply don't
+// implement it; callers should type-assert and skip warming when absent.
+type Warmer interface {
+	// Warmup loads the underlying model into memory. It is safe to call when the
+	// model is already resident (it returns quickly in that case).
+	Warmup(ctx context.Context) error
+}
+
 // Prompt carries the user question and the code chunks that provide context
 // for answer generation. The generator formats these into the LLM request.
 type Prompt struct {
@@ -31,6 +43,10 @@ type ChunkContext struct {
 	// Index is the 1-based citation number shown in the prompt (e.g., [1]).
 	Index int
 
+	// Repo is the repository name this chunk came from. Rendered to disambiguate
+	// citations when a collection spans multiple repositories; omitted when empty.
+	Repo string
+
 	// FilePath is the relative file path within the repository.
 	FilePath string
 
@@ -39,6 +55,11 @@ type ChunkContext struct {
 
 	// Symbol is the function, method, or type name, if any.
 	Symbol string
+
+	// ChunkType labels the kind of chunk (e.g., "function", "block", "file") so
+	// the citation header does not mislabel non-function chunks. When empty, the
+	// header falls back to a neutral "symbol" label.
+	ChunkType string
 
 	// Content is the raw source code text of the chunk.
 	Content string
