@@ -35,6 +35,10 @@ func WalkFiles(root string, cfg *config.Config) ([]string, error) {
 			return nil
 		}
 
+		if cfg.ShouldSkipFile(info.Name()) {
+			return nil
+		}
+
 		if isBinaryFile(path) {
 			return nil
 		}

@@ -31,16 +31,21 @@ For the first version, prefer `hit@1`, `hit@3`, `hit@5`, `MRR@5`, and `recall@5`
 
 These metrics should be reported alongside retrieval quality so quality improvements do not hide unacceptable latency regressions.
 
-## Future Answer Metrics
+## Answer Metrics
 
-Only add these when `ragcodepilot` has an LLM answer-generation layer:
+`ragcodepilot` now has an LLM answer-generation layer (`search --answer`, Phase 5 v0), so answer evaluation exists as an opt-in **reference-free** tier — `eval --answer` ("Tier B"). It runs real generation (greedy/temp 0) and scores deterministic, rule-based properties; it is reported, never gated. See [`../eval/README.md`](../eval/README.md#answer-mode-evaluation--answer-tier-b) for the full mechanism.
 
-- Faithfulness or groundedness: generated answers must be supported by retrieved code chunks.
-- Answer correctness: generated answers should match expected behavior or a reference answer.
-- Citation coverage: answers should cite the right file, symbol, or chunk.
-- Abstention: the system should say it does not know when retrieval does not contain enough evidence.
+Shipped (reference-free, Tier B):
 
-Until then, answer metrics are out of scope because `ragcodepilot` returns source chunks directly.
+- **Citation validity / coverage**: answers cite `[N]` chunks, and those refs resolve to chunks actually provided (no dangling refs).
+- **Abstention / refusal**: on negative queries the model should say it does not know rather than invent an answer (the hallucination floor; detected by a phrase heuristic).
+- **Well-formedness**: a non-empty answer is produced.
+
+Deferred to v1 (reference-based / judge tier, "Tier C") — these need an LLM-as-judge and must not gate CI:
+
+- **Faithfulness or groundedness**: generated answers must be *supported* by the retrieved code chunks (not just cite them).
+- **Answer correctness**: generated answers match expected behavior or a reference answer.
+- **Semantic citation precision**: the cited chunk actually contains the claimed fact.
 
 ## Example Dataset
 

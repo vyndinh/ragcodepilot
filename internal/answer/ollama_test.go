@@ -15,6 +15,7 @@ type capturedChatRequest struct {
 	Model    string              `json:"model"`
 	Messages []ollamaChatMessage `json:"messages"`
 	Stream   bool                `json:"stream"`
+	Options  *ollamaOptions      `json:"options"`
 }
 
 func TestOllamaGenerator_RequestShape(t *testing.T) {
@@ -68,6 +69,12 @@ func TestOllamaGenerator_RequestShape(t *testing.T) {
 	}
 	if answerText != "the answer [1]" {
 		t.Errorf("answer = %q, want %q", answerText, "the answer [1]")
+	}
+	if got.Options == nil {
+		t.Fatal("expected generation options (greedy decoding) in the request")
+	}
+	if got.Options.Temperature != 0 {
+		t.Errorf("temperature = %v, want 0 (greedy)", got.Options.Temperature)
 	}
 }
 

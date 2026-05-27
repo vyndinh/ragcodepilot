@@ -20,16 +20,35 @@ func FormatHuman(r *Report) string {
 		r.Aggregate.Queries, r.Aggregate.Positive, r.Aggregate.Negative, r.Aggregate.Errors)
 
 	fmt.Fprintln(&b)
-	fmt.Fprintln(&b, "Retrieval metrics (positive queries only):")
-	fmt.Fprintf(&b, "  hit@1:        %.2f\n", r.Aggregate.HitAt1)
-	fmt.Fprintf(&b, "  hit@3:        %.2f\n", r.Aggregate.HitAt3)
-	fmt.Fprintf(&b, "  hit@5:        %.2f\n", r.Aggregate.HitAt5)
-	fmt.Fprintf(&b, "  MRR@5:        %.2f\n", r.Aggregate.MRRAt5)
-	fmt.Fprintf(&b, "  recall@10:    %.2f\n", r.Aggregate.RecallAt10)
+	if r.Aggregate.Positive == 0 {
+		// e.g. `eval --type negative`: the positive-scoped metrics are undefined,
+		// so print n/a rather than a misleading 0.00.
+		fmt.Fprintln(&b, "Retrieval metrics (positive queries only): n/a (no positive queries)")
+	} else {
+		fmt.Fprintln(&b, "Retrieval metrics (positive queries only):")
+		fmt.Fprintf(&b, "  hit@1:        %.2f\n", r.Aggregate.HitAt1)
+		fmt.Fprintf(&b, "  hit@3:        %.2f\n", r.Aggregate.HitAt3)
+		fmt.Fprintf(&b, "  hit@5:        %.2f\n", r.Aggregate.HitAt5)
+		fmt.Fprintf(&b, "  MRR@5:        %.2f\n", r.Aggregate.MRRAt5)
+		fmt.Fprintf(&b, "  recall@10:    %.2f\n", r.Aggregate.RecallAt10)
+	}
 
 	if r.Aggregate.Negative > 0 {
 		fmt.Fprintln(&b)
 		fmt.Fprintf(&b, "Negative queries pass rate: %.2f\n", r.Aggregate.NegativePassRate)
+	}
+
+	if r.Answer != nil {
+		a := r.Answer
+		fmt.Fprintln(&b)
+		fmt.Fprintf(&b, "Answer metrics (reference-free; generator: %s):\n", a.Generator)
+		fmt.Fprintf(&b, "  generated:                %d (errors %d)\n", a.Generated, a.Errors)
+		fmt.Fprintf(&b, "  well-formed rate:         %.2f\n", a.WellFormedRate)
+		fmt.Fprintf(&b, "  cited rate (positive):    %s\n", rateOrNA(a.CitedRate, r.Aggregate.Positive > 0))
+		fmt.Fprintf(&b, "  all-citations-valid:      %s\n", rateOrNA(a.AllCitationsValidRate, r.Aggregate.Positive > 0))
+		fmt.Fprintf(&b, "  dangling citations:       %d\n", a.DanglingCitations)
+		fmt.Fprintf(&b, "  refusal rate (negative):  %s\n", rateOrNA(a.RefusalRateNegative, r.Aggregate.Negative > 0))
+		fmt.Fprintf(&b, "  generate p50/p95 (ms):    %d / %d\n", a.GenerateP50MS, a.GenerateP95MS)
 	}
 
 	fmt.Fprintln(&b)
@@ -91,6 +110,16 @@ func FormatHuman(r *Report) string {
 	}
 
 	return b.String()
+}
+
+// rateOrNA formats a rate as a 2-decimal value, or "n/a" when the metric has no
+// denominator (e.g. a positive-scoped rate under `--type negative`). This avoids
+// a misleading 0.00 that reads as failure rather than "not applicable".
+func rateOrNA(rate float64, applicable bool) string {
+	if !applicable {
+		return "n/a"
+	}
+	return fmt.Sprintf("%.2f", rate)
 }
 
 func topFile(q QueryResult) string {
