@@ -8,7 +8,7 @@
 2. **Augment** — feed those code snippets into a prompt as context.
 3. **Generate** — have an LLM produce an answer grounded in the retrieved code.
 
-**Retrieval is fully implemented** — you can point the tool at a local repository, index it, and search with natural language queries like *"how does the chunking work?"*. Answer generation is planned as the [next phase](docs/plan/mvp_roadmap.md), starting with local Ollama models and with support for different LLM providers (OpenAI, Anthropic, etc.) in the future.
+**Retrieval is fully implemented** — you can point the tool at a local repository, index it, and search with natural language queries like *"how does the chunking work?"*. **Answer generation (v0) is now available** via the opt-in `--answer` flag, which feeds the retrieved chunks to a local Ollama model (`qwen2.5-coder:7b`) and prints a synthesized answer above its sources. Support for additional LLM providers (OpenAI, Anthropic, etc.) is planned — see the [roadmap](docs/plan/mvp_roadmap.md).
 
 Answer mode is **opt-in** — without it, the tool works as a pure code search engine. Both scripting (CLI one-liners) and interactive (REPL) usage are supported.
 
@@ -21,6 +21,7 @@ Answer mode is **opt-in** — without it, the tool works as a pure code search e
 - Go files are chunked at the function level using `go/parser` AST; other languages use a 40-line sliding window.
 - Chunk enrichment prepends file/language/function metadata to embedding input for improved search relevance.
 - Search with dense vector lookup and optional language and repo payload filtering.
+- **Answer mode (`--answer`)**: feeds retrieved chunks to a local Ollama generative model (`qwen2.5-coder:7b` by default) and prints a synthesized answer above its sources. Opt-in; the default `search` path is unchanged.
 - Embedding dimension auto-detection and validation (collection mismatch produces clear error with fix instructions).
 - Incremental re-indexing: only changed files are re-embedded; stale chunks from deleted/renamed files are cleaned up.
 - **Retrieval evaluation harness** (`ragcodepilot eval`) with golden dataset, `hit@k`, `MRR@5`, `recall@10`, and per-stage latency percentiles.
@@ -63,7 +64,8 @@ Qdrant runs locally through Docker Compose. The Go CLI runs on the host machine 
 
 - Go `1.26.3`
 - Docker and Docker Compose
-- [Ollama](https://ollama.com/) with `nomic-embed-text` model
+- [Ollama](https://ollama.com/) with the `nomic-embed-text` model (required for indexing/search)
+- For `--answer` mode only: a generative model (`qwen2.5-coder:7b` by default)
 
 ## Getting started
 
@@ -78,6 +80,24 @@ Pull the embedding model (one-time):
 ```bash
 ollama pull nomic-embed-text
 ```
+
+For `--answer` mode, also pull the generative model (one-time):
+
+```bash
+ollama pull qwen2.5-coder:7b
+```
+
+**Tip — avoid cold-start latency:** the first `--answer` call after Ollama
+starts spends 5–30s loading the generative model into memory. To keep the
+model resident across calls (subsequent answers take 1–5s), set:
+
+```bash
+export OLLAMA_KEEP_ALIVE=-1
+```
+
+This pins models in Ollama's process (costs a few GB of RAM). It is the single
+biggest perceived-speed improvement for `--answer` — see
+[`docs/knowledge/architecture_decisions.md`](docs/knowledge/architecture_decisions.md) §4.
 
 Check the CLI from source:
 
@@ -115,6 +135,17 @@ Combine language and repo filters:
 ```bash
 go run ./cmd/ragcodepilot search --language go --repo ragcodepilot --limit 3 "how does chunking work?"
 ```
+
+Generate an answer from the retrieved chunks (RAG mode):
+
+```bash
+go run ./cmd/ragcodepilot search --answer "how does change detection work?"
+```
+
+This prints a synthesized `Answer:` followed by the `Sources:` chunks that fed
+it. Use `--ollama-generative-model` to swap the model, or `--generator fake` for
+a hermetic (no-Ollama) canned response. Without `--answer`, `search` behaves
+exactly as before (retrieval only).
 
 List collections:
 
@@ -178,6 +209,9 @@ docker compose down
 | `-embedder` | `ollama` | Embedder to use: `ollama`, `fake` |
 | `-ollama-url` | `http://localhost:11434` | Ollama server URL |
 | `-ollama-model` | `nomic-embed-text` | Ollama embedding model |
+| `-answer` | `false` | Generate an answer from the retrieved chunks (RAG mode) |
+| `-generator` | `ollama` | Generator for `--answer`: `ollama`, `fake` |
+| `-ollama-generative-model` | `qwen2.5-coder:7b` | Ollama generative model for `--answer` |
 | `-qdrant-host` | `localhost` | Qdrant host |
 | `-qdrant-port` | `6334` | Qdrant gRPC port |
 

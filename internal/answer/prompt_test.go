@@ -14,23 +14,89 @@ func TestBuildPrompt_SystemIsFrozenConstant(t *testing.T) {
 	}
 }
 
+// TestSystemPrompt_FrozenWording locks the exact wording of the v0 system prompt.
+// Unlike TestBuildPrompt_SystemIsFrozenConstant (which only checks that BuildPrompt
+// returns the constant verbatim), this asserts against an independent literal — so
+// any edit to SystemPrompt must be a deliberate two-place change visible in review.
+func TestSystemPrompt_FrozenWording(t *testing.T) {
+	t.Parallel()
+
+	const want = "You are answering questions about a code repository. Use only the provided\n" +
+		"code chunks to answer. If the chunks do not contain enough information,\n" +
+		"say so explicitly and do not invent details. Cite the chunk numbers that\n" +
+		"support your answer using brackets like [1]. Do not cite chunks that were\n" +
+		"not provided."
+
+	if SystemPrompt != want {
+		t.Errorf("SystemPrompt wording changed — if intentional, update this golden\ngot:\n%s\n\nwant:\n%s", SystemPrompt, want)
+	}
+}
+
+func TestBuildPrompt_RepoPrefixAndChunkType(t *testing.T) {
+	t.Parallel()
+
+	chunks := []ChunkContext{
+		{Index: 1, Repo: "ragcodepilot", FilePath: "internal/foo.go", Lines: "1-10", Symbol: "Foo", ChunkType: "block", Content: "x"},
+	}
+
+	_, got := BuildPrompt("q", chunks)
+
+	want := "[1] ragcodepilot/internal/foo.go:1-10, block: Foo\n"
+	if !strings.Contains(got, want) {
+		t.Errorf("expected repo-prefixed, type-aware header %q\ngot:\n%s", strings.TrimSuffix(want, "\n"), got)
+	}
+}
+
+func TestBuildPrompt_EmptyChunkTypeFallsBackToSymbol(t *testing.T) {
+	t.Parallel()
+
+	chunks := []ChunkContext{
+		{Index: 1, FilePath: "a.go", Lines: "1-2", Symbol: "Bar", Content: "x"}, // ChunkType omitted
+	}
+
+	_, got := BuildPrompt("q", chunks)
+
+	if !strings.Contains(got, ", symbol: Bar") {
+		t.Errorf("empty ChunkType should fall back to 'symbol:' label; got:\n%s", got)
+	}
+	if strings.Contains(got, "function:") {
+		t.Errorf("must not hardcode 'function:' for an untyped chunk; got:\n%s", got)
+	}
+}
+
+func TestBuildPrompt_NoRepoOmitsPrefix(t *testing.T) {
+	t.Parallel()
+
+	chunks := []ChunkContext{
+		{Index: 1, FilePath: "a.go", Lines: "1-2", Symbol: "Bar", ChunkType: "function", Content: "x"}, // Repo omitted
+	}
+
+	_, got := BuildPrompt("q", chunks)
+
+	if !strings.Contains(got, "[1] a.go:1-2, function: Bar") {
+		t.Errorf("empty Repo should leave the path unprefixed; got:\n%s", got)
+	}
+}
+
 func TestBuildPrompt_TwoChunksGolden(t *testing.T) {
 	t.Parallel()
 
 	chunks := []ChunkContext{
 		{
-			Index:    1,
-			FilePath: "internal/ingest/pipeline.go",
-			Lines:    "42-78",
-			Symbol:   "Pipeline.Run",
-			Content:  "func (p *Pipeline) Run() {\n\treturn nil\n}",
+			Index:     1,
+			FilePath:  "internal/ingest/pipeline.go",
+			Lines:     "42-78",
+			Symbol:    "Pipeline.Run",
+			ChunkType: "function",
+			Content:   "func (p *Pipeline) Run() {\n\treturn nil\n}",
 		},
 		{
-			Index:    2,
-			FilePath: "internal/qdrant/client.go",
-			Lines:    "120-145",
-			Symbol:   "EnsureCollection",
-			Content:  "func EnsureCollection() error {\n\treturn nil\n}",
+			Index:     2,
+			FilePath:  "internal/qdrant/client.go",
+			Lines:     "120-145",
+			Symbol:    "EnsureCollection",
+			ChunkType: "function",
+			Content:   "func EnsureCollection() error {\n\treturn nil\n}",
 		},
 	}
 

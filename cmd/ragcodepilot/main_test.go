@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/dinhvy/ragcodepilot/internal/eval"
+	"github.com/dinhvy/ragcodepilot/internal/model"
 	"github.com/dinhvy/ragcodepilot/internal/search"
 )
 
@@ -114,5 +115,70 @@ func TestRunEvalRejectsLimitBelowDefault(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "must be >=") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResolveGenerator(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		genType   string
+		wantErr   bool
+		errSubstr string
+	}{
+		{name: "ollama", genType: "ollama"},
+		{name: "fake", genType: "fake"},
+		{name: "unknown", genType: "bogus", wantErr: true, errSubstr: "unknown generator"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			gen, err := resolveGenerator(tt.genType, "http://localhost:11434", "qwen2.5-coder:7b")
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for %q", tt.genType)
+				}
+				if !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("error = %v, want substring %q", err, tt.errSubstr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if gen == nil {
+				t.Error("expected a non-nil generator")
+			}
+		})
+	}
+}
+
+func TestResultsToChunkContext(t *testing.T) {
+	t.Parallel()
+
+	results := []model.SearchResult{
+		{Chunk: model.CodeChunk{FilePath: "a.go", StartLine: 1, EndLine: 10, Name: "Foo", Content: "code A"}},
+		{Chunk: model.CodeChunk{FilePath: "b.go", StartLine: 20, EndLine: 30, Content: "code B"}}, // no Name
+	}
+
+	chunks := resultsToChunkContext(results)
+	if len(chunks) != 2 {
+		t.Fatalf("got %d chunks, want 2", len(chunks))
+	}
+	if chunks[0].Index != 1 || chunks[1].Index != 2 {
+		t.Errorf("indices should be 1-based sequential, got %d and %d", chunks[0].Index, chunks[1].Index)
+	}
+	if chunks[0].Lines != "1-10" {
+		t.Errorf("Lines = %q, want 1-10", chunks[0].Lines)
+	}
+	if chunks[0].Symbol != "Foo" {
+		t.Errorf("Symbol = %q, want Foo", chunks[0].Symbol)
+	}
+	if chunks[1].Symbol != "" {
+		t.Errorf("missing Name should map to empty Symbol, got %q", chunks[1].Symbol)
+	}
+	if chunks[1].FilePath != "b.go" || chunks[1].Content != "code B" {
+		t.Errorf("unexpected mapping for second chunk: %+v", chunks[1])
 	}
 }

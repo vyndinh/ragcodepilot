@@ -45,10 +45,23 @@ func BuildPrompt(question string, chunks []ChunkContext) (system, user string) {
 // content is rendered as-is (no extra indentation) so the model sees the
 // source's original indentation. A trailing newline is added if missing so
 // successive chunks separate cleanly.
+//
+// Header shape: "[N] {repo/}path:lines{, type: symbol}". The repo prefix is
+// included only when set (disambiguates multi-repo collections). The symbol is
+// labeled by ChunkType ("function", "block", "file", ...) so non-function chunks
+// are not mislabeled; an empty ChunkType falls back to a neutral "symbol".
 func renderChunk(c ChunkContext) string {
-	header := fmt.Sprintf("[%d] %s:%s", c.Index, c.FilePath, c.Lines)
+	location := c.FilePath
+	if c.Repo != "" {
+		location = c.Repo + "/" + c.FilePath
+	}
+	header := fmt.Sprintf("[%d] %s:%s", c.Index, location, c.Lines)
 	if c.Symbol != "" {
-		header += ", function: " + c.Symbol
+		label := c.ChunkType
+		if label == "" {
+			label = "symbol"
+		}
+		header += fmt.Sprintf(", %s: %s", label, c.Symbol)
 	}
 	content := c.Content
 	if !strings.HasSuffix(content, "\n") {
