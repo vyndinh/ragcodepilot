@@ -40,7 +40,7 @@ A **cross-encoder** processes query and document **together** through attention.
 
 ### 1.2 Pros
 
-1. **Biggest available hit@1 lever.** Published cross-encoder benchmarks consistently add **+10–20pp on hit@1** over bi-encoder retrieval. Current state (`baseline_v4`): hit@1 = 0.579 → reranking plausibly pushes to **0.70–0.80**.
+1. **Biggest available hit@1 lever.** Published cross-encoder benchmarks consistently add **+10–20pp on hit@1** over bi-encoder retrieval. Current state (`baseline_v5_pre`, unchanged from `baseline_v4`): hit@1 = 0.579 → reranking plausibly pushes to **0.70–0.80**.
 2. **Stabilizes top-K ordering and may recover navigation queries that stemming displaced.** Stemming (shipped 2026-05-15) gave back full hit@5 but cost two navigation hit@1 results (`run_eval_navigation`, `hihatk_navigation` — both lost top-1 due to the expanded token space adding competition for exact-identifier queries). A cross-encoder reading the full query text could re-promote these. The `hasher_concept` regression that BM25 originally introduced is **already fixed** by stemming; reranking is no longer needed for that specific failure.
 3. **Improves all query categories**, not just navigation. Concept, behavior, and navigation queries all benefit when retrieval surfaces 5–10 plausible candidates that need re-ordering.
 4. **No re-indexing.** Drops in on top of existing hybrid retrieval. Unlike the BM25 switch, you can A/B reranking without touching the Qdrant collection.
@@ -141,19 +141,24 @@ An LLM reads top-K and synthesizes an answer.
 Given you're between retrieval-CLI (now) and answer mode (next phase):
 
 1. **MRR@5 — headline metric.** Single number that captures both "is top-1 right" and "if not, is the right answer near the top." Best for tracking improvements and catching regressions in one number.
-2. **Hit@5 — RAG-readiness gate.** Once answer mode ships, `hit@5 < 0.70` means the LLM gets the right info less than 70% of the time. Set a floor (e.g., *"no future change drops hit@5 below 0.85"*). Current value (`baseline_v4`): **0.895**.
+2. **Hit@5 — RAG-readiness gate.** Once answer mode ships, `hit@5 < 0.70` means the LLM gets the right info less than 70% of the time. Set a floor (e.g., *"no future change drops hit@5 below 0.85"*). Current value (`baseline_v5_pre`, current corpus): **0.789** — *below* the 0.85 floor, but from corpus growth (Phase 5 code added many new chunks competing for top-K), not an algorithm regression: hit@1 is unchanged at 0.579. The Phase 2 number was **0.895** (`baseline_v4`, 350 chunks). The floor applies to *algorithm* changes on a fixed corpus — see §2.5 "Corpus re-baseline".
 3. **Negative pass — faithfulness floor.** If this ever drops below 1.0, your hallucination risk in answer mode goes up. Treat as a hard exit-criterion gate.
 4. **Recall@10 vs Recall@5 ratio — diagnostic, not a target.** If recall@10 is much higher than recall@5, *"we know it but can't rank it"* → **reranking** is the right next step. If they're equal, embedding/chunking is the floor → upgrade the embedding model.
 5. **Hit@1 — secondary.** Tracks retrieval-CLI quality. Useful as a leading indicator of "did the algorithm get sharper?" but no longer the final-answer metric.
 
 ### 2.4 New metrics needed when answer mode ships
 
-These are **generation-quality** metrics that don't exist yet:
+These are **generation-quality** metrics. Some now exist as a **reference-free** answer-eval tier (`eval --answer`, shipped with Phase 5 v0) — deterministic checks on real generation (greedy/temp 0), reported but never gated:
 
-- **Faithfulness / groundedness**: does the generated answer match the retrieved chunks? (LLM-as-judge or rule-based citation checking.)
-- **Citation precision**: do the cited chunks actually contain the claimed facts?
-- **Refusal rate on weak retrieval**: when retrieval is uncertain (low top-1 score), does the system refuse rather than hallucinate?
-- **Per-query-type breakdown becomes critical**: navigation and concept queries should be reported separately because they have fundamentally different "what counts as success" definitions in RAG.
+- **Citation validity** ✅ *(reference-free, shipped)*: do `[N]` references in the answer point at chunks that were actually provided? Catches dangling citations. This is the cheap, deterministic cousin of citation precision.
+- **Refusal rate on weak retrieval** ✅ *(reference-free, shipped)*: on negative queries (no strong match), does the model say "not enough information" instead of hallucinating? Detected by a phrase heuristic — a diagnostic, not ground truth. The hallucination floor.
+- **Well-formedness** ✅ *(shipped)*: non-empty answer produced.
+
+Still **not** implemented (the reference-*based* / judge tier — deferred to v1, "Tier C"):
+
+- **Faithfulness / groundedness**: does the generated answer's *content* match the retrieved chunks? Needs LLM-as-judge — non-deterministic, requires a judge model, must not gate CI.
+- **Citation precision** (semantic): do the cited chunks actually *contain the claimed facts*? (Validity checks the reference resolves; precision checks the claim is supported — the latter needs a judge.)
+- **Per-query-type breakdown for answers**: navigation vs concept answers have different "what counts as success" definitions in RAG. (Retrieval already breaks down by type; answer metrics do not yet.)
 
 ### 2.5 Practical implications for current decisions
 
@@ -163,7 +168,23 @@ Result: hit@1 +21pp, hit@5 −5pp (one query), MRR@5 +10pp. p95 latency 173→11
 
 - **Was that a good trade for current state?** Yes — hit@1 +21pp is huge, the hit@5 loss is one tokenizer-bound query (a structural issue, not BM25). Users see better top-1 results immediately.
 - **Was it a good trade for RAG state?** Yes — and the stemming follow-up (`baseline_v4`) closed the one hit@5 gap, making the BM25 switch a strict win in retrospect.
-- **For the *next* trade, raise the hit@5 bar.** A future change should not drop hit@5 below 0.85 (`baseline_v4` is 0.895) without an equally large or larger MRR@5 gain.
+- **For the *next* trade, raise the hit@5 bar.** A future change should not drop hit@5 below 0.85 without an equally large or larger MRR@5 gain — measured on a *fixed* corpus (see "Corpus re-baseline" below; the Phase 2 number was 0.895).
+
+#### Corpus re-baseline (2026-05-27, `baseline_v5_pre`)
+
+After Phase 5 v0 (`--answer` mode) landed, re-indexing the repo grew the corpus (new `internal/answer`, `internal/eval` code) and the golden set grew to 23 queries. Re-running hybrid on this corpus produced `baseline_v5_pre.json`:
+
+| Metric | `baseline_v4` (Phase 2, 350 chunks) | `baseline_v5_pre` (current corpus) | Δ |
+|---|---|---|---|
+| hit@1 | 0.579 | 0.579 | 0 |
+| hit@5 | 0.895 | 0.789 | −10.6pp |
+| MRR@5 | 0.699 | 0.660 | −3.9pp |
+| neg pass | 1.00 | 1.00 | 0 |
+
+**This is corpus drift, not a regression.** hit@1 is identical, the run is stable, and the new hit@5 failures are competing real code (e.g. `chunkfile_navigation` loses to `searcher.go`, `hasher_concept` re-buried below top-5 — the stemming fix held on the 350-chunk corpus but corpus growth pushed `hasher.go` out again). Takeaways:
+
+- `baseline_v5_pre` is the **current-corpus reference**; compare future algorithm changes against it, not `baseline_v4`. The README's headline numbers were updated to match.
+- hit@5 dipping below the self-imposed 0.85 floor *from corpus growth* is a yellow flag, not red: the reranker's pre-committed auto-triggers (`hit@1 < 0.55` or `MRR@5 < 0.60`) are not tripped. It does make the next retrieval investment (reranking / embedding upgrade / `*_test.go` indexing hygiene) more justified as the repo grows.
 
 #### Stemming vs reranking, reframed under the RAG lens
 

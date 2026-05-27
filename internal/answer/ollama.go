@@ -16,10 +16,27 @@ import (
 // small enough to run on a developer laptop. Configurable via the CLI.
 const DefaultGenerativeModel = "qwen2.5-coder:7b"
 
+// DefaultAnswerLimit is how many top chunks are fed to the generator in answer
+// mode. Deliberately small: enough context to synthesize an answer without
+// flooding the prompt (which slows generation and invites dangling citations).
+// Decoupled from the retrieval --limit so eval can score deep retrieval (top-10)
+// while still generating from the shipped answer context (top-5).
+const DefaultAnswerLimit = 5
+
 // defaultGenerateTimeout bounds a single generation call. Generation is slower
 // than embedding, and cold-start (first model load) can take 30-120 seconds
 // depending on hardware. 180s gives enough headroom for first load.
 const defaultGenerateTimeout = 180 * time.Second
+
+// Greedy decoding defaults. Temperature 0 makes generation deterministic given a
+// fixed prompt (and model version), which keeps answers grounded and makes the
+// reference-free answer eval reproducible across runs. The seed is fixed for the
+// same reason; with temperature 0 it has little effect but pins any residual
+// sampling.
+const (
+	defaultTemperature = 0.0
+	defaultSeed        = 42
+)
 
 // OllamaGenerator produces answers via the Ollama /api/chat endpoint. It mirrors
 // the OllamaEmbedder pattern: a small HTTP client over the same local Ollama
@@ -50,10 +67,18 @@ type ollamaChatMessage struct {
 	Content string `json:"content"`
 }
 
+// ollamaOptions carries Ollama generation parameters. Pointer fields in the
+// request keep it absent (omitempty) for calls that don't generate (warmup).
+type ollamaOptions struct {
+	Temperature float64 `json:"temperature"`
+	Seed        int     `json:"seed"`
+}
+
 type ollamaChatRequest struct {
 	Model    string              `json:"model"`
 	Messages []ollamaChatMessage `json:"messages"`
 	Stream   bool                `json:"stream"`
+	Options  *ollamaOptions      `json:"options,omitempty"`
 }
 
 type ollamaChatResponse struct {
@@ -71,7 +96,8 @@ func (o *OllamaGenerator) Generate(ctx context.Context, prompt Prompt) (string, 
 			{Role: "system", Content: system},
 			{Role: "user", Content: user},
 		},
-		Stream: false,
+		Stream:  false,
+		Options: &ollamaOptions{Temperature: defaultTemperature, Seed: defaultSeed},
 	}
 
 	jsonBody, err := json.Marshal(reqBody)

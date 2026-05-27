@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dinhvy/ragcodepilot/internal/answer"
 	"github.com/dinhvy/ragcodepilot/internal/model"
 	"github.com/dinhvy/ragcodepilot/internal/search"
 )
@@ -25,6 +26,7 @@ type QueryResult struct {
 	RecallAt10 float64              `json:"recall_at_10"`
 	TopScore   float32              `json:"top_score"`
 	Negative   *NegativeResult      `json:"negative,omitempty"`
+	Answer     *AnswerResult        `json:"answer,omitempty"`
 	EmbedMS    int64                `json:"embed_ms"`
 	QdrantMS   int64                `json:"qdrant_ms"`
 	TotalMS    int64                `json:"total_ms"`
@@ -38,6 +40,35 @@ type QueryResult struct {
 type NegativeResult struct {
 	Threshold float32 `json:"threshold"`
 	Pass      bool    `json:"pass"`
+}
+
+// AnswerResult holds the reference-free answer-mode evaluation for one query.
+// Populated only when the Runner has a Generator (eval --answer).
+type AnswerResult struct {
+	Text             string `json:"text,omitempty"`
+	GenerateMS       int64  `json:"generate_ms"`
+	WellFormed       bool   `json:"well_formed"`
+	Refused          bool   `json:"refused"`
+	Citations        []int  `json:"citations,omitempty"`
+	ValidCitations   int    `json:"valid_citations"`
+	InvalidCitations int    `json:"invalid_citations"`
+	Error            string `json:"error,omitempty"`
+}
+
+// scoreAnswer computes the reference-free metrics for a generated answer against
+// the number of chunks placed in its prompt. Pure (no generation) so it is unit
+// testable without Ollama.
+func scoreAnswer(text string, numChunks int) AnswerResult {
+	cites := answer.ParseCitations(text)
+	valid, invalid := answer.ValidateCitations(cites, numChunks)
+	return AnswerResult{
+		Text:             text,
+		WellFormed:       answer.IsWellFormed(text),
+		Refused:          answer.IsRefusal(text),
+		Citations:        cites,
+		ValidCitations:   valid,
+		InvalidCitations: invalid,
+	}
 }
 
 // resultSummary is the small payload we keep per result for the report — the
@@ -79,6 +110,21 @@ type TypeBreakdown struct {
 	NegativePassRate float64 `json:"negative_pass_rate,omitempty"`
 }
 
+// AnswerAggregate holds the reference-free answer-mode metrics across the run.
+// Present only when the Runner had a Generator. Rates are reported, never gated.
+type AnswerAggregate struct {
+	Generator             string  `json:"generator"`
+	Generated             int     `json:"generated"`                // answers that did not error
+	Errors                int     `json:"errors"`                   // generation errors
+	WellFormedRate        float64 `json:"well_formed_rate"`         // over generated
+	CitedRate             float64 `json:"cited_rate"`               // positive answers with >=1 citation
+	AllCitationsValidRate float64 `json:"all_citations_valid_rate"` // positive cited answers with no dangling refs
+	DanglingCitations     int     `json:"dangling_citations"`       // total invalid refs across all answers
+	RefusalRateNegative   float64 `json:"refusal_rate_negative"`    // negative queries that refused
+	GenerateP50MS         int64   `json:"generate_p50_ms"`
+	GenerateP95MS         int64   `json:"generate_p95_ms"`
+}
+
 // Report is the full output of an eval run.
 type Report struct {
 	RunID      string                      `json:"run_id"`
@@ -89,6 +135,7 @@ type Report struct {
 	Limit      int                         `json:"limit"`
 	Aggregate  Aggregate                   `json:"aggregate"`
 	ByType     map[QueryType]TypeBreakdown `json:"by_type"`
+	Answer     *AnswerAggregate            `json:"answer,omitempty"`
 	Queries    []QueryResult               `json:"queries"`
 }
 
@@ -105,6 +152,19 @@ type Runner struct {
 	// EmbedderName is used in the report; descriptive only.
 	EmbedderName string
 	Mode         search.SearchMode
+
+	// Generator, when set, enables answer-mode evaluation: each query's retrieved
+	// chunks are fed to the generator and the answer is scored with reference-free
+	// metrics (well-formedness, citation validity, refusal-on-negative). Nil keeps
+	// the run retrieval-only. GeneratorName is descriptive only, for the report.
+	Generator     answer.Generator
+	GeneratorName string
+
+	// AnswerLimit caps how many top chunks are fed to the generator, decoupling
+	// answer context from the retrieval Limit (which is >=10 for recall@10). This
+	// makes answer metrics describe the shipped config (top-5) instead of the
+	// deeper retrieval window. <=0 means "use all retrieved results".
+	AnswerLimit int
 }
 
 // Run executes the dataset and returns a Report. Per-query errors are captured
@@ -138,6 +198,7 @@ func (r *Runner) Run(ctx context.Context, datasetPath string, ds *Dataset) (*Rep
 
 	report.Aggregate = aggregate(report.Queries)
 	report.ByType = breakdownByType(report.Queries)
+	report.Answer = aggregateAnswers(report.Queries, r.GeneratorName)
 	return report, nil
 }
 
@@ -167,6 +228,10 @@ func (r *Runner) runQuery(ctx context.Context, q Query, mode search.SearchMode) 
 		qr.TopScore = results[0].Score
 	}
 
+	if r.Generator != nil {
+		qr.Answer = r.evaluateAnswer(ctx, q.Query, results)
+	}
+
 	if q.Type == TypeNegative {
 		thr := q.Negative.Top1ScoreBelow
 		pass := len(results) == 0 || (thr > 0 && results[0].Score < thr)
@@ -180,6 +245,30 @@ func (r *Runner) runQuery(ctx context.Context, q Query, mode search.SearchMode) 
 	qr.MRRAt5 = MRRAtK(results, q.Expected, 5)
 	qr.RecallAt10 = RecallAtK(results, q.Expected, 10)
 	return qr
+}
+
+// evaluateAnswer generates an answer for the query from its retrieved chunks and
+// scores it with reference-free metrics. Generation errors are captured in the
+// result, not returned — a bad generation should not abort the run.
+func (r *Runner) evaluateAnswer(ctx context.Context, query string, results []model.SearchResult) *AnswerResult {
+	// Feed only the top AnswerLimit chunks to the generator, so answer metrics
+	// reflect the shipped answer context rather than the deeper retrieval window.
+	if r.AnswerLimit > 0 && r.AnswerLimit < len(results) {
+		results = results[:r.AnswerLimit]
+	}
+	chunks := answer.ContextsFromResults(results)
+
+	start := time.Now()
+	text, err := r.Generator.Generate(ctx, answer.Prompt{Question: query, Chunks: chunks})
+	elapsed := time.Since(start)
+
+	if err != nil {
+		return &AnswerResult{GenerateMS: elapsed.Milliseconds(), Error: err.Error()}
+	}
+
+	ar := scoreAnswer(text, len(chunks))
+	ar.GenerateMS = elapsed.Milliseconds()
+	return &ar
 }
 
 func summarize(results []model.SearchResult) []resultSummary {
@@ -265,6 +354,88 @@ func aggregate(queries []QueryResult) Aggregate {
 	agg.LatencyEmbedP95MS = Percentile(embedDurations, 95).Milliseconds()
 	agg.LatencyQdrantP50MS = Percentile(qdrantDurations, 50).Milliseconds()
 	agg.LatencyQdrantP95MS = Percentile(qdrantDurations, 95).Milliseconds()
+
+	return agg
+}
+
+// aggregateAnswers computes run-level answer metrics. Returns nil when no query
+// was answer-evaluated (retrieval-only run), so the report omits the section.
+//
+// Rate definitions:
+//   - WellFormedRate: over all answers that did not error.
+//   - CitedRate / AllCitationsValidRate: over POSITIVE (non-negative) answers —
+//     negatives are expected to refuse and not cite, so including them would
+//     distort citation rates.
+//   - RefusalRateNegative: over NEGATIVE answers — the hallucination floor.
+func aggregateAnswers(queries []QueryResult, generatorName string) *AnswerAggregate {
+	var seen bool
+	agg := &AnswerAggregate{Generator: generatorName}
+
+	var (
+		generated    int
+		wellFormed   int
+		posAnswers   int // positive, non-error
+		posCited     int // positive with >=1 citation
+		posAllValid  int // positive cited with no dangling refs
+		negAnswers   int // negative, non-error
+		negRefused   int
+		genDurations = make([]time.Duration, 0, len(queries))
+	)
+
+	for _, q := range queries {
+		if q.Answer == nil {
+			continue
+		}
+		seen = true
+		a := q.Answer
+		if a.Error != "" {
+			agg.Errors++
+			continue
+		}
+
+		generated++
+		genDurations = append(genDurations, time.Duration(a.GenerateMS)*time.Millisecond)
+		if a.WellFormed {
+			wellFormed++
+		}
+		agg.DanglingCitations += a.InvalidCitations
+
+		if q.Type == TypeNegative {
+			negAnswers++
+			if a.Refused {
+				negRefused++
+			}
+			continue
+		}
+
+		posAnswers++
+		if len(a.Citations) > 0 {
+			posCited++
+			if a.InvalidCitations == 0 {
+				posAllValid++
+			}
+		}
+	}
+
+	if !seen {
+		return nil
+	}
+
+	agg.Generated = generated
+	if generated > 0 {
+		agg.WellFormedRate = float64(wellFormed) / float64(generated)
+	}
+	if posAnswers > 0 {
+		agg.CitedRate = float64(posCited) / float64(posAnswers)
+	}
+	if posCited > 0 {
+		agg.AllCitationsValidRate = float64(posAllValid) / float64(posCited)
+	}
+	if negAnswers > 0 {
+		agg.RefusalRateNegative = float64(negRefused) / float64(negAnswers)
+	}
+	agg.GenerateP50MS = Percentile(genDurations, 50).Milliseconds()
+	agg.GenerateP95MS = Percentile(genDurations, 95).Milliseconds()
 
 	return agg
 }

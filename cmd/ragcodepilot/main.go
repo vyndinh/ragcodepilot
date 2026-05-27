@@ -14,7 +14,6 @@ import (
 	"github.com/dinhvy/ragcodepilot/internal/embedding"
 	"github.com/dinhvy/ragcodepilot/internal/eval"
 	"github.com/dinhvy/ragcodepilot/internal/ingest"
-	"github.com/dinhvy/ragcodepilot/internal/model"
 	"github.com/dinhvy/ragcodepilot/internal/qdrant"
 	"github.com/dinhvy/ragcodepilot/internal/search"
 )
@@ -76,6 +75,7 @@ func main() {
 		answerMode := fs.Bool("answer", false, "Generate an answer from the retrieved chunks (RAG mode)")
 		generatorType := fs.String("generator", "ollama", "Generator for --answer: ollama, fake")
 		generativeModel := fs.String("ollama-generative-model", answer.DefaultGenerativeModel, "Ollama generative model for --answer")
+		answerLimit := fs.Int("answer-limit", answer.DefaultAnswerLimit, "Number of top chunks fed to the generator for --answer")
 		_ = fs.Parse(os.Args[2:])
 
 		if fs.NArg() < 1 {
@@ -112,7 +112,7 @@ func main() {
 			}
 		}
 
-		if err := runSearch(query, *collection, languages, repos, searchMode, *limit, *qdrantHost, *qdrantPort, emb, gen); err != nil {
+		if err := runSearch(query, *collection, languages, repos, searchMode, *limit, *answerLimit, *qdrantHost, *qdrantPort, emb, gen); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
@@ -170,6 +170,10 @@ func main() {
 		embedderType := fs.String("embedder", "ollama", "Embedder to use: ollama, fake")
 		ollamaURL := fs.String("ollama-url", "http://localhost:11434", "Ollama server URL")
 		ollamaModel := fs.String("ollama-model", "nomic-embed-text", "Ollama embedding model")
+		answerMode := fs.Bool("answer", false, "Also generate answers and score reference-free answer metrics")
+		generatorType := fs.String("generator", "ollama", "Generator for --answer: ollama, fake")
+		generativeModel := fs.String("ollama-generative-model", answer.DefaultGenerativeModel, "Ollama generative model for --answer")
+		answerLimit := fs.Int("answer-limit", answer.DefaultAnswerLimit, "Number of top chunks fed to the generator for --answer (retrieval metrics still use --limit)")
 		_ = fs.Parse(os.Args[2:])
 
 		if *limit <= 0 {
@@ -189,7 +193,18 @@ func main() {
 			os.Exit(1)
 		}
 
-		if err := runEval(*dataset, *collection, *output, *limit, *typeFilter, searchMode, *qdrantHost, *qdrantPort, *embedderType, *ollamaModel, emb); err != nil {
+		var gen answer.Generator
+		genName := ""
+		if *answerMode {
+			gen, err = resolveGenerator(*generatorType, *ollamaURL, *generativeModel)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				os.Exit(1)
+			}
+			genName = generatorName(*generatorType, *generativeModel)
+		}
+
+		if err := runEval(*dataset, *collection, *output, *limit, *answerLimit, *typeFilter, searchMode, *qdrantHost, *qdrantPort, *embedderType, *ollamaModel, emb, gen, genName); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
@@ -236,6 +251,7 @@ Search flags:
   -answer                Generate an answer from the retrieved chunks (RAG mode)
   -generator string      Generator for --answer: ollama, fake (default "ollama")
   -ollama-generative-model string  Ollama generative model for --answer (default "qwen2.5-coder:7b")
+  -answer-limit int      Number of top chunks fed to the generator for --answer (default 5)
   -qdrant-host string    Qdrant host (default "localhost")
   -qdrant-port int       Qdrant gRPC port (default 6334)
 
@@ -249,6 +265,10 @@ Eval flags:
   -embedder string       Embedder to use: ollama, fake (default "ollama")
   -ollama-url string     Ollama server URL (default "http://localhost:11434")
   -ollama-model string   Ollama embedding model (default "nomic-embed-text")
+  -answer                Also generate answers and score reference-free answer metrics
+  -generator string      Generator for --answer: ollama, fake (default "ollama")
+  -ollama-generative-model string  Ollama generative model for --answer (default "qwen2.5-coder:7b")
+  -answer-limit int      Top chunks fed to the generator for --answer; retrieval metrics still use --limit (default 5)
   -qdrant-host string    Qdrant host (default "localhost")
   -qdrant-port int       Qdrant gRPC port (default 6334)`)
 }
@@ -300,6 +320,14 @@ func resolveGenerator(generatorType, ollamaURL, generativeModel string) (answer.
 	}
 }
 
+// generatorName returns a descriptive label for the report (e.g. "ollama/qwen2.5-coder:7b").
+func generatorName(generatorType, generativeModel string) string {
+	if generatorType == "ollama" {
+		return fmt.Sprintf("ollama/%s", generativeModel)
+	}
+	return generatorType
+}
+
 func runIndex(repoPath, collection string, languages []string, qdrantHost string, qdrantPort int, embedder embedding.Embedder) error {
 	ctx := context.Background()
 	cfg, err := resolveIndexConfig()
@@ -338,9 +366,10 @@ func resolveIndexConfig() (*config.Config, error) {
 }
 
 // runSearch runs hybrid retrieval. When gen is non-nil (--answer), it additionally
-// synthesizes an answer from the retrieved chunks and prints it above the sources.
-// When gen is nil, the output is byte-identical to the retrieval-only path.
-func runSearch(query, collection string, languages, repos []string, mode search.SearchMode, limit int, qdrantHost string, qdrantPort int, embedder embedding.Embedder, gen answer.Generator) error {
+// synthesizes an answer from the top answerLimit retrieved chunks and prints it
+// above the sources it used. When gen is nil, the output is byte-identical to the
+// retrieval-only path.
+func runSearch(query, collection string, languages, repos []string, mode search.SearchMode, limit, answerLimit int, qdrantHost string, qdrantPort int, embedder embedding.Embedder, gen answer.Generator) error {
 	ctx := context.Background()
 
 	client, err := qdrant.NewClient(qdrantHost, qdrantPort)
@@ -369,32 +398,21 @@ func runSearch(query, collection string, languages, repos []string, mode search.
 		}
 	}
 
-	prompt := answer.Prompt{Question: query, Chunks: resultsToChunkContext(results)}
+	// Feed only the top answerLimit chunks to the generator; print exactly those
+	// as Sources so the answer's [N] citations line up with what's shown.
+	answerResults := results
+	if answerLimit > 0 && answerLimit < len(answerResults) {
+		answerResults = answerResults[:answerLimit]
+	}
+
+	prompt := answer.Prompt{Question: query, Chunks: answer.ContextsFromResults(answerResults)}
 	text, err := gen.Generate(ctx, prompt)
 	if err != nil {
 		return fmt.Errorf("generating answer: %w", err)
 	}
 
-	fmt.Printf("Answer: %s\n\nSources:\n%s", text, search.FormatResults(results))
+	fmt.Printf("Answer: %s\n\nSources:\n%s", text, search.FormatResults(answerResults))
 	return nil
-}
-
-// resultsToChunkContext maps search results into the 1-based, citation-ready
-// chunk contexts the answer prompt expects.
-func resultsToChunkContext(results []model.SearchResult) []answer.ChunkContext {
-	chunks := make([]answer.ChunkContext, len(results))
-	for i, r := range results {
-		chunks[i] = answer.ChunkContext{
-			Index:     i + 1,
-			Repo:      r.Chunk.Repo,
-			FilePath:  r.Chunk.FilePath,
-			Lines:     fmt.Sprintf("%d-%d", r.Chunk.StartLine, r.Chunk.EndLine),
-			Symbol:    r.Chunk.Name,
-			ChunkType: r.Chunk.ChunkType,
-			Content:   r.Chunk.Content,
-		}
-	}
-	return chunks
 }
 
 func runCollectionsList(qdrantHost string, qdrantPort int) error {
@@ -420,7 +438,7 @@ func runCollectionsList(qdrantHost string, qdrantPort int) error {
 	return nil
 }
 
-func runEval(datasetPath, collection, output string, limit int, typeFilter string, mode search.SearchMode, qdrantHost string, qdrantPort int, embedderType, model string, embedder embedding.Embedder) error {
+func runEval(datasetPath, collection, output string, limit, answerLimit int, typeFilter string, mode search.SearchMode, qdrantHost string, qdrantPort int, embedderType, model string, embedder embedding.Embedder, gen answer.Generator, genName string) error {
 	ctx := context.Background()
 	if limit < eval.DefaultLimit {
 		return fmt.Errorf("invalid --limit %d: must be >= %d for recall@10", limit, eval.DefaultLimit)
@@ -455,13 +473,25 @@ func runEval(datasetPath, collection, output string, limit int, typeFilter strin
 		embedderName = fmt.Sprintf("ollama/%s", model)
 	}
 
+	if gen != nil {
+		if w, ok := gen.(answer.Warmer); ok {
+			fmt.Fprintln(os.Stderr, "Warming up generative model (first call may take a while)...")
+			if err := w.Warmup(ctx); err != nil {
+				return fmt.Errorf("warming up generator: %w", err)
+			}
+		}
+	}
+
 	searcher := search.NewSearcher(client, embedder)
 	runner := &eval.Runner{
-		Searcher:     searcher,
-		Collection:   collection,
-		Limit:        limit,
-		EmbedderName: embedderName,
-		Mode:         mode,
+		Searcher:      searcher,
+		Collection:    collection,
+		Limit:         limit,
+		EmbedderName:  embedderName,
+		Mode:          mode,
+		Generator:     gen,
+		GeneratorName: genName,
+		AnswerLimit:   answerLimit,
 	}
 
 	report, err := runner.Run(ctx, datasetPath, ds)

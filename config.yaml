@@ -33,3 +33,10 @@ skip_dirs:
   - target
   - bin
   - build
+
+# Glob patterns (matched against each file's base name) to exclude from
+# indexing. Defaults to excluding Go test files when this key is omitted.
+# Set to an empty list ([]) to index everything, including test files.
+# Add language-specific patterns as needed, e.g. "*.test.ts", "*_test.py".
+skip_file_patterns:
+  - "*_test.go"

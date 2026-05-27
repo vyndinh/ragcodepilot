@@ -10,6 +10,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// defaultSkipFilePatterns is applied when a config does not specify
+// skip_file_patterns. It excludes Go test files from indexing.
+var defaultSkipFilePatterns = []string{"*_test.go"}
+
 // Config holds the application configuration.
 type Config struct {
 	// Languages maps a language name to its file extensions.
@@ -18,6 +22,12 @@ type Config struct {
 
 	// SkipDirs lists directory names to skip during file walking.
 	SkipDirs []string `yaml:"skip_dirs"`
+
+	// SkipFilePatterns lists glob patterns (matched against the file's base
+	// name) for files to exclude from indexing, e.g. "*_test.go". A nil value
+	// means "not configured" and falls back to defaultSkipFilePatterns; an
+	// explicitly empty list disables file-pattern skipping entirely.
+	SkipFilePatterns []string `yaml:"skip_file_patterns"`
 
 	// skipDirSet is a set built from SkipDirs for O(1) lookup.
 	skipDirSet map[string]struct{}
@@ -36,6 +46,12 @@ func Load(path string) (*Config, error) {
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parsing config %s: %w", path, err)
+	}
+
+	// A nil slice means the key was omitted; fall back to the default.
+	// An explicitly empty list (skip_file_patterns: []) disables skipping.
+	if cfg.SkipFilePatterns == nil {
+		cfg.SkipFilePatterns = defaultSkipFilePatterns
 	}
 
 	cfg.buildIndexes()
@@ -71,6 +87,7 @@ func Default() *Config {
 			".git", "vendor", "node_modules", ".venv",
 			"__pycache__", "target", "bin", "build",
 		},
+		SkipFilePatterns: defaultSkipFilePatterns,
 	}
 	cfg.buildIndexes()
 	return cfg
@@ -97,6 +114,18 @@ func (c *Config) IsSourceFile(name string) bool {
 func (c *Config) ShouldSkipDir(name string) bool {
 	_, ok := c.skipDirSet[name]
 	return ok
+}
+
+// ShouldSkipFile returns true if the file's base name matches any configured
+// skip_file_patterns glob (e.g. "*_test.go"). Invalid patterns are ignored.
+func (c *Config) ShouldSkipFile(name string) bool {
+	base := filepath.Base(name)
+	for _, pattern := range c.SkipFilePatterns {
+		if ok, err := filepath.Match(pattern, base); err == nil && ok {
+			return true
+		}
+	}
+	return false
 }
 
 // buildIndexes creates the reverse lookup maps for fast access.

@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/dinhvy/ragcodepilot/internal/eval"
-	"github.com/dinhvy/ragcodepilot/internal/model"
 	"github.com/dinhvy/ragcodepilot/internal/search"
 )
 
@@ -102,6 +101,7 @@ func TestRunEvalRejectsLimitBelowDefault(t *testing.T) {
 		"code_chunks",
 		"human",
 		eval.DefaultLimit-1,
+		5, // answerLimit
 		"",
 		search.DefaultSearchMode,
 		"localhost",
@@ -109,6 +109,8 @@ func TestRunEvalRejectsLimitBelowDefault(t *testing.T) {
 		"ollama",
 		"nomic-embed-text",
 		nil,
+		nil,
+		"",
 	)
 	if err == nil {
 		t.Fatal("expected error for limit below default")
@@ -151,34 +153,5 @@ func TestResolveGenerator(t *testing.T) {
 				t.Error("expected a non-nil generator")
 			}
 		})
-	}
-}
-
-func TestResultsToChunkContext(t *testing.T) {
-	t.Parallel()
-
-	results := []model.SearchResult{
-		{Chunk: model.CodeChunk{FilePath: "a.go", StartLine: 1, EndLine: 10, Name: "Foo", Content: "code A"}},
-		{Chunk: model.CodeChunk{FilePath: "b.go", StartLine: 20, EndLine: 30, Content: "code B"}}, // no Name
-	}
-
-	chunks := resultsToChunkContext(results)
-	if len(chunks) != 2 {
-		t.Fatalf("got %d chunks, want 2", len(chunks))
-	}
-	if chunks[0].Index != 1 || chunks[1].Index != 2 {
-		t.Errorf("indices should be 1-based sequential, got %d and %d", chunks[0].Index, chunks[1].Index)
-	}
-	if chunks[0].Lines != "1-10" {
-		t.Errorf("Lines = %q, want 1-10", chunks[0].Lines)
-	}
-	if chunks[0].Symbol != "Foo" {
-		t.Errorf("Symbol = %q, want Foo", chunks[0].Symbol)
-	}
-	if chunks[1].Symbol != "" {
-		t.Errorf("missing Name should map to empty Symbol, got %q", chunks[1].Symbol)
-	}
-	if chunks[1].FilePath != "b.go" || chunks[1].Content != "code B" {
-		t.Errorf("unexpected mapping for second chunk: %+v", chunks[1])
 	}
 }

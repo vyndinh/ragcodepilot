@@ -28,7 +28,7 @@ Answer mode is **opt-in** — without it, the tool works as a pure code search e
 - Collection list and delete commands.
 - `config.yaml` is auto-loaded during indexing when present; built-in defaults are used only when it is absent.
 
-Hybrid search is implemented: BM25 sparse vectors (`k1=0.5`, `b=0.75`) + dense vectors + Reciprocal Rank Fusion (`--mode dense|sparse|hybrid`, default `hybrid`), with additive Snowball stemming on the BM25 path. Latest baseline (`baseline_v4`): `hit@5 = 0.895`, `hit@1 = 0.579`, `MRR@5 = 0.699`. Cross-encoder reranking, the Rust AST chunker, and UX polish are tracked on the roadmap — see [`docs/plan/mvp_roadmap.md`](docs/plan/mvp_roadmap.md).
+Hybrid search is implemented: BM25 sparse vectors (`k1=0.5`, `b=0.75`) + dense vectors + Reciprocal Rank Fusion (`--mode dense|sparse|hybrid`, default `hybrid`), with additive Snowball stemming on the BM25 path. On the Phase 2 corpus (`baseline_v4`, 350 chunks) hybrid scored `hit@5 = 0.895`, `hit@1 = 0.579`, `MRR@5 = 0.699`. After the Phase 5 code landed and the golden set grew to 23 queries, the same algorithm on the **current** corpus (`baseline_v5_pre`) scores `hit@5 = 0.789`, `hit@1 = 0.579`, `MRR@5 = 0.660` — the hit@5 dip is corpus growth (more chunks competing for the top-K), not a regression: hit@1 is unchanged. Cross-encoder reranking, the Rust AST chunker, and UX polish are tracked on the roadmap — see [`docs/plan/mvp_roadmap.md`](docs/plan/mvp_roadmap.md).
 
 ## Architecture
 
@@ -177,6 +177,29 @@ Filter eval to a specific query type:
 go run ./cmd/ragcodepilot eval --type navigation
 ```
 
+Evaluate answer mode too (reference-free answer metrics, real Ollama):
+
+```bash
+go run ./cmd/ragcodepilot eval --answer
+```
+
+This runs the normal retrieval eval **and** generates an answer per query, then
+reports deterministic, reference-free answer metrics alongside the retrieval
+numbers:
+
+- **well-formed rate** — answers that are non-empty.
+- **cited rate** / **all-citations-valid** — positive-query answers that cite
+  `[N]` chunks, and whether those citations point at chunks that were actually
+  provided (no dangling refs).
+- **refusal rate (negative)** — negative queries where the model correctly said
+  "not enough information" instead of hallucinating. This is the hallucination
+  floor. (Refusal is detected by a phrase heuristic — a diagnostic, not ground
+  truth.)
+
+Answer metrics are **reported, never gated** — they never change the exit code.
+Generation runs greedy (temperature 0) so re-runs are reproducible. Note this is
+much slower than retrieval-only eval (one LLM call per query).
+
 Stop Qdrant:
 
 ```bash
@@ -212,6 +235,7 @@ docker compose down
 | `-answer` | `false` | Generate an answer from the retrieved chunks (RAG mode) |
 | `-generator` | `ollama` | Generator for `--answer`: `ollama`, `fake` |
 | `-ollama-generative-model` | `qwen2.5-coder:7b` | Ollama generative model for `--answer` |
+| `-answer-limit` | `5` | Number of top chunks fed to the generator for `--answer` |
 | `-qdrant-host` | `localhost` | Qdrant host |
 | `-qdrant-port` | `6334` | Qdrant gRPC port |
 
@@ -228,12 +252,16 @@ docker compose down
 | `-embedder` | `ollama` | Embedder to use: `ollama`, `fake` |
 | `-ollama-url` | `http://localhost:11434` | Ollama server URL |
 | `-ollama-model` | `nomic-embed-text` | Ollama embedding model |
+| `-answer` | `false` | Also generate answers and score reference-free answer metrics |
+| `-generator` | `ollama` | Generator for `--answer`: `ollama`, `fake` |
+| `-ollama-generative-model` | `qwen2.5-coder:7b` | Ollama generative model for `--answer` |
+| `-answer-limit` | `5` | Top chunks fed to the generator for `--answer` (retrieval metrics still use `--limit`) |
 | `-qdrant-host` | `localhost` | Qdrant host |
 | `-qdrant-port` | `6334` | Qdrant gRPC port |
 
 ## Configuration
 
-`config.yaml` controls language extension mappings and skipped directories for indexing.
+`config.yaml` controls language extension mappings, skipped directories, and skipped file patterns for indexing.
 
 When running `index`, the CLI uses this precedence:
 
@@ -254,7 +282,21 @@ skip_dirs:
   - vendor
   - node_modules
   - target
+
+skip_file_patterns:
+  - "*_test.go"
 ```
+
+`skip_file_patterns` is a list of globs matched against each file's base name
+(via Go's `filepath.Match`) to exclude files from indexing.
+
+- **Default:** when the key is omitted, it defaults to `["*_test.go"]`, so Go
+  test files are excluded. This keeps test fixtures (including eval golden
+  queries) out of retrieval and reduces top-K crowding from test chunks.
+- **Disable:** set `skip_file_patterns: []` to index everything, including test
+  files.
+- **Other languages:** add patterns such as `"*.test.ts"`, `"*_test.py"`, or
+  `"*.spec.js"` as needed.
 
 The search command does not load `config.yaml`. It filters against language and repo values stored in Qdrant payloads during indexing.
 

@@ -1,7 +1,7 @@
 # Evaluation Harness
 
 Offline retrieval evaluation for ragcodepilot.
-Loads a YAML golden dataset, runs each query through the existing search path, and reports `hit@k`, `MRR@5`, `recall@10`, and per-stage latency percentiles.
+Loads a YAML golden dataset, runs each query through the existing search path, and reports `hit@k`, `MRR@5`, `recall@10`, and per-stage latency percentiles. With `--answer`, it additionally generates an answer per query and reports reference-free answer metrics — see [Answer-mode evaluation](#answer-mode-evaluation--answer-tier-b).
 
 This is Phase 1 of `docs/plan/mvp_roadmap.md`. The harness is the scoreboard for every retrieval-quality change that follows (hybrid search, reranking, chunker upgrades).
 
@@ -100,7 +100,11 @@ The script is intentionally read-only and stdlib-only (no `pip install`) so it w
 | `--qdrant-port` | `6334` | gRPC port |
 | `--embedder` | `ollama` | `ollama` or `fake` |
 | `--ollama-url` | `http://localhost:11434` | |
-| `--ollama-model` | `nomic-embed-text` | |
+| `--ollama-model` | `nomic-embed-text` | embedding model |
+| `--answer` | `false` | Also generate answers and score reference-free answer metrics (Tier B) |
+| `--generator` | `ollama` | Generator for `--answer`: `ollama` or `fake` |
+| `--ollama-generative-model` | `qwen2.5-coder:7b` | generative model for `--answer` |
+| `--answer-limit` | `5` | Top chunks fed to the generator (retrieval metrics still use `--limit`) |
 
 Run `ragcodepilot eval --type navigation` to focus on a single category while iterating.
 
@@ -119,6 +123,88 @@ All metrics are computed over **positive queries only** (those with expected fil
 | `latency_*_p50/p95_ms` | Percentile latencies, broken out by stage. `embed` is Ollama; `qdrant` is the vector search RPC; `total` is end-to-end per query. |
 
 A result is **relevant** when its `file_path` is in the expected file list OR its `name` (function/symbol) is in the expected symbol list.
+
+---
+
+## Answer-mode evaluation — `--answer` (Tier B)
+
+`ragcodepilot eval --answer` runs the **normal retrieval eval and, additionally, generates an answer for every query** and scores it. It exists to put a number on answer mode without the cost and flakiness of an LLM-as-judge.
+
+### The verification ladder (where Tier B sits)
+
+Verifying `--answer` splits into three tiers of increasing cost and decreasing determinism:
+
+| Tier | What it checks | How | Status |
+|---|---|---|---|
+| **A** | Plumbing: retrieve → prompt → generate → format | `--generator fake`, deterministic, no Ollama | unit tests |
+| **B** | Answer *shape* on real generation: well-formed, citations resolve, refuses when it should | reference-free rules over real output | **this section** |
+| **C** | Answer *correctness*: are the claims actually supported by the chunks? | LLM-as-judge (faithfulness, semantic citation precision) | deferred to v1 |
+
+Tier B is the sweet spot: it runs **real** generation (so it catches real model behavior) but grades with **deterministic, reference-free** rules (so it's reproducible and needs no judge model or hand-written gold answers).
+
+### What "reference-free" means
+
+The metrics are computed purely from **the answer text plus the chunks that were placed in its prompt** — no reference/gold answer is required. That's what makes Tier B cheap to maintain: adding a golden query costs nothing extra on the answer side.
+
+### How a query is scored
+
+```
+for each query q in the golden set:
+    results = search(q)                      # identical retrieval path to normal eval (top --limit)
+    chunks  = top --answer-limit of results  # 1-based, citation-ready (default 5)
+    answer  = generator.Generate(q, chunks)  # greedy: temperature 0, fixed seed
+    cites          = parse "[N]" markers in answer
+    valid, dangling = partition cites on (1 ≤ N ≤ len(chunks))
+    well_formed    = trimmed answer is non-empty
+    refused        = answer contains a refusal phrase   # heuristic — see caveat
+```
+
+**Why `--answer-limit` is separate from `--limit`:** retrieval metrics need a deep
+window (`--limit` ≥ 10 for `recall@10`), but `search --answer` ships a shallow
+context (top 5) to keep generation fast and citations clean. Feeding the eval's
+top-10 to the generator would measure a config users never run — more chunks change
+both citation behavior and refusal behavior. `--answer-limit` (default 5) makes the
+answer prompt match the shipped product while retrieval metrics keep their deep window.
+
+Each query keeps an `answer` block in the JSON report; the run-level rollup is the `answer` object.
+
+### Metrics
+
+| Metric | Computed over | What it means |
+|---|---|---|
+| `well_formed_rate` | all non-errored answers | The generator produced non-empty text. The floor. |
+| `cited_rate` | positive queries | Fraction whose answer cites at least one `[N]` chunk. |
+| `all_citations_valid_rate` | positive queries that cited | Fraction whose citations **all** resolve to a provided chunk (no dangling refs). |
+| `dangling_citations` | all answers | Total count of `[N]` refs pointing outside the provided chunk set. |
+| `refusal_rate_negative` | negative queries | Fraction that correctly declined ("not enough information") instead of inventing an answer. **The hallucination floor.** |
+| `generate_p50/p95_ms` | all answers | Generation latency percentiles. |
+
+Citation metrics are scoped to **positive** queries (negatives are expected to refuse and not cite, so including them would distort the rates). Refusal is scoped to **negative** queries.
+
+### Design choices
+
+- **Greedy decoding (temperature 0 + fixed seed).** Generation is deterministic given a fixed prompt and model version, so re-runs are comparable. This applies to `search --answer` too, not just eval.
+- **Report-only, never gated.** Answer metrics are printed and serialized but **never change the exit code**. The fast, deterministic retrieval gate stays clean; answer quality is observed, not enforced. (Only retrieval errors still fail the run, as before.)
+- **Refusal is a heuristic.** It matches phrases like "not enough information" / "do not contain" / "cannot answer". It is a *diagnostic*, not ground truth — it can miss a creatively-worded refusal or fire on an answer that merely quotes such a phrase. Good enough for a reported floor, not for gating.
+
+### Cost
+
+One LLM call **per query**, so a full `--answer` run is **minutes, not milliseconds**. Set `OLLAMA_KEEP_ALIVE=-1` and let the harness warm the model once before the loop (it does this automatically). Use `--type negative` or a small dataset while iterating on prompts.
+
+### Sample output (answer section)
+
+```text
+Answer metrics (reference-free; generator: ollama/qwen2.5-coder:7b):
+  generated:                8 (errors 0)
+  well-formed rate:         1.00
+  cited rate (positive):    0.83
+  all-citations-valid:      1.00
+  dangling citations:       0
+  refusal rate (negative):  1.00
+  generate p50/p95 (ms):    2100 / 4800
+```
+
+When `--answer` is not passed, this section is omitted entirely and the report is byte-identical to a retrieval-only run.
 
 ---
 
@@ -206,10 +292,11 @@ A concrete example of why this matters: between Phase 1 and Phase 2, the corpus 
 
 ## What's not measured (yet)
 
+- **Answer correctness / faithfulness (Tier C).** `--answer` checks answer *shape* (well-formed, citations resolve, refuses on negatives) but **not** whether the claims are actually supported by the cited chunks. That needs an LLM-as-judge pass and is deferred to v1. See the [verification ladder](#the-verification-ladder-where-tier-b-sits).
 - **Filter correctness.** The eval doesn't verify that all returned chunks honor the language/repo filter. Add later (vision review's feedback `filter_violation_count`).
 - **Result-shape validation.** No check that returned chunks contain non-empty `content`, valid line numbers, etc.
 - **Comparison mode.** No `eval compare baseline.json candidate.json` yet. For now, manually diff the JSON.
-- **CI gating.** No regression policy. The harness reports; you decide what to do.
+- **CI gating.** No regression policy. The harness reports; you decide what to do. (Answer metrics are report-only by design.)
 
 Items intentionally deferred — see `docs/review_feedback/rag_evaluation_metrics_with_feedback.md` for the full backlog and roadmap.
 
