@@ -73,6 +73,36 @@ func TestLoadDataset(t *testing.T) {
 	}
 }
 
+func TestLoadDatasetSubtype(t *testing.T) {
+	t.Parallel()
+	const subtypeDataset = `queries:
+  - id: trace_q
+    query: "trace from A to B"
+    type: navigation
+    subtype: structural
+    expected:
+      files:
+        - internal/foo.go
+  - id: plain_q
+    query: "regular query"
+    type: navigation
+    expected:
+      files:
+        - internal/bar.go
+`
+	path := writeTempDataset(t, subtypeDataset)
+	ds, err := LoadDataset(path)
+	if err != nil {
+		t.Fatalf("LoadDataset() unexpected error: %v", err)
+	}
+	if ds.Queries[0].Subtype != "structural" {
+		t.Errorf("Q0 Subtype = %q, want structural", ds.Queries[0].Subtype)
+	}
+	if ds.Queries[1].Subtype != "" {
+		t.Errorf("Q1 Subtype should be empty when omitted, got %q", ds.Queries[1].Subtype)
+	}
+}
+
 func TestLoadDatasetEmpty(t *testing.T) {
 	t.Parallel()
 	path := writeTempDataset(t, "queries: []\n")

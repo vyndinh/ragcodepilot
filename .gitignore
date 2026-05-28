@@ -24,3 +24,9 @@ go.work.sum
 
 # MacOS
 .DS_Store
+
+# Claude Code tooling state (worktrees, project state)
+.claude/
+
+# Go build cache (created by the sandboxed harness)
+.gocache/

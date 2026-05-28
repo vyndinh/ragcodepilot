@@ -14,20 +14,29 @@ Product direction: ragcodepilot is evolving toward a full local RAG pipeline. Ph
 | Phase | Goal | Size | Exit criterion | Status |
 |---|---|---|---|---|
 | 1 | Evaluation foundation | S | `hit@5` baseline metrics committed; `ragcodepilot eval` CLI works | ✅ Done |
-| 2 | Hybrid search (BM25 + dense + RRF) | L | Eval shows ≥10pp `hit@5` improvement on exact-symbol queries | ✅ Done — `baseline_v4.json`: hit@5 = 0.895, hit@1 = 0.579, MRR@5 = 0.699 with BM25 `k1=0.5` + additive Snowball stemming. Switched from TF-IDF on 2026-05-15 and shipped stemming the same day to recover the one concept regression. |
-| 5 v0 | Minimal `--answer` mode (RAG seam) | S | `ragcodepilot search --answer "q"` returns LLM answer + source chunks via local Ollama | **▶ Next** — plan at `phase5_v0_answer_mode.md` |
-| 3 | Reranking + Rust AST chunker | M | Cross-encoder lifts `MRR@5` measurably; Rust chunker ships | ⏸ Deferred pending Phase 5 v0 signal |
+| 2 | Hybrid search (BM25 + dense + RRF) | L | Eval shows ≥10pp `hit@5` improvement on exact-symbol queries | ✅ Done — current baseline `baseline_v6.json`: hit@5 = 0.895, hit@1 = 0.579, MRR@5 = 0.673, recall@5 = 0.789, recall@10 = 0.921. BM25 `k1=0.5` + additive Snowball stemming; `*_test.go` excluded from indexing. See `retrieval_quality_decisions.md` §2.5 for the v4 → v6 lineage (Phase 2 corpus → Phase 5 corpus + hygiene). |
+| 5 v0 | Minimal `--answer` mode (RAG seam) | S | `ragcodepilot search --answer "q"` returns LLM answer + source chunks via local Ollama | ✅ Shipped — answer-mode dogfooding triggered `*_test.go` exclusion + GraphRAG plan |
+| 6 | **GraphRAG — structural retrieval layer** | L | `--graph` lifts `hit@5` by ≥10pp on a new `structural` query subset (top-5 inclusion for LLM context) | **▶ Next** — plan at `graphrag.md` |
+| 3 | Reranking (cross-encoder) | M | — | ⏸ **Deprioritized 2026-05-28.** Reranking only reorders within top-50; cannot add structural signal. Goal is top-5 inclusion for `--answer`, which GraphRAG attacks directly. Revisit only if GraphRAG ships and `concept`-query `hit@5` remains the bottleneck. |
+| 3.5 | Rust AST chunker | M | Rust chunker ships with per-function chunks matching the Go contract | ⏸ Deferred — split out from old Phase 3. Independent of reranking; pick up after GraphRAG if multi-language coverage becomes the binding gap. |
 | 4 | UX polish | S | JSON output mode, context-lines flag, faster startup *(detail TBD when reached)* | ⏸ Deferred (some items may be shaped by Phase 5 v0 output) |
 
 **Pivot — 2026-05-14.** Phase 5 v0 was pulled ahead of Phases 3 and 4 after Phase 2's hit@5 of 0.895 cleared the vision review's "retrieval is strong enough to feed an LLM" gate, and the user confirmed the RAG product direction. The original Phase 5 condition was "don't start unless a real user need has surfaced" — that gate just opened. Phase 3 (Rust chunker) and Phase 4 (UX polish) are parked, not cancelled; their full plans remain in `phase3_rust_chunker.md` and the Phase 4 sketch below. Phase 5 v0's dogfooding result determines what gets un-parked next.
 
+**Pivot — 2026-05-28.** Phase 5 v0 dogfooding surfaced two issues: (a) `*_test.go` files were polluting retrieval (fixed: now excluded by default via `skip_file_patterns`, re-baseline at `baseline_v6.json` lifted hit@5 from 0.789 to 0.895), and (b) **navigation queries remain the weak type** (v6: navigation hit@5 = 0.75, MRR@5 = 0.47 — only type below 1.0 hit@5). Navigation answers are *structural*, not similarity-based, so reranking (Phase 3) was deprioritized below **GraphRAG** (new Phase 6, plan at `graphrag.md`). Reasoning: reranking only reorders within top-50 candidates; it cannot add a signal that is not already in the embedding/BM25 space. The product goal is *top-5 inclusion for LLM context*, and graph edges (calls / defines / imports) attack that directly.
+
+**Honest framing of the GraphRAG-over-reranker bet.** The v6 recall gap (`recall@10 − recall@5 = 0.132`) actually *triggers* the reranker rule in `retrieval_quality_decisions.md` §2.5 (≥0.10 → reranker headroom). This pivot is **not** *"reranker can't help"* — it is a deliberate trade-off: *"structural signal pays more on navigation than reordering pays on the recall gap."* Recording the framing this way so future-us doesn't refight the decision under different evidence. Phase 3 reranking stays parked, not cancelled — revisit if it becomes the binding constraint after GraphRAG ships.
+
+**Cheaper lever evaluated — `--answer-limit`.** The hypothesis was: since `recall@10 ≫ recall@5`, raising `--answer-limit` from 5 → 8 mechanically puts the rank-6–10 chunks into the answer prompt, capturing most of the recall-gap's *RAG* value with no sidecar, no reorder, no graph build. **Eval-side A/B (2026-05-28)** ran on `baseline_v7_structural_answer_al5/al8`: Tier B shape metrics **flat** (CitedRate, AllCitationsValidRate, dangling — all unchanged), p50 generation latency **+55% (23.9s → 37.1s)**. Tier B cannot measure whether *content* improved. **The "free win" hypothesis did not validate on automated metrics.** Updated Phase 6 gate: dogfooding judgment on 3–5 multi-chunk questions at AL=5 vs AL=8 *before* any "narrow scope" verdict — see `retrieval_quality_decisions.md` §2.5 for the full A/B data and `graphrag.md` gating section for the dogfooding prerequisite.
+
 ### Current product path toward full RAG
 
-1. **Make retrieval measurable and reliable.** Eval, hybrid search, and chunker quality determine whether the system can retrieve good evidence.
-2. **Add answer generation deliberately.** `docs/plan/phase5_v0_answer_mode.md` describes the minimal `--answer` mode: retrieve chunks, generate a local answer, and print source chunks for verification.
-3. **Add grounding safeguards after v0 dogfooding.** Citation validation, faithfulness checks, refusal on weak retrieval, and token-budget management should follow only if answer mode proves useful.
+1. **Retrieval measurable and reliable.** ✅ Eval harness + hybrid search + stemming + test-file hygiene shipped (Phases 1–2). `baseline_v6` is the current canonical baseline.
+2. **Answer generation deliberately.** ✅ Phase 5 v0 shipped: `--answer` flag, frozen prompt, auto-warm, greedy decoding, `--answer-limit`, and the Tier B reference-free `eval --answer` harness. See [`phase5_v0_answer_mode.md`](phase5_v0_answer_mode.md).
+3. **Structural retrieval for top-5 inclusion.** ▶ Phase 6 — GraphRAG (`graphrag.md`). Adds a graph layer over hybrid so structural queries (navigation, "what calls X") land the right chunk in the top-5 sent to the LLM. Gated on ✅ ≥15-query structural subset (done, `baseline_v7_structural.json`) + ⏳ dogfooding judgment on AL=5 vs AL=8 (the eval-side A/B from 2026-05-28 was inconclusive on Tier B — see 2026-05-28 pivot above).
+4. **Grounding safeguards after dogfooding.** Citation validation (Tier C faithfulness judge), low-confidence refusal guardrail, and streaming are v1 candidates in `phase5_v0_answer_mode.md`. The model currently refuses on its own (negative pass = 1.00), so these are justified-but-not-urgent.
 
-Reranking, Rust AST chunking, and output UX remain important supporting improvements. They should improve the evidence that answer mode consumes, but they do not change the full-RAG product direction.
+Rust AST chunking (Phase 3.5) and output UX (Phase 4) remain supporting improvements. Reranking is parked behind Phase 6 (see 2026-05-28 pivot above).
 
 ---
 
@@ -158,6 +167,16 @@ Reranking, Rust AST chunking, and output UX remain important supporting improvem
 
 ## Phase 3 — Reranking + chunker upgrades [M]
 
+> **⏸ Deprioritized 2026-05-28.** The reranking sub-phase is parked behind
+> **Phase 6 — GraphRAG** (`docs/plan/graphrag.md`). Reasoning: a cross-encoder
+> only reorders within top-50, so it cannot add the structural signal that
+> navigation queries (the weakest type in `baseline_v6.json`) actually need.
+> The product gate is *top-5 inclusion for LLM context*, and GraphRAG attacks
+> that directly. The **Rust AST chunker** sub-phase is independent and remains
+> a candidate after GraphRAG — see Phase 3.5 row in the summary table. The
+> rest of this section is preserved as the original design for if and when
+> reranking is reopened.
+
 **Goal:** Add a cross-encoder reranker on top-50 retrieval, and replace one language's regex chunker with proper AST-based chunking.
 
 **Why now:** Vision review's P2 #4 and #5 weaknesses. Reranking lifts precision on ambiguous queries. AST chunking lifts chunk quality for languages beyond Go.
@@ -225,26 +244,32 @@ Reranking, Rust AST chunking, and output UX remain important supporting improvem
 - [ ] `--json` output mode for `search`
 - [ ] `--context-lines N` flag (print N lines around each chunk)
 - [ ] Result grouping by file
-- [ ] Faster cold-start (pre-warm Ollama; pin via `OLLAMA_KEEP_ALIVE`)
-- [ ] Update README with new flags
+- [x] Faster cold-start (pre-warm Ollama; pin via `OLLAMA_KEEP_ALIVE`) — **✅ shipped in Phase 5 v0** (`answer.Warmer` auto-warm before the timed `Generate` call; `OLLAMA_KEEP_ALIVE=-1` documented in README setup)
+- [ ] Update README with new flags (incremental as new flags land)
 
-**Do not start until Phase 3's exit criterion is met.**
+**Do not start until Phase 6 (GraphRAG) ships, or sooner if dogfooding surfaces a UX/output need.**
 
 ---
 
-## Phase 5 — Optional `--answer` mode [M, sketch only]
+## Phase 5 — `--answer` mode (v0 shipped, v1 deferred)
 
-**Goal:** Bridge to "understand" use case via opt-in LLM synthesis. Default remains retrieval-only.
+**v0 status:** ✅ Shipped (commit `8597391`, PR #35). See [`phase5_v0_answer_mode.md`](phase5_v0_answer_mode.md) for the canonical design and what landed:
 
-**Likely checklist (flesh out when reached):**
+- `Generator` interface + `OllamaGenerator` + `FakeGenerator`
+- Frozen v0 system prompt (golden-tested for exact wording)
+- `--answer` CLI flag (opt-in; default retrieval path is byte-identical to pre-v0)
+- Auto-warm via the `answer.Warmer` optional interface
+- Greedy decoding (temperature 0 + fixed seed)
+- `--answer-limit` (decouples answer context from the retrieval `--limit`)
+- Tier B reference-free `eval --answer` harness (citation validity, refusal-on-negative, well-formedness, `recall@5`/`recall@10` gap diagnostic) — report-only
 
-- [ ] Design the prompt template: chunks → answer with citations.
-- [ ] Implement `--answer` flag on `search`.
-- [ ] Output: answer text + chunk-ID citations referencing real `internal/.../file.go:line` locations.
-- [ ] Guardrail: if retrieval top-1 score is below threshold, refuse to generate (avoid hallucinating on weak retrieval).
-- [ ] Eval extension: faithfulness check on a sample of generated answers.
+**v1 deferred items** (gated on real-use dogfooding signal):
 
-**Don't start unless a real user need has surfaced.**
+- [ ] Multi-provider support (OpenAI-compatible HTTP first, then native Anthropic) — see §"v1: multi-provider support" in the v0 plan.
+- [ ] Faithfulness eval (Tier C, LLM-as-judge). Tier B reference-free metrics already ship.
+- [ ] Low-confidence refusal guardrail (refuse to generate when retrieval top-1 score is below threshold). *Justified-but-not-urgent — `baseline_v6` negative pass = 1.00, model already refuses on its own.*
+- [ ] Streaming responses (currently synchronous; would lift the time-to-first-token UX, doesn't reduce total time).
+- [ ] Semantic citation precision (Tier B only range-checks references; v1 verifies that the cited chunk actually contains the claimed fact).
 
 ---
 
@@ -254,12 +279,13 @@ Explicit out-of-scope list. Each item has a trigger that should cause us to reop
 
 | Item | Status | Revisit trigger |
 |---|---|---|
-| **Explore Mode** (call graph + clustering + drill-down) | Deferred per `docs/review_feedback/codemaps_review.md` | After Phase 3 exit criterion is met AND retrieval quality is solid. |
-| **TUI implementation choice** (stdin-loop vs bubbletea) | Deferred per user request | When Explore Mode is reopened. Restart from §2.5 of `codemaps_review.md`. |
-| **Tree-sitter for languages beyond Phase 3's pick** | Deferred | After Phase 3 ships and the first non-Go chunker proves the pattern. |
+| **Explore Mode** (call graph + clustering + drill-down) | **Promoted into Phase 6 — GraphRAG.** The call-graph + drill-down idea is now a retrieval-quality lever, not a separate UX mode. See `graphrag.md`. | n/a — superseded. The UX presentation (TUI / drill-down navigation) remains deferred per the TUI row below. |
+| **TUI implementation choice** (stdin-loop vs bubbletea) | Deferred per user request | After GraphRAG (Phase 6) ships and there is a connected-subgraph result shape worth navigating. Restart from §2.5 of `codemaps_review.md`. |
+| **Cross-encoder reranking** | **Deprioritized 2026-05-28** behind GraphRAG. Only reorders within top-50; can't add structural signal. | After GraphRAG ships, if the **recall gap** (`recall@10 − recall@5`, currently 0.132 ≥ 0.10 on v6, 0.150 on v7_structural) remains the binding constraint on multi-chunk answer completeness — the standing trigger in `retrieval_quality_decisions.md` §2.5. (Concept `hit@5 = 1.00` on v6 means the LLM already gets a relevant chunk in top-5, so concept *precision* is a weaker trigger than the recall gap.) Note: the `--answer-limit 8` eval-side A/B (2026-05-28) was inconclusive on Tier B and added +55% latency — *not* a cheap alternative that pre-empts the reranker. A reranker would land rank-6–10 chunks in top-5 without the latency penalty, so this case strengthens after the AL=8 finding. |
+| **Tree-sitter for non-Go languages** | Deferred | After GraphRAG ships and the first non-Go AST chunker (Rust) proves the multi-language pattern. |
 | **Phase C** (custom vector DB in Go per `docs/plan/vecdb/`) | Deferred indefinitely | After Phase 5 ships AND explicit decision that learning goals outweigh continued product investment. |
 | **Watch mode / incremental re-indexing** | Deferred | After Phase 4 (UX polish). |
-| **Multi-modal embeddings** (separate code / prose / docstring vectors) | Deferred | Only if eval shows the single-vector approach has a clear ceiling we can't lift with reranking. |
+| **Multi-modal embeddings** (separate code / prose / docstring vectors) | Deferred | Only if eval shows the single-vector approach has a clear ceiling we can't lift with GraphRAG or reranking. |
 | **IDE plugin** | Deferred | After Phase 5; never in MVP. |
 
 ---

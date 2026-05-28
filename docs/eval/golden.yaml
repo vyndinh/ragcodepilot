@@ -252,3 +252,268 @@ queries:
       languages: ["go"]
     negative:
       top1_score_below: 0.55
+
+  # ---------- Structural / multi-hop queries (Phase 6 gating subset) ----------
+  # All type: navigation, subtype: structural. Five patterns:
+  #   A) Callers       — "what calls X"
+  #   B) Traces        — "trace from A to B" (cross-package paths)
+  #   C) Implementers  — "what implements Interface X"
+  #   D) Change-impact — "what would break if I change X"
+  #   E) Propagation   — "how does X flow from A to B"
+  # See docs/plan/graphrag.md for the GraphRAG gating criteria these support.
+
+  # ---- A. Caller queries ----
+
+  - id: chunkfile_callers_structural
+    query: "what calls the ChunkFile function"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/ingest/pipeline.go
+      symbols:
+        - ChunkFile
+
+  - id: pipeline_run_callers_structural
+    query: "what invokes the ingestion Pipeline.Run method"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - cmd/ragcodepilot/main.go
+      symbols:
+        - runIndex
+        - Run
+
+  - id: searcher_search_callers_structural
+    query: "what code calls Searcher.Search or SearchWithTimings"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - cmd/ragcodepilot/main.go
+        - internal/eval/runner.go
+      symbols:
+        - runSearch
+        - runQuery
+        - SearchWithTimings
+
+  - id: resolve_generator_callers_structural
+    query: "what command paths use resolveGenerator to build the answer Generator"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - cmd/ragcodepilot/main.go
+      symbols:
+        - resolveGenerator
+        - runSearch
+        - runEval
+
+  # ---- B. Trace queries (cross-package multi-hop) ----
+
+  - id: trace_search_to_qdrant_structural
+    query: "trace from the search subcommand down to the Qdrant client search call"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - cmd/ragcodepilot/main.go
+        - internal/search/searcher.go
+        - internal/qdrant/client.go
+      symbols:
+        - runSearch
+        - Search
+        - SearchWithTimings
+
+  - id: trace_answer_flag_to_ollama_chat_structural
+    query: "trace from the --answer CLI flag to the Ollama /api/chat HTTP request"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - cmd/ragcodepilot/main.go
+        - internal/answer/ollama.go
+      symbols:
+        - runSearch
+        - resolveGenerator
+        - OllamaGenerator
+        - Generate
+
+  - id: trace_eval_to_recall_metric_structural
+    query: "trace from eval --output json to the recall@5 number in the report"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - cmd/ragcodepilot/main.go
+        - internal/eval/runner.go
+        - internal/eval/metrics.go
+      symbols:
+        - runEval
+        - runQuery
+        - RecallAtK
+
+  - id: trace_index_to_qdrant_upsert_structural
+    query: "trace from the index command through to Qdrant upsert"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - cmd/ragcodepilot/main.go
+        - internal/ingest/pipeline.go
+        - internal/qdrant/client.go
+      symbols:
+        - runIndex
+        - Run
+        - Upsert
+
+  # ---- C. Interface implementers ----
+
+  - id: embedder_implementers_structural
+    query: "what types implement the Embedder interface"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/embedding/embedder.go
+        - internal/embedding/ollama.go
+        - internal/embedding/fake.go
+      symbols:
+        - Embedder
+        - OllamaEmbedder
+        - FakeEmbedder
+
+  - id: generator_implementers_structural
+    query: "what types implement the answer Generator interface"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/answer/generator.go
+        - internal/answer/ollama.go
+        - internal/answer/fake.go
+      symbols:
+        - Generator
+        - OllamaGenerator
+        - FakeGenerator
+
+  - id: warmer_implementers_structural
+    query: "what types implement the Warmer interface for model pre-loading"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/answer/generator.go
+        - internal/answer/ollama.go
+      symbols:
+        - Warmer
+        - OllamaGenerator
+        - Warmup
+
+  # ---- D. Change-impact queries ----
+
+  - id: change_impact_embedder_embed_structural
+    query: "what would break if I change the Embedder.Embed signature"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/embedding/embedder.go
+        - internal/embedding/ollama.go
+        - internal/embedding/fake.go
+        - internal/search/searcher.go
+        - internal/ingest/pipeline.go
+      symbols:
+        - Embedder
+        - Embed
+
+  - id: change_impact_generator_generate_structural
+    query: "what would break if I change the Generator.Generate signature"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/answer/generator.go
+        - internal/answer/ollama.go
+        - internal/answer/fake.go
+        - internal/eval/runner.go
+        - cmd/ragcodepilot/main.go
+      symbols:
+        - Generator
+        - Generate
+        - resolveGenerator
+        - evaluateAnswer
+
+  - id: change_impact_chunkfile_structural
+    query: "what would break if I change ChunkFile's parameters"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/ingest/chunker.go
+        - internal/ingest/pipeline.go
+      symbols:
+        - ChunkFile
+
+  # ---- E. Propagation queries (data-flow multi-hop) ----
+
+  - id: propagate_hit_at_5_structural
+    query: "how does hit@5 flow from search results to the human-readable report"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/eval/metrics.go
+        - internal/eval/runner.go
+        - internal/eval/format.go
+      symbols:
+        - HitAtK
+        - runQuery
+        - aggregate
+        - FormatHuman
+
+  - id: propagate_skip_file_pattern_structural
+    query: "how does skip_file_patterns from config.yaml affect which files get indexed"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+    expected:
+      files:
+        - internal/config/config.go
+        - internal/ingest/walker.go
+      symbols:
+        - SkipFilePatterns
+        - ShouldSkipFile
+        - WalkFiles

@@ -1,0 +1,1568 @@
+{
+  "run_id": "2026-05-28T13-35-31Z",
+  "dataset": "docs/eval/golden.yaml",
+  "collection": "code_chunks",
+  "embedder": "ollama/nomic-embed-text",
+  "mode": "hybrid",
+  "limit": 10,
+  "aggregate": {
+    "queries": 16,
+    "positive_queries": 16,
+    "negative_queries": 0,
+    "errors": 0,
+    "hit_at_1": 0.6875,
+    "hit_at_3": 0.8125,
+    "hit_at_5": 0.875,
+    "mrr_at_5": 0.765625,
+    "recall_at_5": 0.6000000000000001,
+    "recall_at_10": 0.7291666666666666,
+    "negative_pass_rate": 0,
+    "latency_total_p50_ms": 110,
+    "latency_total_p95_ms": 2648,
+    "latency_embed_p50_ms": 84,
+    "latency_embed_p95_ms": 358,
+    "latency_qdrant_p50_ms": 12,
+    "latency_qdrant_p95_ms": 478
+  },
+  "by_type": {
+    "navigation": {
+      "count": 16,
+      "hit_at_5": 0.875,
+      "mrr_at_5": 0.765625
+    }
+  },
+  "answer": {
+    "generator": "ollama/qwen2.5-coder:7b",
+    "generated": 16,
+    "errors": 0,
+    "well_formed_rate": 1,
+    "cited_rate": 0.9375,
+    "all_citations_valid_rate": 1,
+    "dangling_citations": 0,
+    "refusal_rate_negative": 0,
+    "generate_p50_ms": 37082,
+    "generate_p95_ms": 58805
+  },
+  "queries": [
+    {
+      "id": "chunkfile_callers_structural",
+      "type": "navigation",
+      "query": "what calls the ChunkFile function",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_5": 0,
+      "recall_at_10": 0,
+      "top_score": 0.026320346,
+      "answer": {
+        "text": "The `ChunkFile` function is not called in any of the provided code chunks. The functions listed are related to different parts of a system, such as creating clients for Qdrant and Ollama, generating answers, and running searches, but none of them directly call a function named `ChunkFile`.",
+        "generate_ms": 17881,
+        "well_formed": true,
+        "refused": false,
+        "valid_citations": 0,
+        "invalid_citations": 0
+      },
+      "embed_ms": 84,
+      "qdrant_ms": 478,
+      "total_ms": 2648,
+      "top_results": [
+        {
+          "file_path": "internal/ingest/enrichment.go",
+          "name": "chunkTypeLabel",
+          "score": 0.026320346,
+          "start_line": 37,
+          "end_line": 48
+        },
+        {
+          "file_path": "internal/answer/fake.go",
+          "name": "NewFakeGenerator",
+          "score": 0.016666668,
+          "start_line": 25,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/embedding/ollama.go",
+          "name": "NewOllamaEmbedder",
+          "score": 0.016666668,
+          "start_line": 25,
+          "end_line": 34
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "NewClient",
+          "score": 0.016393442,
+          "start_line": 34,
+          "end_line": 44
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runSearch",
+          "score": 0.016393442,
+          "start_line": 368,
+          "end_line": 416
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "name": "NewOllamaGenerator",
+          "score": 0.016129032,
+          "start_line": 50,
+          "end_line": 62
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "Close",
+          "score": 0.016129032,
+          "start_line": 46,
+          "end_line": 49
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runCollectionsList",
+          "score": 0.015873017,
+          "start_line": 418,
+          "end_line": 439
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "score": 0.015873017,
+          "start_line": 63,
+          "end_line": 87
+        },
+        {
+          "file_path": "internal/embedding/ollama.go",
+          "name": "Embed",
+          "score": 0.015625,
+          "start_line": 45,
+          "end_line": 103
+        }
+      ]
+    },
+    {
+      "id": "pipeline_run_callers_structural",
+      "type": "navigation",
+      "query": "what invokes the ingestion Pipeline.Run method",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_5": 0,
+      "recall_at_10": 0,
+      "top_score": 0.033333335,
+      "answer": {
+        "text": "The ingestion Pipeline.Run method is not directly invoked by any of the provided code chunks. The `NewPipeline` function [1] creates a new pipeline instance but does not call the `Run` method. The `filterFilesByLanguage` function [6] filters files based on language, and `languageKeys` [8] returns language keys, but neither invokes the `Run` method.\n\nThe `WithLanguages`, `WithChunkSize`, and `WithChunkOverlap` functions [3], [5], and [7] are options that configure a pipeline instance. However, they also do not invoke the `Run` method.\n\nTherefore, based on the provided code chunks, there is no explicit invocation of the `Pipeline.Run` method in the given context.",
+        "generate_ms": 22053,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          1,
+          3,
+          5,
+          6,
+          7,
+          8
+        ],
+        "valid_citations": 6,
+        "invalid_citations": 0
+      },
+      "embed_ms": 358,
+      "qdrant_ms": 48,
+      "total_ms": 692,
+      "top_results": [
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "NewPipeline",
+          "score": 0.033333335,
+          "start_line": 60,
+          "end_line": 74
+        },
+        {
+          "file_path": "internal/ingest/walker.go",
+          "score": 0.032522473,
+          "start_line": 1,
+          "end_line": 14
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "WithLanguages",
+          "score": 0.031778056,
+          "start_line": 47,
+          "end_line": 58
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 0.031024532,
+          "start_line": 1,
+          "end_line": 36
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "WithChunkSize",
+          "score": 0.029877368,
+          "start_line": 37,
+          "end_line": 40
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "filterFilesByLanguage",
+          "score": 0.029631255,
+          "start_line": 308,
+          "end_line": 321
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "WithChunkOverlap",
+          "score": 0.029236022,
+          "start_line": 42,
+          "end_line": 45
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "languageKeys",
+          "score": 0.028039217,
+          "start_line": 323,
+          "end_line": 334
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "Run",
+          "score": 0.027650649,
+          "start_line": 76,
+          "end_line": 115
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 0.026500527,
+          "start_line": 251,
+          "end_line": 290
+        }
+      ]
+    },
+    {
+      "id": "searcher_search_callers_structural",
+      "type": "navigation",
+      "query": "what code calls Searcher.Search or SearchWithTimings",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 0.5,
+      "recall_at_10": 1,
+      "top_score": 0.016666668,
+      "answer": {
+        "text": "The code that calls `Searcher.Search` or `SearchWithTimings` is in [6] `runSearch`. This function uses a `Searcher` instance to perform search operations. Specifically, it calls `searcher.Search(ctx, collection, query, mode, uint64(limit), languages, repos)` which internally calls `SearchWithTimings` [7].",
+        "generate_ms": 24036,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          6,
+          7
+        ],
+        "valid_citations": 2,
+        "invalid_citations": 0
+      },
+      "embed_ms": 93,
+      "qdrant_ms": 36,
+      "total_ms": 139,
+      "top_results": [
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runCollectionsList",
+          "score": 0.016666668,
+          "start_line": 418,
+          "end_line": 439
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "score": 0.016666668,
+          "start_line": 1,
+          "end_line": 47
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "name": "SearchWithTimings",
+          "score": 0.016393442,
+          "start_line": 76,
+          "end_line": 131
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "parseLanguageFilter",
+          "score": 0.016393442,
+          "start_line": 276,
+          "end_line": 292
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "generatorName",
+          "score": 0.016129032,
+          "start_line": 323,
+          "end_line": 329
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runSearch",
+          "score": 0.016129032,
+          "start_line": 368,
+          "end_line": 416
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "name": "Search",
+          "score": 0.015873017,
+          "start_line": 70,
+          "end_line": 74
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runCollectionsDelete",
+          "score": 0.015873017,
+          "start_line": 521,
+          "end_line": 535
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "name": "runQuery",
+          "score": 0.015625,
+          "start_line": 207,
+          "end_line": 251
+        },
+        {
+          "file_path": "internal/answer/fake.go",
+          "name": "NewFakeGenerator",
+          "score": 0.015625,
+          "start_line": 25,
+          "end_line": 28
+        }
+      ]
+    },
+    {
+      "id": "resolve_generator_callers_structural",
+      "type": "navigation",
+      "query": "what command paths use resolveGenerator to build the answer Generator",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.033333335,
+      "answer": {
+        "text": "The command paths that use `resolveGenerator` to build the answer Generator are:\n\n- [8] ragsearch/cmd/ragcodepilot/main.go:165-204\n\nThis chunk shows where `resolveGenerator` is called with parameters from the command line flags. The relevant part of this code snippet is:\n\n```go\nif *answerMode {\n    gen, err = resolveGenerator(*generatorType, *ollamaURL, *generativeModel)\n    if err != nil {\n        fmt.Fprintf(os.Stderr, \"error: %v\\n\", err)\n        os.Exit(1)\n    }\n    genName = generatorName(*generatorType, *generativeModel)\n}\n```\n\nHere, `resolveGenerator` is called with the values of `*generatorType`, `*ollamaURL`, and `*generativeModel`, which are set based on command line arguments.",
+        "generate_ms": 42334,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          8
+        ],
+        "valid_citations": 1,
+        "invalid_citations": 0
+      },
+      "embed_ms": 63,
+      "qdrant_ms": 13,
+      "total_ms": 86,
+      "top_results": [
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "resolveGenerator",
+          "score": 0.033333335,
+          "start_line": 307,
+          "end_line": 321
+        },
+        {
+          "file_path": "internal/answer/generator.go",
+          "score": 0.030679155,
+          "start_line": 1,
+          "end_line": 67
+        },
+        {
+          "file_path": "internal/answer/prompt.go",
+          "name": "BuildPrompt",
+          "score": 0.029957524,
+          "start_line": 18,
+          "end_line": 42
+        },
+        {
+          "file_path": "internal/answer/prompt.go",
+          "score": 0.029462365,
+          "start_line": 1,
+          "end_line": 17
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "score": 0.028083269,
+          "start_line": 1,
+          "end_line": 49
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "name": "Generate",
+          "score": 0.027984343,
+          "start_line": 88,
+          "end_line": 131
+        },
+        {
+          "file_path": "internal/answer/fake.go",
+          "name": "Generate",
+          "score": 0.027402403,
+          "start_line": 30,
+          "end_line": 47
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "score": 0.016393442,
+          "start_line": 165,
+          "end_line": 204
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "score": 0.016129032,
+          "start_line": 95,
+          "end_line": 134
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runSearch",
+          "score": 0.015873017,
+          "start_line": 368,
+          "end_line": 416
+        }
+      ]
+    },
+    {
+      "id": "trace_search_to_qdrant_structural",
+      "type": "navigation",
+      "query": "trace from the search subcommand down to the Qdrant client search call",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 0.6666666666666666,
+      "recall_at_10": 0.6666666666666666,
+      "top_score": 0.033333335,
+      "answer": {
+        "text": "The `search` subcommand is processed in the `Searcher.SearchWithTimings` function [5]. This function handles query embedding, vector search, and result formatting. It first normalizes the search mode, then embeds the query text if necessary, validates the query vector, and ensures that the collection dimension matches the query vector. After these steps, it calls the `client.Search` method [4] to perform the actual vector search on Qdrant.\n\nThe `Search` method in the Qdrant client [4] takes parameters including the dense and sparse vectors, the search mode, limit, languages, and repos. Depending on the search mode (dense, sparse, or hybrid), it constructs a `QueryPoints` object with the appropriate query type and filter. For hybrid mode, it also sets up prefetch queries for both dense and sparse vectors.\n\nThe `Search` method then sends this request to Qdrant and returns the search results along with timing information [4].",
+        "generate_ms": 34730,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          4,
+          5
+        ],
+        "valid_citations": 2,
+        "invalid_citations": 0
+      },
+      "embed_ms": 88,
+      "qdrant_ms": 12,
+      "total_ms": 110,
+      "top_results": [
+        {
+          "file_path": "internal/search/searcher.go",
+          "score": 0.033333335,
+          "start_line": 1,
+          "end_line": 47
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "score": 0.030834913,
+          "start_line": 102,
+          "end_line": 106
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "name": "NewSearcher",
+          "score": 0.03079839,
+          "start_line": 48,
+          "end_line": 54
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "score": 0.029910713,
+          "start_line": 254,
+          "end_line": 270
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "name": "SearchWithTimings",
+          "score": 0.029198635,
+          "start_line": 76,
+          "end_line": 131
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "EnsurePayloadIndexes",
+          "score": 0.028665029,
+          "start_line": 88,
+          "end_line": 101
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "score": 0.02830941,
+          "start_line": 306,
+          "end_line": 345
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "Search",
+          "score": 0.028169014,
+          "start_line": 271,
+          "end_line": 310
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "score": 0.027402403,
+          "start_line": 341,
+          "end_line": 377
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "name": "Search",
+          "score": 0.016393442,
+          "start_line": 70,
+          "end_line": 74
+        }
+      ]
+    },
+    {
+      "id": "trace_answer_flag_to_ollama_chat_structural",
+      "type": "navigation",
+      "query": "trace from the --answer CLI flag to the Ollama /api/chat HTTP request",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 0.5,
+      "recall_at_10": 0.5,
+      "top_score": 0.03306011,
+      "answer": {
+        "text": "The `--answer` CLI flag triggers a series of steps to generate an answer using the Ollama language model. Here's how it flows through the provided code:\n\n1. **CLI Flag Handling**: The `--answer` flag is processed by the command-line interface, which invokes the appropriate function or method to handle this flag.\n\n2. **Prompt Construction**: In the `Generate` function of the `OllamaGenerator` struct [1], a prompt is constructed using the user's question and retrieved code chunks. This is done in the `BuildPrompt` function [3].\n\n3. **Request Preparation**: The constructed prompt is then prepared for sending to the Ollama server. This involves creating an HTTP request body that includes the model name, messages (system and user), stream status, and options [1].\n\n4. **HTTP Request**: The prepared request body is sent to the Ollama `/api/chat` endpoint using the `http.NewRequestWithContext` function [1]. The request is made with a POST method and the JSON content type.\n\n5. **Response Handling**: The response from the Ollama server is received, and its status code is checked. If the status is not OK (200), an error is returned based on the status code or body content [1].\n\n6. **Decoding Response**: If the response is successful, the JSON response is decoded into a `ollamaChatResponse` struct [1], from which the assistant's answer text is extracted and returned.\n\nThis flow ensures that the user's question and context are properly formatted and sent to the Ollama server for processing, with appropriate error handling throughout the request-response cycle.",
+        "generate_ms": 50336,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          1,
+          3
+        ],
+        "valid_citations": 2,
+        "invalid_citations": 0
+      },
+      "embed_ms": 82,
+      "qdrant_ms": 8,
+      "total_ms": 97,
+      "top_results": [
+        {
+          "file_path": "internal/answer/ollama.go",
+          "name": "Generate",
+          "score": 0.03306011,
+          "start_line": 88,
+          "end_line": 131
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "score": 0.032002047,
+          "start_line": 63,
+          "end_line": 87
+        },
+        {
+          "file_path": "internal/answer/prompt.go",
+          "name": "BuildPrompt",
+          "score": 0.031159421,
+          "start_line": 18,
+          "end_line": 42
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "score": 0.030414745,
+          "start_line": 1,
+          "end_line": 49
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "name": "connectionError",
+          "score": 0.029469121,
+          "start_line": 172,
+          "end_line": 182
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "name": "statusError",
+          "score": 0.028612014,
+          "start_line": 184,
+          "end_line": 190
+        },
+        {
+          "file_path": "internal/answer/generator.go",
+          "score": 0.026856525,
+          "start_line": 1,
+          "end_line": 67
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "name": "NewOllamaGenerator",
+          "score": 0.026334027,
+          "start_line": 50,
+          "end_line": 62
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "name": "Warmup",
+          "score": 0.016393442,
+          "start_line": 133,
+          "end_line": 170
+        },
+        {
+          "file_path": "internal/answer/fake.go",
+          "score": 0.015873017,
+          "start_line": 61,
+          "end_line": 64
+        }
+      ]
+    },
+    {
+      "id": "trace_eval_to_recall_metric_structural",
+      "type": "navigation",
+      "query": "trace from eval --output json to the recall@5 number in the report",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 0.6666666666666666,
+      "recall_at_10": 1,
+      "top_score": 0.032539684,
+      "answer": {
+        "text": "To trace from `eval --output json` to the recall@5 number in the report, we need to follow these steps:\n\n1. **Command Execution**: The command `eval --output json` is executed, which implies that the evaluation process is set up to output results in JSON format.\n\n2. **Runner Initialization**: In the `Run` function of `runner.go` [6], a new `Runner` instance is created with the specified parameters, including the limit for recall@5.\n\n3. **Query Execution**: The `Run` function iterates over each query in the dataset and calls the `runQuery` method to execute each query.\n\n4. **Result Collection**: For each query, the results are collected and stored in a `QueryResult` struct. This includes metrics like hit_at_5, mrr_at_5, recall_at_5, etc.\n\n5. **Aggregation**: After all queries are executed, the results are aggregated into an `Aggregate` struct [4]. This struct contains the mean values of various metrics across all queries that produced results.\n\n6. **Report Generation**: The `FormatHuman` function in `format.go` [7] is called to generate a human-readable report from the `Report` struct. This includes printing out the recall@5 metric among other retrieval metrics.\n\nTherefore, the recall@5 number is extracted from the `QueryResult` structs during the evaluation process and then aggregated into the `Aggregate` struct. Finally, it is included in the human-readable report generated by the `FormatHuman` function [7].",
+        "generate_ms": 58805,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          4,
+          6,
+          7
+        ],
+        "valid_citations": 3,
+        "invalid_citations": 0
+      },
+      "embed_ms": 82,
+      "qdrant_ms": 12,
+      "total_ms": 105,
+      "top_results": [
+        {
+          "file_path": "internal/eval/runner.go",
+          "score": 0.032539684,
+          "start_line": 1,
+          "end_line": 58
+        },
+        {
+          "file_path": "internal/eval/metrics.go",
+          "score": 0.03201844,
+          "start_line": 1,
+          "end_line": 22
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "score": 0.031513646,
+          "start_line": 109,
+          "end_line": 148
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "score": 0.030751174,
+          "start_line": 74,
+          "end_line": 113
+        },
+        {
+          "file_path": "internal/eval/metrics.go",
+          "name": "RecallAtK",
+          "score": 0.029957524,
+          "start_line": 64,
+          "end_line": 84
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "score": 0.029857397,
+          "start_line": 144,
+          "end_line": 171
+        },
+        {
+          "file_path": "internal/eval/format.go",
+          "name": "FormatHuman",
+          "score": 0.029051669,
+          "start_line": 9,
+          "end_line": 48
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "name": "Run",
+          "score": 0.028778467,
+          "start_line": 172,
+          "end_line": 205
+        },
+        {
+          "file_path": "internal/eval/metrics.go",
+          "name": "HasAny",
+          "score": 0.025478741,
+          "start_line": 23,
+          "end_line": 26
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runEval",
+          "score": 0.016129032,
+          "start_line": 441,
+          "end_line": 519
+        }
+      ]
+    },
+    {
+      "id": "trace_index_to_qdrant_upsert_structural",
+      "type": "navigation",
+      "query": "trace from the index command through to Qdrant upsert",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.03226646,
+      "answer": {
+        "text": "The `index` command in the provided context refers to the `Run` function in `pipeline.go` [1], which orchestrates the entire indexing process. This includes walking through files, hashing them, and upserting their embeddings into Qdrant.\n\nThe `Upsert` method is defined in `client.go` [6] within the `qdrant` package. It takes a collection name, code chunks, dense vectors, and sparse vectors as parameters. The method constructs `pb.PointStruct` objects for each chunk, which include metadata like repository path, file path, language, and content, along with their vector representations.\n\nThe connection between the index command and Qdrant upsert is established through the `Run` function in `pipeline.go` [1], which calls methods from `client.go` to interact with Qdrant. Specifically, after processing files and generating embeddings, the `Run` function calls `p.store.Upsert(ctx, p.collection, chunks, vectors, sparseVectors)` [4] to insert or update points in the specified Qdrant collection.\n\nThus, the index command triggers a series of operations that ultimately lead to upserting data into Qdrant through the `Upsert` method.",
+        "generate_ms": 45800,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          1,
+          4,
+          6
+        ],
+        "valid_citations": 3,
+        "invalid_citations": 0
+      },
+      "embed_ms": 125,
+      "qdrant_ms": 11,
+      "total_ms": 154,
+      "top_results": [
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "Run",
+          "score": 0.03226646,
+          "start_line": 76,
+          "end_line": 115
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 0.032051284,
+          "start_line": 146,
+          "end_line": 185
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "score": 0.03137255,
+          "start_line": 200,
+          "end_line": 220
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 0.029198635,
+          "start_line": 286,
+          "end_line": 306
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "score": 0.016393442,
+          "start_line": 1,
+          "end_line": 33
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "Upsert",
+          "score": 0.016129032,
+          "start_line": 193,
+          "end_line": 253
+        },
+        {
+          "file_path": "internal/ingest/chunker.go",
+          "name": "generateChunkID",
+          "score": 0.016129032,
+          "start_line": 127,
+          "end_line": 136
+        },
+        {
+          "file_path": "internal/answer/metrics.go",
+          "score": 0.015873017,
+          "start_line": 1,
+          "end_line": 14
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "ScrollFileStates",
+          "score": 0.015625,
+          "start_line": 474,
+          "end_line": 541
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 0.015625,
+          "start_line": 111,
+          "end_line": 150
+        }
+      ]
+    },
+    {
+      "id": "embedder_implementers_structural",
+      "type": "navigation",
+      "query": "what types implement the Embedder interface",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 0.6666666666666666,
+      "recall_at_10": 1,
+      "top_score": 0.032795697,
+      "answer": {
+        "text": "Based on the provided code chunks, the types that implement the `Embedder` interface are:\n\n1. `OllamaEmbedder` [4]\n2. `FakeEmbedder` [6]\n\nThese implementations are verified by the compile-time checks in their respective files, ensuring they adhere to the `Embedder` interface requirements.",
+        "generate_ms": 18479,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          4,
+          6
+        ],
+        "valid_citations": 2,
+        "invalid_citations": 0
+      },
+      "embed_ms": 208,
+      "qdrant_ms": 7,
+      "total_ms": 230,
+      "top_results": [
+        {
+          "file_path": "internal/embedding/embedder.go",
+          "score": 0.032795697,
+          "start_line": 1,
+          "end_line": 16
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runIndex",
+          "score": 0.029571647,
+          "start_line": 331,
+          "end_line": 351
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "resolveEmbedder",
+          "score": 0.02889813,
+          "start_line": 294,
+          "end_line": 305
+        },
+        {
+          "file_path": "internal/embedding/ollama.go",
+          "score": 0.016666668,
+          "start_line": 118,
+          "end_line": 121
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "WithLanguages",
+          "score": 0.016393442,
+          "start_line": 47,
+          "end_line": 58
+        },
+        {
+          "file_path": "internal/embedding/fake.go",
+          "score": 0.016393442,
+          "start_line": 63,
+          "end_line": 66
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "score": 0.016129032,
+          "start_line": 63,
+          "end_line": 87
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runSearch",
+          "score": 0.015873017,
+          "start_line": 368,
+          "end_line": 416
+        },
+        {
+          "file_path": "internal/embedding/validate.go",
+          "score": 0.015625,
+          "start_line": 1,
+          "end_line": 4
+        },
+        {
+          "file_path": "internal/eval/format.go",
+          "name": "FormatHuman",
+          "score": 0.015625,
+          "start_line": 9,
+          "end_line": 48
+        }
+      ]
+    },
+    {
+      "id": "generator_implementers_structural",
+      "type": "navigation",
+      "query": "what types implement the answer Generator interface",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.031746034,
+      "answer": {
+        "text": "The `FakeGenerator` and `OllamaGenerator` types implement the `answer.Generator` interface. This can be inferred from the following code snippets:\n\n- [5] states that both `OllamaGenerator` and `FakeGenerator` implement the `Generator` interface:\n  ```go\n  var (\n      _ Generator = (*OllamaGenerator)(nil)\n      _ Warmer    = (*OllamaGenerator)(nil)\n  )\n  ```\n\n- The `FakeGenerator` struct is defined in [2] and includes a method `Generate` that matches the signature of the `Generator` interface:\n  ```go\n  type FakeGenerator struct {\n      Response string\n      Err error\n      LastPrompt Prompt\n      CallCount int\n  }\n\n  func (g *FakeGenerator) Generate(ctx context.Context, prompt Prompt) (string, error) {\n      g.LastPrompt = prompt\n      g.CallCount++\n      return g.Response, g.Err\n  }\n  ```\n\n- The `OllamaGenerator` struct is defined in [6] and includes a method `Generate` that also matches the signature of the `Generator` interface:\n  ```go\n  type OllamaGenerator struct {\n      baseURL string\n      model   string\n      client  *http.Client\n  }\n\n  func (g *OllamaGenerator) Generate(ctx context.Context, prompt Prompt) (string, error) {\n      // Implementation details...\n  }\n  ```\n\nTherefore, the types that implement the `answer.Generator` interface are `FakeGenerator` and `OllamaGenerator`.",
+        "generate_ms": 47384,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          2,
+          5,
+          6
+        ],
+        "valid_citations": 3,
+        "invalid_citations": 0
+      },
+      "embed_ms": 61,
+      "qdrant_ms": 11,
+      "total_ms": 91,
+      "top_results": [
+        {
+          "file_path": "internal/answer/generator.go",
+          "score": 0.031746034,
+          "start_line": 1,
+          "end_line": 67
+        },
+        {
+          "file_path": "internal/answer/fake.go",
+          "score": 0.030886196,
+          "start_line": 1,
+          "end_line": 24
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "resolveGenerator",
+          "score": 0.03076923,
+          "start_line": 307,
+          "end_line": 321
+        },
+        {
+          "file_path": "internal/answer/fake.go",
+          "name": "NewFakeGenerator",
+          "score": 0.029631255,
+          "start_line": 25,
+          "end_line": 28
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "score": 0.029551337,
+          "start_line": 191,
+          "end_line": 197
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "score": 0.02932363,
+          "start_line": 1,
+          "end_line": 49
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "name": "NewOllamaGenerator",
+          "score": 0.027799228,
+          "start_line": 50,
+          "end_line": 62
+        },
+        {
+          "file_path": "internal/answer/metrics.go",
+          "name": "IsWellFormed",
+          "score": 0.027313266,
+          "start_line": 55,
+          "end_line": 59
+        },
+        {
+          "file_path": "internal/answer/fake.go",
+          "name": "Generate",
+          "score": 0.026356857,
+          "start_line": 30,
+          "end_line": 47
+        },
+        {
+          "file_path": "internal/answer/metrics.go",
+          "score": 0.026320346,
+          "start_line": 60,
+          "end_line": 98
+        }
+      ]
+    },
+    {
+      "id": "warmer_implementers_structural",
+      "type": "navigation",
+      "query": "what types implement the Warmer interface for model pre-loading",
+      "hit_at_1": false,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 0.5,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.0305789,
+      "answer": {
+        "text": "Based on the provided code, only one type implements the `Warmer` interface for model pre-loading:\n\n- The `OllamaGenerator` type in `ragsearch/internal/answer/ollama.go` [2] implements the `Warmer` interface. This is evident from the fact that it defines a method named `Warmup`, which matches the signature of the `Warmup` method defined in the `Warmer` interface [5].",
+        "generate_ms": 30629,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          2,
+          5
+        ],
+        "valid_citations": 2,
+        "invalid_citations": 0
+      },
+      "embed_ms": 113,
+      "qdrant_ms": 10,
+      "total_ms": 135,
+      "top_results": [
+        {
+          "file_path": "internal/embedding/embedder.go",
+          "score": 0.0305789,
+          "start_line": 1,
+          "end_line": 16
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "name": "Warmup",
+          "score": 0.030309988,
+          "start_line": 133,
+          "end_line": 170
+        },
+        {
+          "file_path": "internal/model/chunk.go",
+          "score": 0.027650649,
+          "start_line": 1,
+          "end_line": 61
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "score": 0.027150981,
+          "start_line": 1,
+          "end_line": 49
+        },
+        {
+          "file_path": "internal/answer/generator.go",
+          "score": 0.016666668,
+          "start_line": 1,
+          "end_line": 67
+        },
+        {
+          "file_path": "internal/embedding/validate.go",
+          "score": 0.016666668,
+          "start_line": 1,
+          "end_line": 4
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runSearch",
+          "score": 0.016393442,
+          "start_line": 368,
+          "end_line": 416
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "name": "NewOllamaGenerator",
+          "score": 0.016393442,
+          "start_line": 50,
+          "end_line": 62
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "score": 0.016129032,
+          "start_line": 191,
+          "end_line": 197
+        },
+        {
+          "file_path": "internal/embedding/ollama.go",
+          "score": 0.016129032,
+          "start_line": 35,
+          "end_line": 44
+        }
+      ]
+    },
+    {
+      "id": "change_impact_embedder_embed_structural",
+      "type": "navigation",
+      "query": "what would break if I change the Embedder.Embed signature",
+      "hit_at_1": false,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 0.5,
+      "recall_at_5": 0.4,
+      "recall_at_10": 0.6,
+      "top_score": 0.029116046,
+      "answer": {
+        "text": "Changing the signature of `Embedder.Embed` in [4] could break several parts of the codebase that rely on this function. Specifically:\n\n1. **Dependencies**: Any service or component that uses an `Embedder` instance to generate embeddings for text will need to be updated if the signature changes.\n2. **Tests**: Unit tests and integration tests for components that use `Embedder.Embed` would need to be adjusted to accommodate any new parameters or return types.\n3. **Documentation**: Any documentation related to using `Embedder.Embed` should be updated to reflect the new signature.\n\nThe function currently takes a context and a slice of strings as input and returns a slice of float32 vectors and an error. If you change this, for example, by adding more parameters or changing the return type, it could break any code that depends on its current behavior.",
+        "generate_ms": 32762,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          4
+        ],
+        "valid_citations": 1,
+        "invalid_citations": 0
+      },
+      "embed_ms": 73,
+      "qdrant_ms": 10,
+      "total_ms": 97,
+      "top_results": [
+        {
+          "file_path": "internal/embedding/sparse.go",
+          "name": "stemToken",
+          "score": 0.029116046,
+          "start_line": 117,
+          "end_line": 138
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 0.028191384,
+          "start_line": 146,
+          "end_line": 185
+        },
+        {
+          "file_path": "internal/answer/prompt.go",
+          "name": "renderChunk",
+          "score": 0.016666668,
+          "start_line": 44,
+          "end_line": 71
+        },
+        {
+          "file_path": "internal/embedding/fake.go",
+          "name": "Embed",
+          "score": 0.016666668,
+          "start_line": 22,
+          "end_line": 30
+        },
+        {
+          "file_path": "internal/embedding/sparse.go",
+          "name": "splitOnBoundaries",
+          "score": 0.016393442,
+          "start_line": 140,
+          "end_line": 146
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "ScrollFileStates",
+          "score": 0.016393442,
+          "start_line": 474,
+          "end_line": 541
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "DeleteStaleChunksByFilePath",
+          "score": 0.016129032,
+          "start_line": 543,
+          "end_line": 569
+        },
+        {
+          "file_path": "internal/ingest/enrichment.go",
+          "name": "chunkTypeLabel",
+          "score": 0.015873017,
+          "start_line": 37,
+          "end_line": 48
+        },
+        {
+          "file_path": "internal/embedding/ollama.go",
+          "name": "Embed",
+          "score": 0.015873017,
+          "start_line": 45,
+          "end_line": 103
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 0.015625,
+          "start_line": 216,
+          "end_line": 255
+        }
+      ]
+    },
+    {
+      "id": "change_impact_generator_generate_structural",
+      "type": "navigation",
+      "query": "what would break if I change the Generator.Generate signature",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": true,
+      "mrr_at_5": 0.25,
+      "recall_at_5": 0.2,
+      "recall_at_10": 0.4,
+      "top_score": 0.030117754,
+      "answer": {
+        "text": "The `Generator.Generate` signature is used in the `runSearch` function [4] to generate an answer from the top retrieved chunks. If you change the signature of `Generator.Generate`, it could break the integration with `runSearch`. Specifically, any changes that affect the parameters or return type would require corresponding updates in `runSearch` to avoid runtime errors.\n\nFor example:\n- Changing the parameter types (e.g., changing `context.Context` to `*http.Request`)\n- Changing the return type (e.g., changing `string` to `[]byte`)\n- Adding new required parameters\n- Removing or altering existing parameters\n\nAny such changes would necessitate updates in `runSearch` to ensure compatibility. If these updates are not made, calling `gen.Generate(ctx, prompt)` could result in errors or unexpected behavior [4].",
+        "generate_ms": 37082,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          4
+        ],
+        "valid_citations": 1,
+        "invalid_citations": 0
+      },
+      "embed_ms": 79,
+      "qdrant_ms": 13,
+      "total_ms": 110,
+      "top_results": [
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 0.030117754,
+          "start_line": 146,
+          "end_line": 185
+        },
+        {
+          "file_path": "internal/embedding/sparse.go",
+          "name": "stemToken",
+          "score": 0.028860029,
+          "start_line": 117,
+          "end_line": 138
+        },
+        {
+          "file_path": "internal/answer/prompt.go",
+          "name": "renderChunk",
+          "score": 0.016666668,
+          "start_line": 44,
+          "end_line": 71
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "runSearch",
+          "score": 0.016666668,
+          "start_line": 368,
+          "end_line": 416
+        },
+        {
+          "file_path": "internal/embedding/sparse.go",
+          "name": "splitOnBoundaries",
+          "score": 0.016393442,
+          "start_line": 140,
+          "end_line": 146
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "ScrollFileStates",
+          "score": 0.016393442,
+          "start_line": 474,
+          "end_line": 541
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "DeleteStaleChunksByFilePath",
+          "score": 0.016129032,
+          "start_line": 543,
+          "end_line": 569
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "name": "aggregateAnswers",
+          "score": 0.016129032,
+          "start_line": 367,
+          "end_line": 406
+        },
+        {
+          "file_path": "internal/ingest/enrichment.go",
+          "name": "chunkTypeLabel",
+          "score": 0.015873017,
+          "start_line": 37,
+          "end_line": 48
+        },
+        {
+          "file_path": "internal/embedding/sparse.go",
+          "name": "splitCamel",
+          "score": 0.015625,
+          "start_line": 165,
+          "end_line": 213
+        }
+      ]
+    },
+    {
+      "id": "change_impact_chunkfile_structural",
+      "type": "navigation",
+      "query": "what would break if I change ChunkFile's parameters",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 0.5,
+      "recall_at_10": 0.5,
+      "top_score": 0.032051284,
+      "answer": {
+        "text": "The parameters in Chunk [6] are used for BM25 ranking, which is a scoring algorithm used to rank documents in information retrieval. Changing these parameters could break the functionality of the system that relies on BM25 for ranking, as it would affect how documents are scored and ranked.\n\nSpecifically:\n- `bm25K1` controls the saturation curve of term frequency.\n- `bm25B` controls the balance between document length normalization and term frequency weighting.\n\nChanging these values could lead to different rankings, which might not be desirable if the current settings are optimal for the system's needs. For example, adjusting `bm25K1` from 0.5 to a higher or lower value could result in more or fewer documents being ranked highly, potentially affecting the relevance of search results.\n\nTherefore, changing the parameters in Chunk [6] would likely break the functionality of any part of the system that relies on BM25 for ranking, as it would alter how documents are scored and ranked.",
+        "generate_ms": 37110,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          6
+        ],
+        "valid_citations": 1,
+        "invalid_citations": 0
+      },
+      "embed_ms": 88,
+      "qdrant_ms": 12,
+      "total_ms": 111,
+      "top_results": [
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 0.032051284,
+          "start_line": 146,
+          "end_line": 185
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 0.030834913,
+          "start_line": 286,
+          "end_line": 306
+        },
+        {
+          "file_path": "internal/qdrant/client.go",
+          "name": "ScrollFileStates",
+          "score": 0.016666668,
+          "start_line": 474,
+          "end_line": 541
+        },
+        {
+          "file_path": "internal/embedding/sparse.go",
+          "name": "stemToken",
+          "score": 0.016393442,
+          "start_line": 117,
+          "end_line": 138
+        },
+        {
+          "file_path": "internal/eval/format.go",
+          "score": 0.016393442,
+          "start_line": 79,
+          "end_line": 118
+        },
+        {
+          "file_path": "internal/embedding/sparse.go",
+          "score": 0.016129032,
+          "start_line": 214,
+          "end_line": 227
+        },
+        {
+          "file_path": "internal/answer/ollama.go",
+          "score": 0.015873017,
+          "start_line": 63,
+          "end_line": 87
+        },
+        {
+          "file_path": "internal/eval/format.go",
+          "score": 0.015873017,
+          "start_line": 114,
+          "end_line": 123
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 0.015625,
+          "start_line": 181,
+          "end_line": 220
+        },
+        {
+          "file_path": "cmd/ragcodepilot/main.go",
+          "name": "resolveIndexConfig",
+          "score": 0.015625,
+          "start_line": 353,
+          "end_line": 366
+        }
+      ]
+    },
+    {
+      "id": "propagate_hit_at_5_structural",
+      "type": "navigation",
+      "query": "how does hit@5 flow from search results to the human-readable report",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.032795697,
+      "answer": {
+        "text": "The `hit@5` metric flows from search results to the human-readable report through several steps:\n\n1. **Search Execution**: The search is executed using the `Searcher.Search` method [7], which retrieves search results.\n\n2. **Result Formatting**: The retrieved search results are formatted for display using the `FormatResults` function [6]. This function iterates over each result and formats it into a human-readable string, including the file path, name, score, and content of the chunk.\n\n3. **Metric Calculation**: During the execution of the search, metrics such as `hit@5`, `MRR@5`, `recall@5`, etc., are calculated. These metrics are stored in the `Aggregate` struct [3], which is part of the `Report` structure [5].\n\n4. **Report Generation**: The `FormatHuman` function [4] generates a human-readable report from the `Report` object. It accesses the `Aggregate` struct to retrieve and display the calculated metrics, including `hit@5`.\n\nThus, the `hit@5` metric is captured during the search process, stored in the `Aggregate` struct, and then included in the final human-readable report generated by the `FormatHuman` function.",
+        "generate_ms": 46310,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "valid_citations": 5,
+        "invalid_citations": 0
+      },
+      "embed_ms": 61,
+      "qdrant_ms": 8,
+      "total_ms": 81,
+      "top_results": [
+        {
+          "file_path": "internal/eval/runner.go",
+          "score": 0.032795697,
+          "start_line": 144,
+          "end_line": 171
+        },
+        {
+          "file_path": "internal/eval/metrics.go",
+          "score": 0.032051284,
+          "start_line": 1,
+          "end_line": 22
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "score": 0.031498015,
+          "start_line": 74,
+          "end_line": 113
+        },
+        {
+          "file_path": "internal/eval/format.go",
+          "name": "FormatHuman",
+          "score": 0.030679155,
+          "start_line": 9,
+          "end_line": 48
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "score": 0.030303031,
+          "start_line": 109,
+          "end_line": 148
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "name": "FormatResults",
+          "score": 0.029051669,
+          "start_line": 145,
+          "end_line": 163
+        },
+        {
+          "file_path": "internal/search/searcher.go",
+          "name": "Search",
+          "score": 0.028949544,
+          "start_line": 70,
+          "end_line": 74
+        },
+        {
+          "file_path": "internal/eval/format.go",
+          "score": 0.028083269,
+          "start_line": 79,
+          "end_line": 118
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "score": 0.027863778,
+          "start_line": 1,
+          "end_line": 58
+        },
+        {
+          "file_path": "internal/eval/runner.go",
+          "name": "Run",
+          "score": 0.026320346,
+          "start_line": 172,
+          "end_line": 205
+        }
+      ]
+    },
+    {
+      "id": "propagate_skip_file_pattern_structural",
+      "type": "navigation",
+      "query": "how does skip_file_patterns from config.yaml affect which files get indexed",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 0.5,
+      "recall_at_10": 1,
+      "top_score": 0.033333335,
+      "answer": {
+        "text": "The `skip_file_patterns` from `config.yaml` affects which files get indexed by controlling which file names are excluded during the file walking process. This is handled in several parts of the code:\n\n1. **Default Skip File Patterns**: If no custom skip patterns are provided in the config, a default pattern (`*_test.go`) is used to exclude Go test files from indexing [1].\n\n2. **Loading Config**: The `Load` function reads the configuration file and parses it into a `Config` struct. If `skip_file_patterns` is not explicitly set (i.e., it's `nil`), it defaults to the default skip patterns [2].\n\n3. **Skipping Files During Walk**: The `WalkFiles` function uses the `ShouldSkipFile` method from the `Config` struct to determine if a file should be skipped based on its name. This method checks each configured pattern against the base name of the file using `filepath.Match`. If any pattern matches, the file is skipped [7].\n\n4. **Filtering Files**: The `filterFilesByLanguage` function in the pipeline ensures that only files matching the specified languages are considered for indexing. However, this filtering happens after the initial walk and does not affect which files are excluded based on their names.\n\nIn summary, `skip_file_patterns` from `config.yaml` directly influences which files get indexed by specifying patterns to exclude during the file walking process in `WalkFiles`. If no custom patterns are provided, a default pattern is used. This ensures that certain types of files (like Go test files) are not included in the indexing process [1-7].",
+        "generate_ms": 51885,
+        "well_formed": true,
+        "refused": false,
+        "citations": [
+          1,
+          2,
+          7
+        ],
+        "valid_citations": 3,
+        "invalid_citations": 0
+      },
+      "embed_ms": 107,
+      "qdrant_ms": 20,
+      "total_ms": 143,
+      "top_results": [
+        {
+          "file_path": "internal/config/config.go",
+          "score": 0.033333335,
+          "start_line": 1,
+          "end_line": 38
+        },
+        {
+          "file_path": "internal/config/config.go",
+          "name": "Load",
+          "score": 0.032522473,
+          "start_line": 39,
+          "end_line": 59
+        },
+        {
+          "file_path": "internal/config/config.go",
+          "name": "ShouldSkipFile",
+          "score": 0.03226646,
+          "start_line": 119,
+          "end_line": 129
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 0.030309988,
+          "start_line": 111,
+          "end_line": 150
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "name": "Run",
+          "score": 0.029469121,
+          "start_line": 76,
+          "end_line": 115
+        },
+        {
+          "file_path": "internal/eval/dataset.go",
+          "score": 0.028958334,
+          "start_line": 1,
+          "end_line": 54
+        },
+        {
+          "file_path": "internal/ingest/walker.go",
+          "name": "WalkFiles",
+          "score": 0.028782895,
+          "start_line": 15,
+          "end_line": 59
+        },
+        {
+          "file_path": "internal/ingest/pipeline.go",
+          "score": 0.028665029,
+          "start_line": 181,
+          "end_line": 220
+        },
+        {
+          "file_path": "internal/config/config.go",
+          "name": "ShouldSkipDir",
+          "score": 0.028531246,
+          "start_line": 113,
+          "end_line": 117
+        },
+        {
+          "file_path": "internal/config/config.go",
+          "name": "Default",
+          "score": 0.016129032,
+          "start_line": 61,
+          "end_line": 94
+        }
+      ]
+    }
+  ]
+}
