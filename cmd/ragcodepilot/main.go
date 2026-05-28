@@ -164,6 +164,7 @@ func main() {
 		output := fs.String("output", "human", "Output format: human, json")
 		limit := fs.Int("limit", eval.DefaultLimit, "Per-query result limit (must be >= 10 for recall@10)")
 		typeFilter := fs.String("type", "", "Filter queries by type (navigation, concept, behavior, negative)")
+		subtypeFilter := fs.String("subtype", "", "Filter queries by subtype (e.g. structural under navigation)")
 		mode := fs.String("mode", string(search.DefaultSearchMode), "Search mode: dense, sparse, hybrid")
 		qdrantHost := fs.String("qdrant-host", "localhost", "Qdrant host")
 		qdrantPort := fs.Int("qdrant-port", 6334, "Qdrant gRPC port")
@@ -204,7 +205,7 @@ func main() {
 			genName = generatorName(*generatorType, *generativeModel)
 		}
 
-		if err := runEval(*dataset, *collection, *output, *limit, *answerLimit, *typeFilter, searchMode, *qdrantHost, *qdrantPort, *embedderType, *ollamaModel, emb, gen, genName); err != nil {
+		if err := runEval(*dataset, *collection, *output, *limit, *answerLimit, *typeFilter, *subtypeFilter, searchMode, *qdrantHost, *qdrantPort, *embedderType, *ollamaModel, emb, gen, genName); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
@@ -261,6 +262,7 @@ Eval flags:
   -output string         Output format: human, json (default "human")
   -limit int             Per-query result limit (default 10)
   -type string           Filter queries by type (navigation, concept, behavior, negative)
+  -subtype string        Filter queries by subtype (e.g. structural)
   -mode string           Search mode: dense, sparse, hybrid (default "hybrid")
   -embedder string       Embedder to use: ollama, fake (default "ollama")
   -ollama-url string     Ollama server URL (default "http://localhost:11434")
@@ -438,7 +440,7 @@ func runCollectionsList(qdrantHost string, qdrantPort int) error {
 	return nil
 }
 
-func runEval(datasetPath, collection, output string, limit, answerLimit int, typeFilter string, mode search.SearchMode, qdrantHost string, qdrantPort int, embedderType, model string, embedder embedding.Embedder, gen answer.Generator, genName string) error {
+func runEval(datasetPath, collection, output string, limit, answerLimit int, typeFilter, subtypeFilter string, mode search.SearchMode, qdrantHost string, qdrantPort int, embedderType, model string, embedder embedding.Embedder, gen answer.Generator, genName string) error {
 	ctx := context.Background()
 	if limit < eval.DefaultLimit {
 		return fmt.Errorf("invalid --limit %d: must be >= %d for recall@10", limit, eval.DefaultLimit)
@@ -449,15 +451,19 @@ func runEval(datasetPath, collection, output string, limit, answerLimit int, typ
 		return err
 	}
 
-	if typeFilter != "" {
+	if typeFilter != "" || subtypeFilter != "" {
 		filtered := make([]eval.Query, 0, len(ds.Queries))
 		for _, q := range ds.Queries {
-			if string(q.Type) == typeFilter {
-				filtered = append(filtered, q)
+			if typeFilter != "" && string(q.Type) != typeFilter {
+				continue
 			}
+			if subtypeFilter != "" && q.Subtype != subtypeFilter {
+				continue
+			}
+			filtered = append(filtered, q)
 		}
 		if len(filtered) == 0 {
-			return fmt.Errorf("no queries match type %q", typeFilter)
+			return fmt.Errorf("no queries match type=%q subtype=%q", typeFilter, subtypeFilter)
 		}
 		ds.Queries = filtered
 	}

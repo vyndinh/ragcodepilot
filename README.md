@@ -28,7 +28,7 @@ Answer mode is **opt-in** — without it, the tool works as a pure code search e
 - Collection list and delete commands.
 - `config.yaml` is auto-loaded during indexing when present; built-in defaults are used only when it is absent.
 
-Hybrid search is implemented: BM25 sparse vectors (`k1=0.5`, `b=0.75`) + dense vectors + Reciprocal Rank Fusion (`--mode dense|sparse|hybrid`, default `hybrid`), with additive Snowball stemming on the BM25 path. On the Phase 2 corpus (`baseline_v4`, 350 chunks) hybrid scored `hit@5 = 0.895`, `hit@1 = 0.579`, `MRR@5 = 0.699`. After the Phase 5 code landed and the golden set grew to 23 queries, the same algorithm on the **current** corpus (`baseline_v5_pre`) scores `hit@5 = 0.789`, `hit@1 = 0.579`, `MRR@5 = 0.660` — the hit@5 dip is corpus growth (more chunks competing for the top-K), not a regression: hit@1 is unchanged. Cross-encoder reranking, the Rust AST chunker, and UX polish are tracked on the roadmap — see [`docs/plan/mvp_roadmap.md`](docs/plan/mvp_roadmap.md).
+Hybrid search is implemented: BM25 sparse vectors (`k1=0.5`, `b=0.75`) + dense vectors + Reciprocal Rank Fusion (`--mode dense|sparse|hybrid`, default `hybrid`), with additive Snowball stemming on the BM25 path. Current baseline (`baseline_v6`, 182 chunks, 23 golden queries): `hit@5 = 0.895`, `hit@1 = 0.579`, `MRR@5 = 0.673`, `recall@5 = 0.789`, `recall@10 = 0.921`. (Indexing excludes `*_test.go` by default — see [`config.yaml`](config.yaml) `skip_file_patterns`; this recovered `hit@5` from 0.789 to 0.895 by keeping test chunks out of the top-K.) Cross-encoder reranking, the Rust AST chunker, and UX polish are tracked on the roadmap — see [`docs/plan/mvp_roadmap.md`](docs/plan/mvp_roadmap.md).
 
 ## Architecture
 
@@ -248,6 +248,7 @@ docker compose down
 | `-output` | `human` | Output format: `human`, `json` |
 | `-limit` | `10` | Per-query result limit (must be ≥ 10 for recall@10) |
 | `-type` | (all) | Filter queries by type (`navigation`, `concept`, `behavior`, `negative`) |
+| `-subtype` | (all) | Filter queries by subtype (e.g. `structural` under navigation; combines with `-type` as AND) |
 | `-mode` | `hybrid` | Retrieval mode: `dense`, `sparse`, `hybrid` |
 | `-embedder` | `ollama` | Embedder to use: `ollama`, `fake` |
 | `-ollama-url` | `http://localhost:11434` | Ollama server URL |

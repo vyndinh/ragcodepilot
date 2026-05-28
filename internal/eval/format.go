@@ -30,7 +30,17 @@ func FormatHuman(r *Report) string {
 		fmt.Fprintf(&b, "  hit@3:        %.2f\n", r.Aggregate.HitAt3)
 		fmt.Fprintf(&b, "  hit@5:        %.2f\n", r.Aggregate.HitAt5)
 		fmt.Fprintf(&b, "  MRR@5:        %.2f\n", r.Aggregate.MRRAt5)
+		fmt.Fprintf(&b, "  recall@5:     %.2f\n", r.Aggregate.RecallAt5)
 		fmt.Fprintf(&b, "  recall@10:    %.2f\n", r.Aggregate.RecallAt10)
+		// Diagnostic: a large recall@10−recall@5 gap means relevant chunks are
+		// retrieved but ranked outside the top-5 → reranking has headroom. A small
+		// gap means the misses are absent from the top-10 → embedding/chunking is
+		// the floor (reranking can't surface what retrieval didn't return).
+		if gap := r.Aggregate.RecallAt10 - r.Aggregate.RecallAt5; gap >= 0.10 {
+			fmt.Fprintf(&b, "  recall gap:   %.2f (>=0.10 → reranking has headroom)\n", gap)
+		} else {
+			fmt.Fprintf(&b, "  recall gap:   %.2f (<0.10 → embedding/chunking is the floor)\n", gap)
+		}
 	}
 
 	if r.Aggregate.Negative > 0 {

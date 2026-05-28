@@ -103,6 +103,7 @@ func TestRunEvalRejectsLimitBelowDefault(t *testing.T) {
 		eval.DefaultLimit-1,
 		5, // answerLimit
 		"",
+		"", // subtypeFilter
 		search.DefaultSearchMode,
 		"localhost",
 		6334,

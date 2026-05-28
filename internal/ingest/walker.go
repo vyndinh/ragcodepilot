@@ -21,6 +21,14 @@ func WalkFiles(root string, cfg *config.Config) ([]string, error) {
 		}
 
 		if info.IsDir() {
+			// Skip hidden directories (.git, .claude, .idea, .venv, ...) — except
+			// the walk root itself, which may legitimately be a dot path. Hidden
+			// dirs hold VCS data, tooling state, and git worktrees (a full repo
+			// copy under .claude/worktrees/) that would pollute the index with
+			// duplicate chunks of the whole codebase.
+			if path != root && strings.HasPrefix(info.Name(), ".") {
+				return filepath.SkipDir
+			}
 			if cfg.ShouldSkipDir(info.Name()) {
 				return filepath.SkipDir
 			}

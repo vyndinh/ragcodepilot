@@ -39,9 +39,15 @@ type NegativeMatch struct {
 
 // Query is a single golden query with expected results.
 type Query struct {
-	ID       string        `yaml:"id"`
-	Query    string        `yaml:"query"`
-	Type     QueryType     `yaml:"type"`
+	ID    string    `yaml:"id"`
+	Query string    `yaml:"query"`
+	Type  QueryType `yaml:"type"`
+
+	// Subtype is an optional refinement of Type used for targeted eval runs
+	// (e.g. type: navigation, subtype: structural for the GraphRAG gating
+	// subset). Free-form string — no enum constraint. Empty means "no subtype."
+	Subtype string `yaml:"subtype,omitempty"`
+
 	Filters  Filters       `yaml:"filters"`
 	Expected Expected      `yaml:"expected"`
 	Negative NegativeMatch `yaml:"negative"`

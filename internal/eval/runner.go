@@ -23,6 +23,7 @@ type QueryResult struct {
 	HitAt3     bool                 `json:"hit_at_3"`
 	HitAt5     bool                 `json:"hit_at_5"`
 	MRRAt5     float64              `json:"mrr_at_5"`
+	RecallAt5  float64              `json:"recall_at_5"`
 	RecallAt10 float64              `json:"recall_at_10"`
 	TopScore   float32              `json:"top_score"`
 	Negative   *NegativeResult      `json:"negative,omitempty"`
@@ -92,6 +93,7 @@ type Aggregate struct {
 	HitAt3             float64 `json:"hit_at_3"`
 	HitAt5             float64 `json:"hit_at_5"`
 	MRRAt5             float64 `json:"mrr_at_5"`
+	RecallAt5          float64 `json:"recall_at_5"`
 	RecallAt10         float64 `json:"recall_at_10"`
 	NegativePassRate   float64 `json:"negative_pass_rate"`
 	LatencyTotalP50MS  int64   `json:"latency_total_p50_ms"`
@@ -243,6 +245,7 @@ func (r *Runner) runQuery(ctx context.Context, q Query, mode search.SearchMode) 
 	qr.HitAt3 = HitAtK(results, q.Expected, 3)
 	qr.HitAt5 = HitAtK(results, q.Expected, 5)
 	qr.MRRAt5 = MRRAtK(results, q.Expected, 5)
+	qr.RecallAt5 = RecallAtK(results, q.Expected, 5)
 	qr.RecallAt10 = RecallAtK(results, q.Expected, 10)
 	return qr
 }
@@ -295,6 +298,7 @@ func aggregate(queries []QueryResult) Aggregate {
 		hit3Sum         int
 		hit5Sum         int
 		mrrSum          float64
+		recall5Sum      float64
 		recallSum       float64
 		negPass         int
 		totalDurations  = make([]time.Duration, 0, len(queries))
@@ -331,6 +335,7 @@ func aggregate(queries []QueryResult) Aggregate {
 			hit5Sum++
 		}
 		mrrSum += q.MRRAt5
+		recall5Sum += q.RecallAt5
 		recallSum += q.RecallAt10
 	}
 
@@ -342,6 +347,7 @@ func aggregate(queries []QueryResult) Aggregate {
 		agg.HitAt3 = float64(hit3Sum) / float64(posCount)
 		agg.HitAt5 = float64(hit5Sum) / float64(posCount)
 		agg.MRRAt5 = mrrSum / float64(posCount)
+		agg.RecallAt5 = recall5Sum / float64(posCount)
 		agg.RecallAt10 = recallSum / float64(posCount)
 	}
 	if negCount > 0 {
