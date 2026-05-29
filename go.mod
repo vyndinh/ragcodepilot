@@ -8,6 +8,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
+require github.com/fsnotify/fsnotify v1.10.1
+
 require (
 	github.com/qdrant/go-client v1.18.2
 	golang.org/x/net v0.53.0 // indirect
