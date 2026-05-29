@@ -16,7 +16,7 @@ Product direction: ragcodepilot is evolving toward a full local RAG pipeline. Ph
 | 1 | Evaluation foundation | S | `hit@5` baseline metrics committed; `ragcodepilot eval` CLI works | ✅ Done |
 | 2 | Hybrid search (BM25 + dense + RRF) | L | Eval shows ≥10pp `hit@5` improvement on exact-symbol queries | ✅ Done — current baseline `baseline_v6.json`: hit@5 = 0.895, hit@1 = 0.579, MRR@5 = 0.673, recall@5 = 0.789, recall@10 = 0.921. BM25 `k1=0.5` + additive Snowball stemming; `*_test.go` excluded from indexing. See `retrieval_quality_decisions.md` §2.5 for the v4 → v6 lineage (Phase 2 corpus → Phase 5 corpus + hygiene). |
 | 5 v0 | Minimal `--answer` mode (RAG seam) | S | `ragcodepilot search --answer "q"` returns LLM answer + source chunks via local Ollama | ✅ Shipped — answer-mode dogfooding triggered `*_test.go` exclusion + GraphRAG plan |
-| 6 | **GraphRAG — structural retrieval layer** | L | `--graph` lifts `hit@5` by ≥10pp on a new `structural` query subset (top-5 inclusion for LLM context) | **▶ Next** — plan at `graphrag.md` |
+| 6 | **GraphRAG — structural retrieval layer** | L | `--graph` lifts `hit@5` on **≥60% of the named `structural` queries** (per-query gate; top-5 inclusion for LLM context), no regression >2pp elsewhere, `negative_pass_rate` stays 1.00. See `graphrag.md` Goal section for the authoritative criterion. | **▶ Next** — plan at `graphrag.md` |
 | 3 | Reranking (cross-encoder) | M | — | ⏸ **Deprioritized 2026-05-28.** Reranking only reorders within top-50; cannot add structural signal. Goal is top-5 inclusion for `--answer`, which GraphRAG attacks directly. Revisit only if GraphRAG ships and `concept`-query `hit@5` remains the bottleneck. |
 | 3.5 | Rust AST chunker | M | Rust chunker ships with per-function chunks matching the Go contract | ⏸ Deferred — split out from old Phase 3. Independent of reranking; pick up after GraphRAG if multi-language coverage becomes the binding gap. |
 | 4 | UX polish | S | JSON output mode, context-lines flag, faster startup *(detail TBD when reached)* | ⏸ Deferred (some items may be shaped by Phase 5 v0 output) |
@@ -27,7 +27,7 @@ Product direction: ragcodepilot is evolving toward a full local RAG pipeline. Ph
 
 **Honest framing of the GraphRAG-over-reranker bet.** The v6 recall gap (`recall@10 − recall@5 = 0.132`) actually *triggers* the reranker rule in `retrieval_quality_decisions.md` §2.5 (≥0.10 → reranker headroom). This pivot is **not** *"reranker can't help"* — it is a deliberate trade-off: *"structural signal pays more on navigation than reordering pays on the recall gap."* Recording the framing this way so future-us doesn't refight the decision under different evidence. Phase 3 reranking stays parked, not cancelled — revisit if it becomes the binding constraint after GraphRAG ships.
 
-**Cheaper lever evaluated — `--answer-limit`.** The hypothesis was: since `recall@10 ≫ recall@5`, raising `--answer-limit` from 5 → 8 mechanically puts the rank-6–10 chunks into the answer prompt, capturing most of the recall-gap's *RAG* value with no sidecar, no reorder, no graph build. **Eval-side A/B (2026-05-28)** ran on `baseline_v7_structural_answer_al5/al8`: Tier B shape metrics **flat** (CitedRate, AllCitationsValidRate, dangling — all unchanged), p50 generation latency **+55% (23.9s → 37.1s)**. Tier B cannot measure whether *content* improved. **The "free win" hypothesis did not validate on automated metrics.** Updated Phase 6 gate: dogfooding judgment on 3–5 multi-chunk questions at AL=5 vs AL=8 *before* any "narrow scope" verdict — see `retrieval_quality_decisions.md` §2.5 for the full A/B data and `graphrag.md` gating section for the dogfooding prerequisite.
+**Cheaper lever evaluated — `--answer-limit`.** The hypothesis (raise `--answer-limit` 5 → 8 to capture the recall gap's RAG value without a reranker or graph) did **not** validate on automated metrics — shape flat, p50 latency up ~55%, content benefit invisible to Tier B (2026-05-28). **Canonical A/B data: `retrieval_quality_decisions.md` §2.5.** Consequence for Phase 6: dogfooding judgment on 3–5 multi-chunk questions at AL=5 vs AL=8 is a prerequisite before any "narrow scope" verdict (see `graphrag.md` "Prerequisites before Step 1").
 
 ### Current product path toward full RAG
 
@@ -295,5 +295,7 @@ Explicit out-of-scope list. Each item has a trigger that should cause us to reop
 - `docs/review_feedback/system_vision_review.md` — source of the phase numbering and overall strategy.
 - `docs/review_feedback/codemaps_review.md` — why Explore Mode is deferred.
 - `docs/brainstorm/codemaps_analysis.md` — the original Explore Mode proposal (to reopen later).
+- `docs/plan/graphrag.md` — Phase 6 (GraphRAG) design doc.
+- `docs/knowledge/code_graph_retrieval_landscape.md` — industry context & prior art for Phase 6 (GraphRAG).
 - `docs/plan/rag_evaluation_metrics.md` — eval harness spec (input for Phase 1).
 - `docs/plan/checklist.md` — historical record of the original phase plan.

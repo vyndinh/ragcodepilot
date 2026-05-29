@@ -12,6 +12,7 @@
 - [`../plan/mvp_roadmap.md`](../plan/mvp_roadmap.md) — phase plan and product direction (full RAG)
 - [`../plan/hybrid_search.md`](../plan/hybrid_search.md) — current BM25 + dense + RRF design with additive stemming (`baseline_v4`)
 - [`../plan/rag_evaluation_metrics.md`](../plan/rag_evaluation_metrics.md) — eval harness spec
+- [`code_graph_retrieval_landscape.md`](code_graph_retrieval_landscape.md) — industry landscape / prior-art companion to the GraphRAG (Phase 6) decision
 - [`rag_notebook.md`](rag_notebook.md) — beginner walkthrough; §14 has current performance numbers
 
 ---
