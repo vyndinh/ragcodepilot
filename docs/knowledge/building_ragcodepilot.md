@@ -331,7 +331,9 @@ And out of that table came a tempting hypothesis. If Bucket B's chunks were sitt
 
 So that's what we tested.
 
-The result, on 2026-05-28, didn't match the prediction.
+The result, on 2026-05-28, didn't match the prediction. *(Canonical A/B data:
+`docs/knowledge/retrieval_quality_decisions.md` §2.5 — the figures below are
+illustrative for the story; that section is the source of truth.)*
 
 - **Retrieval, identical.** Same `hit@5 = 0.875` in both runs — sanity check passed.
 - **Tier B shape metrics, flat.** Cited rate, citation validity, dangling refs — all unchanged.
@@ -414,7 +416,7 @@ So the next concrete steps, in order:
 
 1. **Dogfood AL=5 vs AL=8 on 3–5 multi-chunk questions.** The eval can't tell us whether AL=8's bigger prompt actually produces better answers; a human reading both side-by-side can. If the verdict says AL=8 materially helps, raise the default and narrow Phase 6 to Bucket A. If not, leave the default at 5; Phase 6 keeps its full scope.
 2. **Phase 6 (GraphRAG)** — start with scope set by the dogfooding verdict. The plan is fully drafted at [`../plan/graphrag.md`](../plan/graphrag.md), with per-query gating and the dogfooding prerequisite baked in. Note: the AL=8 result actually *strengthens* the retrieval-side case, since a reranker or graph would land Bucket B's chunks in top-5 without the +55% latency penalty.
-3. **`index --watch`** — independent track, S–M effort. The trigger has been met for weeks (the eval cycle keeps re-indexing manually); pick it up whenever a quiet stretch allows.
+3. **`index --watch`** ✅ **shipped.** Long-running mode that uses `fsnotify` to detect file changes and re-runs the pipeline (debounced). Removes the manual `delete → index → eval` cycle that punctuated this whole project. Independent of Phase 6; ran in parallel with the dogfooding sub-step.
 
 Further out:
 

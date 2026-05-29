@@ -118,6 +118,15 @@ Index this repository (Go files only):
 go run ./cmd/ragcodepilot index --language go .
 ```
 
+Index once, then stay running and re-index on file changes (incremental):
+
+```bash
+go run ./cmd/ragcodepilot index --language go --watch .
+# Edits are detected via fsnotify; debounced and re-indexed via the same
+# pipeline. Press Ctrl-C to exit. Respects skip_dirs and skip_file_patterns
+# in config.yaml, just like a one-shot index.
+```
+
 Search indexed code:
 
 ```bash
@@ -217,6 +226,7 @@ docker compose down
 | `-embedder` | `ollama` | Embedder to use: `ollama`, `fake` |
 | `-ollama-url` | `http://localhost:11434` | Ollama server URL |
 | `-ollama-model` | `nomic-embed-text` | Ollama embedding model |
+| `-watch` | `false` | After the initial index, watch repo for changes and re-index incrementally (blocks until Ctrl-C) |
 | `-qdrant-host` | `localhost` | Qdrant host |
 | `-qdrant-port` | `6334` | Qdrant gRPC port |
 

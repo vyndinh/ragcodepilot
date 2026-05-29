@@ -107,7 +107,7 @@ file watcher (in daemon) → change queue → background re-index → next searc
 
 This is what the original proposal had in mind. It works, but it requires the entire daemon scaffolding (§1.3).
 
-### 3.2 The simpler answer: `index --watch`
+### 3.2 The simpler answer: `index --watch` ✅ shipped
 
 A single long-running mode of the existing CLI:
 
@@ -139,7 +139,7 @@ Properties:
 
 | Item | Estimate | Notes |
 |---|---|---|
-| `index --watch` MVP | **S–M** | `fsnotify`, debounce, chunk-level upsert/delete on file change. |
+| `index --watch` MVP | **S–M** ✅ shipped | `fsnotify`, debounce (500 ms default), each fire calls `Pipeline.Run` so hash-based per-file skip + corpus-wide IDF stay consistent. Tests in `internal/ingest/watcher_test.go`. |
 | Per-file incremental re-index | S (already partially there) | Existing pipeline handles per-file upserts; needs delete-on-removed-file. |
 | Daemon equivalent | **L** | Plus IPC, lifecycle, versioning, OS integration. |
 
