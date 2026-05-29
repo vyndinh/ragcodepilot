@@ -214,96 +214,110 @@ No streaming, no citation validation, no faithfulness checks. The point wasn't t
 
 ## Phase 5 v0 — what dogfooding changed mid-stream
 
-The plan said: *ship the minimal version, dogfood for a week, decide what to build next.* That happened — but during the dogfooding, three things slipped from "v1 maybe" into "v0 must," because the eval and the experience demanded them.
+Plans for minimal versions love the phrase "v1 maybe." Real use has a way of dragging those things back into v0.
 
-**Auto-warming.** The first `--answer` call took 30+ seconds. Not generation — model loading. Ollama loads the model into RAM on first request; if it's been idle long enough, it unloads. With `stream:false`, the HTTP client timeout has to cover the entire generation, model-load included. The fix wasn't a longer timeout — it was an *optional interface*: `Warmer` with a `Warmup(ctx)` method that `OllamaGenerator` implements and `FakeGenerator` doesn't. The CLI does a type assertion: warm if it can, skip if it can't. Combined with `OLLAMA_KEEP_ALIVE=-1` (documented in the README), subsequent calls hit a warm model and complete in 5–15 seconds.
+Three of them did.
 
-**Greedy decoding.** Default Ollama sampling (temperature ~0.8) produced different answers run-to-run for the same prompt. The eval couldn't be reproducible. The fix: set `temperature: 0` and a fixed `seed`. Generation is now deterministic given a fixed prompt and model. Side benefit — greedy decoding tends to be more grounded, less prone to invention.
+**The model wouldn't warm up.** The first `--answer` call took 30 seconds. You sat there, watching the cursor blink. None of that time was generation — it was the model paging back into memory. Ollama unloads idle models; on a cold start the LLM had to be loaded before a single token came out. With `stream: false` the HTTP client's clock kept ticking the whole time, and the 60-second timeout barely held.
 
-**`--answer-limit`.** The eval forces `--limit ≥ 10` for `recall@10`, but the product shipped `--limit 5` by default. That meant the eval was scoring answers built from 10 chunks while users got 5 — measuring a configuration nobody ran. The fix: decouple them. `--limit` controls the retrieval window; `--answer-limit` (default 5) controls how many of those chunks the generator sees. The eval keeps its top-10 view for recall metrics while the answer reflects the shipped product.
+A longer timeout would have hidden the problem. The right fix was an *optional interface*: `Warmer`, with a single `Warmup(ctx)` method that the CLI could type-assert and call before the timed generation. `OllamaGenerator` implements it; `FakeGenerator` doesn't have to. Combined with one line in the README — `OLLAMA_KEEP_ALIVE=-1` — the second call onward hit a warm model and finished in 5–15 seconds. Cold start became something you paid once per session, on purpose, instead of something that ambushed every demo.
 
-Three small changes, each driven by something the metric or the experience surfaced. None were in the original v0 plan.
+**The answers wouldn't sit still.** Same question, same chunks, same model — and yet the answer drifted from run to run. The cause was Ollama's default sampling: temperature around 0.8, designed to feel "creative." Useful for a chatbot, fatal for an eval that needed to compare runs. The fix was a one-line change to the request body: `temperature: 0`, fixed `seed`. Greedy decoding. Boring, reproducible, and — as a quiet side benefit — noticeably less prone to invention.
+
+**The eval and the product disagreed on how many chunks to feed.** The eval forces `--limit ≥ 10` because that's what `recall@10` needs. The product shipped with `--limit 5` by default. So every eval run was scoring answers built from 10 chunks while real users got 5 — measuring a configuration nobody actually ran. The fix was to decouple them. `--limit` controls *retrieval* (how deep we look). `--answer-limit` (default 5) controls *prompt* (how many of those chunks the generator sees). The eval keeps its deep window for recall metrics; the answer reflects the shipped product.
+
+Three small changes. None of them were on the v0 plan. Each one landed because dogfooding made the thing it was solving impossible to ignore.
 
 ---
 
 ## The Tier B insight — verify before fixing
 
-A new eval mode landed: `eval --answer`. It runs the normal retrieval eval, then for every query also runs the generator and scores the answer with three deterministic, reference-free metrics:
+A new eval mode shipped: `eval --answer`. It runs the usual retrieval eval, then for every query also runs the generator and scores the answer on three deterministic, reference-free checks — well-formed (non-empty), citations valid (every `[N]` resolves to a chunk that was actually in the prompt), and refusal-on-negative (for unanswerable questions, did the model say "I don't have enough information" instead of inventing one).
 
-- **Well-formedness** — the answer is non-empty.
-- **Citation validity** — every `[N]` reference parses, and `1 ≤ N ≤ chunks_in_prompt`.
-- **Refusal-on-negative** — for negative queries (questions the corpus can't answer), did the model say "I don't have enough information" rather than invent one?
+The first run printed a number that stopped us cold: **refusal rate on negatives = 0.50.**
 
-The first run set off an alarm: refusal rate on negatives was **0.50** — half the unanswerable questions got confident answers. That looked like a real hallucination problem worth a low-confidence guardrail.
+Half the unanswerable questions had gotten confident answers. That's a hallucination-floor breach — the kind of signal that justifies pulling forward a low-confidence guardrail, maybe a faithfulness check, possibly a re-think of the prompt itself.
 
-But before fixing anything, the next step was just to read the actual answer text. Dumped them. All four negatives had refused — in prose. Two used wording the heuristic caught ("does not contain"), two used wording it didn't ("is not implemented in the provided code chunks"). The model was behaving well; the *measurement* was undercounting.
+Before doing any of that, the next step was just to read the actual answers.
 
-Fix: widen the phrase markers. Refusal rate went to 1.00. No model change, no guardrail, no v1 feature pulled forward — just a corrected metric.
+All four refused. *In prose.* Two used wording the heuristic caught ("does not contain"). Two used wording it didn't ("is not implemented in the provided code chunks"). The model was behaving correctly. It was the *measurement* that was undercounting.
 
-The lesson became a rule worth following: a metric is a measurement, not ground truth. The instinct to fix what the number says is broken is wrong when the number itself is wrong. **Read the raw output before fixing anything.**
+The fix was a one-line widening of the refusal-phrase list. Refusal rate jumped to 1.00. No prompt change. No guardrail. No v1 feature pulled forward. Just a metric that now matched reality.
+
+A small alarm, a smaller fix, and a rule worth carrying forward: a metric is a *measurement*, not the ground truth. The instinct to fix what a number says is broken is exactly wrong when the number itself is the bug. **Always read the raw output before changing the system to chase a number.**
 
 ---
 
 ## Test files are not neutral
 
-Negative queries are the eval's hallucination floor — if the model invents an answer to "where is the OAuth middleware?", that's a real failure. So when one of those queries returned a *citation* to `internal/eval/dataset_test.go`, that needed explaining.
+Negative queries are the eval's hallucination floor. If the model invents an answer to *"where is the OAuth middleware?"* — and this project has no OAuth — that's a real failure to catch. So when one of those queries came back with a citation pointing inside `internal/eval/dataset_test.go`, the answer needed an explanation, fast.
 
-The answer was simple and slightly embarrassing: `dataset_test.go` contains the literal string `oauth_middleware` as a fixture for the eval's own test. By indexing `*_test.go` files, the eval was leaking its own answer key into search results — the model was reading the test that defined the negative case.
+The explanation was simple and slightly humiliating: `dataset_test.go` contains the literal string `oauth_middleware` as a test fixture — the negative query is *defined right there in code*. By indexing `*_test.go` files, the eval had been quietly leaking its own answer key into search results. The model wasn't hallucinating; it was reading the test that defined the negative case.
 
-Fix: skip `*_test.go` by default. Configurable via `skip_file_patterns` in `config.yaml`; an explicit empty list (`[]`) disables the skip for users who want everything indexed.
+The fix was a config switch. `skip_file_patterns` in `config.yaml` defaults to `["*_test.go"]`. An explicit empty list (`[]`) is the escape hatch for anyone who actually wants test code indexed.
 
-The re-baseline after this fix surfaced something else. Re-indexing also walked into `.claude/worktrees/`, a git worktree directory left over from a previous subtask. That meant a *second copy of the entire codebase* was being indexed — every chunk had a duplicate. Hit@1 dropped 10pp from the duplicate competition; failures suddenly showed top-1 results inside the worktree's path.
+The re-baseline that followed exposed a second silent failure. Re-indexing walked into `.claude/worktrees/` — a git worktree left over from an earlier subtask. That meant a *full second copy* of the codebase was being indexed alongside the real one. Every chunk had a doppelgänger. Hit@1 dropped 10 percentage points from the duplicates competing with their originals, and failure top-1s suddenly came from inside the worktree's path.
 
-Fix: skip hidden directories by default. The same rule `git` and `rg` use — descend into source dirs, not VCS or tooling state.
+The fix was another default: skip hidden directories. The same convention `git` and `rg` use — descend into source dirs, leave VCS and tooling state alone.
 
-Two defaults — exclude test files, exclude hidden directories — that together took the eval back to honest numbers. Both were silent failures: the eval still ran, the metrics still printed, they just measured a corpus the user didn't have in mind.
+Two defaults, both shipped together, both correcting failures that had been invisible up to that point. The eval had run the whole time. The metrics had printed. They had just been measuring a corpus nobody had asked for.
 
 ---
 
 ## Corpus drift — the silent regression
 
-A baseline isn't an algorithm score. It's an algorithm score *against a specific corpus.* This sounds obvious but it bites in practice.
+After Phase 5 v0 shipped, we re-ran the eval on a freshly-indexed repo, expecting the same `hit@5 = 0.895` that had closed out Phase 2.
 
-After Phase 5 v0 shipped, the eval was re-run on the freshly-indexed repo. Hit@5 dropped from 0.895 to 0.789. No algorithm change.
+What came back was **0.789.**
 
-The cause was the project itself: the Phase 5 code (`internal/answer`, the new `internal/eval` files) had been added to the corpus. New chunks competed for top-K slots. `hasher_concept` (a query that had been carefully recovered by Snowball stemming in Phase 2) failed again — not because stemming stopped working, but because new hash-adjacent code now ranked higher. Pure corpus drift.
+Nothing about the algorithm had changed. BM25, stemming, RRF — all identical. The only thing different was the *codebase being indexed*. Phase 5 had added a whole new package (`internal/answer`) and extended a few others. Those new files became new chunks. The new chunks competed with the old ones for top-K slots. Familiar queries started losing them.
 
-The recovery came from the test-file hygiene above. `*_test.go` exclusion shed about a third of the chunks. Hit@5 returned to 0.895 on the cleaner corpus.
+`hasher_concept` was the most jarring example. That query — *"how are file hashes computed for re-indexing"* — had been carefully recovered by the Snowball stemming work back in Phase 2. It had been a clean win, the kind of fix you stop worrying about. Now it was failing again. Not because stemming had broken. Because new hash-adjacent code now ranked higher.
 
-The rule that came out of this: **the corpus is part of the experiment.** Before declaring "the new reranker added 5pp" or "stemming regressed," re-baseline on the current corpus. Otherwise the change-under-test is conflated with the change-in-inputs, and the conclusion is meaningless.
+The recovery came from the test-file hygiene above. Excluding `*_test.go` shed about a third of the chunks, and hit@5 returned to 0.895 on the cleaner corpus.
+
+The rule that came out of this episode: **a baseline isn't an algorithm score. It's an algorithm score against a specific corpus.** Before declaring "the new reranker added 5pp" or "stemming regressed," re-baseline on the current corpus. Otherwise the change you tested and the change you measured aren't the same change, and the conclusion is meaningless.
 
 ---
 
 ## The recall gap — a new diagnostic
 
-A new line in the eval report: `recall gap = recall@10 − recall@5`. One number that tells you which retrieval investment will help next.
+Choosing between two unbuilt features is hard. Choosing while staring at a single `hit@5` number is mostly guessing.
 
-- **Gap ≥ 0.10** — relevant chunks *are* retrieved (they're in top-10) but ranked outside top-5. Reranking has headroom to lift them.
-- **Gap < 0.10** — relevant chunks aren't being retrieved at all. Embedding or chunking is the floor; reranking can't surface what retrieval didn't return.
+The decision in front of us was reranker vs GraphRAG. Reranking would only pay off if relevant chunks were actually being *retrieved* but ranked too low — outside the top-5 we feed the LLM. If those chunks were missing from the top-10 entirely, no amount of reordering would surface them, and reranking would be effort spent on the wrong floor. GraphRAG made the opposite bet. We needed a quick way to tell which world we lived in.
 
-The diagnostic prints automatically alongside hit@k and MRR@5. It started as a hand-rolled calculation that informed the GraphRAG-vs-reranker decision below; making it a permanent report line means future retrieval choices don't have to re-derive the same logic from raw numbers.
+The check was already implied by two numbers we already had: `recall@5` and `recall@10`. Their *difference* tells the story.
 
-A subtle point: this metric isn't about answer quality directly — it's a *forecast tool*. It tells you whether the next experiment is worth running before you build it.
+- A **wide gap** (`recall@10 − recall@5 ≥ 0.10`) means the right chunks are getting retrieved but ranking outside top-5. **Reranking has headroom.**
+- A **narrow gap** (`< 0.10`) means the right chunks aren't being retrieved at all. **Embedding or chunking is the floor; reranking can't help.**
+
+One number, one decision. We made it a permanent line in the eval report — `recall gap = X.XX (≥0.10 → reranker headroom)` — so future choices don't have to re-derive the logic from raw metrics every time.
+
+A subtle but useful framing: this number doesn't measure answer quality. It's a *forecast tool*. It tells you whether the next experiment is worth running before you build it.
 
 ---
 
 ## Phase 6 — GraphRAG, and a deliberate bet
 
-With retrieval back at hit@5 ≈ 0.89, the next bottleneck appeared. Navigation queries — "where is X defined", "what calls Y" — were the only type still below 1.0 on hit@5. These are *structural* questions, not similarity ones. The answer lives in the edges between chunks, not in the chunks themselves.
+By the time `hit@5` was back at 0.89, the eval was pointing at one weak spot. Navigation queries were the only category still below 1.0, and not by accident.
 
-The original roadmap had Phase 3 = cross-encoder reranking next. But reranking only reorders what hybrid already retrieved — it can't add a signal that doesn't exist in the embedding/BM25 space. "What calls X" isn't a semantic-similarity problem; if the caller never names the callee's purpose, no amount of reranking helps.
+*"Where is X defined."* *"What calls Y."* *"What would break if I change Z."*
 
-So the next phase pivoted: **GraphRAG** — a graph layer over the code structure with edges for `defines`, `calls`, and `imports`, populated by a Go AST pass at ingestion time and stored in local SQLite. At search time, expand from hybrid's top-50 seeds via 1–2 hop neighbors and rescore.
+These aren't similarity questions. The answer lives in the *edges* between chunks — definitions, callers, imports — not in the chunks themselves. Pure vector + BM25 retrieval is built for similarity, and similarity isn't what's missing.
 
-To validate this gamble, the golden set grew by 16 hand-curated structural queries: "what calls `Pipeline.Run`", "trace from `runSearch` to `qdrant.Client.Search`", "what would break if I change `Embedder.Embed`'s signature." The eval doubled its navigation count and gained two new sub-patterns: traces and change-impact.
+The original roadmap had Phase 3 = cross-encoder reranking next. We almost built it. Then we asked one more question: even if a reranker did a perfect job, could it surface a "what calls X" answer if the caller never lexically named X? It couldn't. Reranking can only reorder what hybrid already retrieved.
 
-The hybrid baseline on the structural subset (`baseline_v7_structural.json`):
+So the next phase pivoted: **GraphRAG.** A graph layer over the codebase, with edges for `defines`, `calls`, and `imports`, populated by a Go AST pass at index time, stored in local SQLite. At query time, hybrid still picks the top-50 seeds. Then we expand — 1–2 hops along the graph — re-score, and return.
+
+To even test this, the eval needed structural queries it didn't have. So the golden set grew by 16 hand-curated multi-hop questions: *"what calls `Pipeline.Run`"*, *"trace from `runSearch` to `qdrant.Client.Search`"*, *"what would break if I change `Embedder.Embed`'s signature."* The eval doubled its navigation count and gained two new patterns: traces and change-impact.
+
+The hybrid baseline on this new subset (`baseline_v7_structural.json`):
 
 - hit@5 = 0.875 (14 of 16 pass)
 - recall@5 = 0.60, recall@10 = 0.75
-- **recall gap = 0.15** — well above the reranker-headroom threshold
+- **recall gap = 0.15** — comfortably above the reranker-headroom threshold
 
-This is where the decision got honest. The recall gap triggers the reranker rule by the standing diagnostic. So the choice "GraphRAG over reranker" can't honestly be framed as "reranker can't help" — it has to be framed as a **deliberate bet**: *structural signal will pay more on these queries than reordering pays on the gap.* Phase 3 reranking is parked, not cancelled; the data justifies it on the gap alone, but the bet says GraphRAG will help more on the specific structural failures.
+This is where things got honest. The recall gap triggers the reranker rule by our own standing diagnostic. So "GraphRAG over reranker" couldn't be sold as *"reranker can't help."* It had to be sold as a **deliberate bet**: structural signal would pay more on these queries than reordering would pay on the gap. Phase 3 reranking is parked, not cancelled; the data justifies it on the gap alone, but the bet says GraphRAG will help more on the *specific* structural failures.
 
 Per-query analysis split the 16 structural queries into three buckets:
 
@@ -313,21 +327,23 @@ Per-query analysis split the 16 structural queries into three buckets:
 | **B** — partial recall (chunk in top-10, not top-5) | 7 | reranker-shaped | reranker OR cheaper: raise `--answer-limit` |
 | **C** — fully resolved | 7 | hybrid is enough | none |
 
-The hypothesis from this split was: **`--answer-limit 8` should help 7 of 16 structural queries for free.** No graph store, no reranker, no new infrastructure — just bigger answer context, since `recall@10 ≫ recall@5` for those queries. If raising the limit closed Bucket B, GraphRAG's unique scope would narrow to Bucket A (2 queries).
+And out of that table came a tempting hypothesis. If Bucket B's chunks were sitting at rank 6–10, why not just *feed more chunks to the LLM* — raise `--answer-limit` from 5 to 8 — and let the model see them directly? No graph. No reranker. No new infrastructure. A free win, on paper.
 
-So the gating sequence began with that A/B (2026-05-28). What it found is worth recording, because the result was different from the prediction:
+So that's what we tested.
 
-- **Retrieval (identical, sanity).** AL=5 vs AL=8 hit@5 = 0.875 either way.
-- **Tier B answer shape — flat.** CitedRate 0.938 both runs (one uncited query each, different queries), AllCitationsValidRate 1.00 both, zero dangling refs in either.
-- **Latency — significantly worse.** p50 generation 23.9s → 37.1s (**+55%**), total wall-clock +31%. Every query in the structural subset got slower at AL=8.
+The result, on 2026-05-28, didn't match the prediction.
 
-The retrieval logic was right — those rank-6–10 chunks *are* in the prompt at AL=8 — but the prediction that *answer-shape metrics would lift* didn't hold. And Tier B can't see whether the *content* of the answer improved; that's a correctness question requiring either dogfooding judgment or a Tier C faithfulness judge.
+- **Retrieval, identical.** Same `hit@5 = 0.875` in both runs — sanity check passed.
+- **Tier B shape metrics, flat.** Cited rate, citation validity, dangling refs — all unchanged.
+- **Latency, +55% at p50.** From 23.9s to 37.1s per answer. Total wall-clock +31%.
 
-So the gate moved: the bucket reasoning's "free win" is **inconclusive on automated metrics**, with a real latency cost on top. The next step isn't an eval run — it's a side-by-side dogfooding pass on multi-chunk questions, reading AL=5 and AL=8 answers and judging which is more complete or correct.
+The retrieval logic was right. The rank-6–10 chunks *were* in the prompt at AL=8. But the prediction that Tier B's *shape* metrics would lift didn't hold — and Tier B can't see whether the answer's *content* improved. That's a correctness question. Answering it needs either dogfooding judgment or a Tier C faithfulness judge.
 
-Subtler implication for Phase 6: a true retrieval-side fix (reranker or graph) would put Bucket B's chunks *into top-5*, so the LLM gets them at AL=5 — same prompt content, *without* the +55% latency. The eval-side AL=8 finding therefore strengthens the case for an actual retrieval fix, not weakens it.
+So the gate moved. The cheap lever's "free win" turned out to be inconclusive on automated metrics, with a real latency cost on top. The next step isn't another eval run; it's a side-by-side dogfooding pass — read AL=5 and AL=8 answers on the same multi-chunk questions, judge by hand which is more complete.
 
-Phase 6 stays designed and gated, with the gate updated: dogfood AL=5 vs AL=8, then decide whether to ship GraphRAG, narrow it, or accept the 2 hard fails. Phase 2 was "build it and measure"; Phase 6 is "measure first, then re-measure with humans, then decide."
+And there's a subtler implication for Phase 6 hiding in this result. A true retrieval-side fix — reranker or graph — puts Bucket B's chunks *into top-5*. The LLM sees them at AL=5. Same prompt content, *without* the +55% latency. So the AL=8 finding doesn't weaken the case for Phase 6. It strengthens it.
+
+Phase 6 stays designed, stays gated, and waits on dogfooding. Phase 2 was *"build it and measure."* Phase 6 is *"measure first, re-measure with humans, then decide whether to build."*
 
 ---
 
@@ -380,7 +396,7 @@ Looking back, a few choices mattered more than the code:
 
 **"The corpus is part of the experiment"** is the rule that came out of corpus drift. A baseline isn't an algorithm score; it's an algorithm score against a specific corpus. Before declaring a regression or a win, re-baseline on the corpus you're actually testing on. Otherwise the change-under-test is conflated with the change-in-inputs and the conclusion is meaningless.
 
-**"Choose levers in cost order"** is the rule that came out of the Bucket A/B/C analysis. When the data shows two ways to fix the same problem — one cheap, one expensive — try the cheap one first, even if it sounds less interesting. The expensive one's scope often narrows after the cheap one ships.
+**"Choose levers in cost order"** is the rule that came out of the Bucket A/B/C analysis and the AL=8 A/B. When the data shows two ways to fix the same problem — one cheap, one expensive — try the cheap one first, even if it sounds less interesting. Sometimes the cheap lever's outcome narrows the expensive scope; sometimes it leaves the question open or even *strengthens* the case for the expensive one (the `--answer-limit 8` A/B did the latter — Tier B couldn't see content benefits, latency rose +55%, and a true retrieval-side fix would deliver the same prompt without the cost). Either way, you've learned cheaper than the alternative.
 
 ---
 
