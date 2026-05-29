@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
 
 	"github.com/dinhvy/ragcodepilot/internal/answer"
@@ -38,6 +39,7 @@ func main() {
 		embedderType := fs.String("embedder", "ollama", "Embedder to use: ollama, fake")
 		ollamaURL := fs.String("ollama-url", "http://localhost:11434", "Ollama server URL")
 		ollamaModel := fs.String("ollama-model", "nomic-embed-text", "Ollama embedding model")
+		watch := fs.Bool("watch", false, "After the initial index, watch for file changes and incrementally re-index (blocks until Ctrl-C)")
 		_ = fs.Parse(os.Args[2:])
 
 		if fs.NArg() < 1 {
@@ -55,7 +57,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		if err := runIndex(repoPath, *collection, languages, *qdrantHost, *qdrantPort, emb); err != nil {
+		if err := runIndex(repoPath, *collection, languages, *qdrantHost, *qdrantPort, emb, *watch); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
@@ -237,6 +239,7 @@ Index flags:
   -embedder string       Embedder to use: ollama, fake (default "ollama")
   -ollama-url string     Ollama server URL (default "http://localhost:11434")
   -ollama-model string   Ollama embedding model (default "nomic-embed-text")
+  -watch                 After initial index, watch repo for changes and re-index (blocks until Ctrl-C)
   -qdrant-host string    Qdrant host (default "localhost")
   -qdrant-port int       Qdrant gRPC port (default 6334)
 
@@ -330,8 +333,11 @@ func generatorName(generatorType, generativeModel string) string {
 	return generatorType
 }
 
-func runIndex(repoPath, collection string, languages []string, qdrantHost string, qdrantPort int, embedder embedding.Embedder) error {
-	ctx := context.Background()
+func runIndex(repoPath, collection string, languages []string, qdrantHost string, qdrantPort int, embedder embedding.Embedder, watch bool) error {
+	// Use a cancellable context. In watch mode, Ctrl-C cancels it cleanly.
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
 	cfg, err := resolveIndexConfig()
 	if err != nil {
 		return err
@@ -349,7 +355,23 @@ func runIndex(repoPath, collection string, languages []string, qdrantHost string
 		fmt.Printf("Filtering to languages: %s\n", strings.Join(languages, ", "))
 	}
 
-	return pipeline.Run(ctx, repoPath)
+	// Initial index — same behavior whether --watch is set or not.
+	if err := pipeline.Run(ctx, repoPath); err != nil {
+		return err
+	}
+
+	if !watch {
+		return nil
+	}
+
+	// Watch mode: register fsnotify watchers and re-run the pipeline on changes.
+	// The watcher uses the same cfg (skip_dirs, skip_file_patterns) as the
+	// initial walk, so test files and hidden dirs stay excluded.
+	watcher, err := ingest.NewWatcher(pipeline, cfg, repoPath)
+	if err != nil {
+		return fmt.Errorf("creating watcher: %w", err)
+	}
+	return watcher.Watch(ctx)
 }
 
 func resolveIndexConfig() (*config.Config, error) {
