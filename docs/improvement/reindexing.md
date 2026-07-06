@@ -8,9 +8,18 @@ Without change detection, every `ragcodepilot index` run re-processes **all** fi
 2. **Stale data** — deleted or renamed files leave orphaned points in Qdrant
 3. **Slow re-indexing** — embedding is the bottleneck (~50ms per chunk); skipping unchanged files saves minutes on large repos
 
-## Solution: SHA-256 File Hashing
+## Solution: SHA-256 File Hashing + Index Version
 
-Each chunk stored in Qdrant now carries a `file_hash` payload — the SHA-256 hex digest of its source file content at indexing time. On re-index, the pipeline compares on-disk hashes with stored hashes to classify every file.
+Each chunk stored in Qdrant carries two change-detection payload fields:
+
+- `file_hash` — the SHA-256 hex digest of its source file content at indexing time.
+- `index_version` — the retrieval-representation version the chunk was indexed
+  with (a constant bumped when tokenization or sparse weighting changes, e.g. a
+  new stemmer). This catches the case file hashing cannot: the file is
+  unchanged but the *pipeline's output* for it would now differ.
+
+On re-index, the pipeline compares on-disk hashes (and the current index
+version) with the stored values to classify every file.
 
 ## Architecture
 
@@ -22,16 +31,17 @@ Each chunk stored in Qdrant now carries a `file_hash` payload — the SHA-256 he
 │                                                                 │
 │  1. Walk source files                                           │
 │  2. Hash every file on disk (SHA-256)                           │
-│  3. Scroll Qdrant for existing {file_path → file_hash} pairs    │
+│  3. Scroll Qdrant for existing {file_path → (hash, version)}    │
 │  4. Classify each file:                                         │
-│       ┌───────────┬──────────────────────────────────────────┐  │
-│       │ Category  │ Condition                                │  │
-│       ├───────────┼──────────────────────────────────────────┤  │
-│       │ Unchanged │ file exists in Qdrant, hash matches      │  │
-│       │ Changed   │ file exists in Qdrant, hash differs      │  │
-│       │ New       │ file on disk, not in Qdrant              │  │
-│       │ Stale     │ file in Qdrant, not on disk              │  │
-│       └───────────┴──────────────────────────────────────────┘  │
+│       ┌────────────────┬─────────────────────────────────────┐  │
+│       │ Category       │ Condition                           │  │
+│       ├────────────────┼─────────────────────────────────────┤  │
+│       │ Unchanged      │ in Qdrant, hash AND version match   │  │
+│       │ Changed        │ in Qdrant, hash differs             │  │
+│       │ Version refresh│ hash matches, index_version differs │  │
+│       │ New            │ on disk, not in Qdrant              │  │
+│       │ Stale          │ in Qdrant, not on disk              │  │
+│       └────────────────┴─────────────────────────────────────┘  │
 │  5. Delete stale files (no replacement coming)                  │
 │  6. If nothing to index AND no stale deletions → stop early      │
 │  7. Chunk ALL current files (IDF must be corpus-wide)            │
@@ -88,16 +98,16 @@ Every point upserted to Qdrant now includes `file_hash` in its payload alongside
 
 This field is not payload-indexed (not in `ensurePayloadIndexes`) — it's only read during scroll for change detection and used as a `MustNot` filter in `DeleteStaleChunksByFilePath`.
 
-### Scrolling existing hashes (`ScrollFileHashes`)
+### Scrolling existing file states (`ScrollFileStates`)
 
 ```
-ScrollFileHashes(collection, repo, languages[]) → { file_path → file_hash }
+ScrollFileStates(collection, repo, languages[]) → { file_path → {file_hash, index_version} }
 
   if collection does not exist → return empty map
   scroll all points WHERE repo = repoName (AND language IN languages, if provided)
-    requesting only file_path and file_hash fields
-  deduplicate by file_path (multiple chunks share the same hash)
-  return { file_path → file_hash }
+    requesting only file_path, file_hash, index_version fields
+  deduplicate by file_path (multiple chunks share the same hash/version)
+  return { file_path → {file_hash, index_version} }
 ```
 
 The `languages` parameter is critical: without it, a `--language go` re-index would see Python points, classify them as stale, and delete them.
@@ -110,16 +120,19 @@ The pipeline converts absolute disk paths to relative paths (matching what's sto
 for each file on disk:
     rel_path = relative_path(file)
     disk_hash = sha256(file)
-    existing_hash = existing_hashes[rel_path]
+    state = existing_states[rel_path]        # {file_hash, index_version} or absent
 
-    if existing_hash exists AND existing_hash == disk_hash:
-        → UNCHANGED — skip (no embed, no upsert)
-    else if existing_hash exists AND existing_hash != disk_hash:
-        → CHANGED — mark for delete + re-index
+    if state exists AND state.file_hash == disk_hash
+                    AND state.index_version == CURRENT_INDEX_VERSION:
+        → UNCHANGED — skip
+    else if state exists AND state.file_hash != disk_hash:
+        → CHANGED — mark for re-index + post-upsert cleanup of old-hash chunks
+    else if state exists:                    # hash matches, version stale
+        → VERSION REFRESH — mark for re-index
     else:
         → NEW — mark for index
 
-for each file in existing_hashes:
+for each file in existing_states:
     if file not on disk:
         → STALE — mark for delete
 ```
@@ -155,7 +168,7 @@ DeleteStaleChunksByFilePath(collection, repo, file_path, current_hash):
 
 ```
 Found 50 source files in ragcodepilot
-Change detection: 42 unchanged, 3 changed, 5 new, 2 stale
+Change detection: 42 unchanged, 3 changed, 5 new, 2 stale, 0 index-version refresh
 Deleted points for 2 stale files
 Generated 300 chunks from 50 files
 Detected vector dimension: 768
@@ -169,11 +182,22 @@ Successfully indexed 300 chunks into collection "code_chunks"
 
 Note: even though only 8 files changed, all 50 are re-chunked and re-embedded because IDF must be corpus-wide.
 
+> ⚠️ **Known limitation — re-index cost is not proportional to the diff.**
+> Because BM25 IDF is corpus-wide, *any* change currently triggers a full
+> re-chunk **and full re-embed** of every current file; change detection only
+> avoids work when nothing changed at all. Dense embeddings do not depend on
+> IDF, so re-embedding unchanged chunks through Ollama is avoidable waste —
+> the fix (embed only changed files; rebuild sparse vectors locally for
+> unchanged chunks and update only the sparse named vector in Qdrant) is
+> specified in
+> [`production_readiness_and_features.md`](production_readiness_and_features.md) §1.1.
+> This must land before large corpora or heavy `--watch` use.
+
 When everything is up to date:
 
 ```
 Found 50 source files in ragcodepilot
-Change detection: 50 unchanged, 0 changed, 0 new, 0 stale
+Change detection: 50 unchanged, 0 changed, 0 new, 0 stale, 0 index-version refresh
 Everything up to date — nothing to index
 ```
 
@@ -181,7 +205,7 @@ When only stale files are cleaned up (no current files to index):
 
 ```
 Found 0 source files in ragcodepilot
-Change detection: 0 unchanged, 0 changed, 0 new, 2 stale
+Change detection: 0 unchanged, 0 changed, 0 new, 2 stale, 0 index-version refresh
 Deleted points for 2 stale files
 Cleaned up stale files — no current source files to index
 ```
@@ -193,7 +217,7 @@ Cleaned up stale files — no current source files to index
 | `internal/model/chunk.go` | `FileHash` field added to `CodeChunk` |
 | `internal/ingest/hasher.go` | `HashFile`, `HashFiles` — SHA-256 file hashing |
 | `internal/ingest/pipeline.go` | `Run()` with change detection, corpus-wide IDF, and late deletion |
-| `internal/qdrant/client.go` | `ScrollFileHashes`, `DeleteByFilePaths`, `DeleteStaleChunksByFilePath`, `file_hash` in payload |
+| `internal/qdrant/client.go` | `ScrollFileStates`, `DeleteByFilePaths`, `DeleteStaleChunksByFilePath`, `file_hash` + `index_version` in payload |
 
 ## Design Decisions
 
