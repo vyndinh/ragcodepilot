@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ragcodepilot — Local RAG Code Search &amp; Generation</title>
+  <meta name="description" content="Interactive visual architecture, RAG playground simulator, and retrieval evaluation scoreboard for ragcodepilot — a local semantic code search CLI written in Go.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="ragcodepilot — Local RAG Code Search &amp; Generation">
+  <meta property="og:description" content="Search your codebase using plain English from the terminal: Go AST chunking, Ollama embeddings, hybrid BM25 + dense RRF retrieval in Qdrant, and grounded answers with citations.">
+  <meta property="og:url" content="https://thuyvy3110.github.io/ragcodepilot/">
+  <meta name="twitter:card" content="summary">
+
+  <!-- Fonts are self-hosted in fonts/ (variable woff2, latin subset) — no external requests -->
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%23ffde59%22 stroke=%22%23000%22 stroke-width=%228%22/><text y=%22.9em%22 x=%22.18em%22 font-size=%2275%22 font-weight=%22900%22 fill=%22black%22>⚡</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top Architecture Matrix Bar -->
+  <div class="top-bar">
+    <div class="top-bar-container">
+      <div class="stack-status-strip">
+        <div class="stack-item">
+          <span class="pulse-dot"></span>
+          <span class="stack-label">STACK:</span>
+          <span class="stack-val">LOCAL RAG</span>
+        </div>
+        <div class="stack-item">
+          <span class="stack-label">CLI:</span>
+          <span class="stack-val">Go 1.26</span>
+        </div>
+        <div class="stack-item">
+          <span class="stack-label">QDRANT:</span>
+          <span class="stack-val">gRPC:6334</span>
+        </div>
+        <div class="stack-item">
+          <span class="stack-label">EMBED:</span>
+          <span class="stack-val">nomic-embed (768d)</span>
+        </div>
+        <div class="stack-item">
+          <span class="stack-label">LLM:</span>
+          <span class="stack-val">qwen2.5-coder:7b</span>
+        </div>
+        <div class="stack-item">
+          <span class="stack-label">HYBRID:</span>
+          <span class="stack-val">BM25 + RRF</span>
+        </div>
+      </div>
+      <div>
+        <button id="themeToggleBtn" class="nb-btn nb-btn-sm" aria-label="Toggle Theme">
+          <span id="themeIcon">🌙</span>
+          <span id="themeText">Dark Mode</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Site Header -->
+  <header class="main-header">
+    <div class="header-inner">
+      <a href="#" class="brand-wrapper">
+        <div class="brand-avatar">⚡</div>
+        <div class="brand-info">
+          <h1>ragcodepilot <span class="nb-badge yellow">v0.5.0</span></h1>
+          <p>Local RAG Code Search &amp; Citations Engine</p>
+        </div>
+      </a>
+
+      <nav class="nav-pills">
+        <a href="#pipeline" class="nav-link active">Pipeline Flow</a>
+        <a href="#simulator" class="nav-link">RAG Simulator</a>
+        <a href="#deepdives" class="nav-link">Deep Dives</a>
+        <a href="#eval" class="nav-link">Eval Scoreboard</a>
+        <a href="#cli" class="nav-link">Terminal</a>
+        <a href="https://github.com/thuyvy3110/ragcodepilot" target="_blank" rel="noopener" class="nb-btn nb-btn-sm">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <p class="hero-tagline">
+      A local semantic code search and generation CLI • Inspired by <a href="https://vyndinh.github.io/" target="_blank">Vy Dinh's portfolio</a>
+    </p>
+    <h2 class="hero-title">
+      Search your codebase using plain English, right from the terminal.
+    </h2>
+    <p class="hero-desc">
+      <code>ragcodepilot</code> indexes source repositories locally with Go AST function-level chunking, embeds code via Ollama (<code>nomic-embed-text</code>), indexes BM25 keywords, and executes server-side Reciprocal Rank Fusion (RRF) inside Qdrant — synthesizing grounded answers with citations.
+    </p>
+
+    <div class="hero-action-row">
+      <a href="#simulator" class="nb-btn nb-btn-yellow nb-btn-lg">⚡ Try RAG Playground</a>
+      <a href="#pipeline" class="nb-btn nb-btn-lg">🗺️ Inspect Architecture</a>
+      <button id="copyCliQuickstartBtn" class="nb-btn nb-btn-lg" title="Copy CLI Command">
+        📋 <code>go run ./cmd/ragcodepilot search --answer "how does chunking work?"</code>
+      </button>
+    </div>
+
+    <!-- Spotlight Codex-Resets Style Big Dot Card -->
+    <div class="nb-card nb-card-dot hero-spotlight">
+      <div class="spotlight-header">RAG STATUS &amp; CAPABILITY OVERVIEW</div>
+      <div class="spotlight-main">
+        <div>
+          <div class="spotlight-big-highlight">ANSWER MODE ACTIVE</div>
+          <div class="spotlight-meta">
+            <span>Powered by <strong>qwen2.5-coder:7b</strong></span>
+            <span>•</span>
+            <span>Retrieval: <strong>Hybrid BM25 + Dense RRF</strong></span>
+            <span>•</span>
+            <span>Storage: <strong>Qdrant (Docker gRPC)</strong></span>
+          </div>
+        </div>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+          <a href="#simulator" class="nb-btn nb-btn-orange">Test Sample Query 🚀</a>
+          <a href="#eval" class="nb-btn nb-btn-mint">Eval Report (89.5% Hit@5) 📊</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stat Cards 4-Column Grid -->
+    <div class="stats-grid">
+      <div class="nb-card stat-card yellow hoverable">
+        <div class="stat-label">RETRIEVAL HIT@5</div>
+        <div class="stat-number">89.5%</div>
+        <div class="stat-note">+10.5pp recovered by excluding *_test.go (baseline_v6)</div>
+      </div>
+
+      <div class="nb-card stat-card pink hoverable">
+        <div class="stat-label">RECALL@10 (GOLDEN)</div>
+        <div class="stat-number">92.1%</div>
+        <div class="stat-note">19 positive queries across navigation, concept &amp; behavior</div>
+      </div>
+
+      <div class="nb-card stat-card blue hoverable">
+        <div class="stat-label">HYBRID P95 LATENCY</div>
+        <div class="stat-number">137ms</div>
+        <div class="stat-note">End-to-end: Ollama embedding + Qdrant RRF (baseline_v6)</div>
+      </div>
+
+      <div class="nb-card stat-card mint hoverable">
+        <div class="stat-label">DATA PRIVACY</div>
+        <div class="stat-number">100%</div>
+        <div class="stat-note">Zero cloud APIs; runs fully offline on host &amp; Docker</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Dual-Pipeline Section -->
+  <section class="section-container" id="pipeline">
+    <div class="section-header">
+      <div class="section-title-wrap">
+        <h2 class="section-title">
+          <span>🗺️</span> Interactive Pipeline Architecture
+        </h2>
+        <span class="nb-badge yellow">STEP-BY-STEP FLOW</span>
+      </div>
+      <p class="section-subtitle">
+        Click any stage to inspect its internal logic, Go implementation structs, and transformation payloads.
+      </p>
+    </div>
+
+    <!-- Flow Mode Switcher & Stream Controls -->
+    <div class="flow-controls">
+      <div class="flow-tab-group">
+        <button class="nb-btn nb-btn-yellow flow-tab-btn active" data-flow="ingestion">
+          🔄 Ingestion &amp; Indexing Pipeline
+        </button>
+        <button class="nb-btn flow-tab-btn" data-flow="search">
+          ⚡ Retrieval &amp; Generation (RAG) Pipeline
+        </button>
+      </div>
+
+      <div class="flow-legend">
+        <span class="legend-tag"><span class="legend-color-dot yellow"></span> Source / AST Chunks</span>
+        <span class="legend-tag"><span class="legend-color-dot blue"></span> 768d Dense Vectors</span>
+        <span class="legend-tag"><span class="legend-color-dot orange"></span> BM25 Sparse Weights</span>
+        <span class="legend-tag"><span class="legend-color-dot mint"></span> RRF Fused Context</span>
+        <span class="legend-tag"><span class="legend-color-dot pink"></span> Grounded Citations</span>
+      </div>
+    </div>
+
+    <!-- Interactive Animation Toolbar -->
+    <div class="stream-toolbar">
+      <div class="stream-actions">
+        <button id="streamPlayPauseBtn" class="nb-btn nb-btn-sm nb-btn-yellow" aria-label="Play or pause stream animation">
+          <span id="playPauseIcon">⏸️</span>
+          <span id="playPauseText">Pause Animation</span>
+        </button>
+        <button id="streamSpeedBtn" class="nb-btn nb-btn-sm" aria-label="Toggle animation speed">
+          <span id="speedText">⚡ 1x Speed</span>
+        </button>
+        <button id="streamStepBtn" class="nb-btn nb-btn-sm" aria-label="Step to next pipeline stage">
+          <span>⏭️ Step Next</span>
+        </button>
+        <button id="streamResetBtn" class="nb-btn nb-btn-sm" aria-label="Reset animation">
+          <span>↺ Reset</span>
+        </button>
+      </div>
+
+      <div class="stream-ticker" id="streamTicker">
+        <span class="pulse-dot"></span>
+        <span id="tickerText">STREAM: Ingesting repository files ➔ SHA-256 Check ➔ AST Function Chunker...</span>
+      </div>
+    </div>
+
+    <!-- Animated Interactive Visual Canvas -->
+    <div class="pipeline-canvas-wrapper" id="pipelineCanvasWrapper">
+      <svg class="pipeline-canvas-svg" id="pipelineSvg" viewBox="0 0 1140 370" preserveAspectRatio="xMidYMid meet">
+        <!-- SVG Definitions (Markers, Filters) -->
+        <defs>
+          <marker id="arrowYellow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#d97706" />
+          </marker>
+          <marker id="arrowBlue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#0284c7" />
+          </marker>
+          <marker id="arrowOrange" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#ea580c" />
+          </marker>
+          <marker id="arrowMint" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#059669" />
+          </marker>
+          <marker id="arrowPink" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#e11d48" />
+          </marker>
+          <filter id="particleGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#ffde59" flood-opacity="0.8"/>
+          </filter>
+        </defs>
+
+        <!-- Dynamic Connection Paths Layer -->
+        <g id="svgPathsLayer"></g>
+
+        <!-- Dynamic Animated Data Particles Layer -->
+        <g id="svgParticlesLayer"></g>
+
+        <!-- Dynamic Interactive Node Cards Layer -->
+        <g id="svgNodesLayer"></g>
+      </svg>
+    </div>
+
+    <!-- Pipeline Node Detail Inspector -->
+    <div class="nb-card pipeline-inspector" id="pipelineInspector">
+      <div class="inspector-grid">
+        <div class="inspector-info">
+          <h3 id="inspectTitle">1. File Walker &amp; Filter</h3>
+          <p class="inspector-desc" id="inspectDesc">
+            Recursively traverses the repository filesystem, applying ignore rules from <code>config.yaml</code>. Excludes <code>.git</code>, vendor directories, and <code>*_test.go</code> to prevent test assertions from diluting semantic code search.
+          </p>
+          <div class="inspector-specs">
+            <div class="spec-box">
+              <div class="spec-box-label">SOURCE SYMBOL</div>
+              <div class="spec-box-val" id="inspectSymbol">WalkFiles(root string)</div>
+            </div>
+            <div class="spec-box">
+              <div class="spec-box-label">GO PACKAGE</div>
+              <div class="spec-box-val" id="inspectPackage">internal/ingest/pipeline.go</div>
+            </div>
+            <div class="spec-box">
+              <div class="spec-box-label">INPUT DATA</div>
+              <div class="spec-box-val" id="inspectInput">Repository root path</div>
+            </div>
+            <div class="spec-box">
+              <div class="spec-box-label">OUTPUT CONTRACT</div>
+              <div class="spec-box-val" id="inspectOutput">Filtered []string file paths</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="inspector-code" id="inspectCodeSnippet">
+// Code preview will render here
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Live RAG Playground & Query Simulator -->
+  <section class="section-container" id="simulator">
+    <div class="section-header">
+      <div class="section-title-wrap">
+        <h2 class="section-title">
+          <span>⚡</span> Live RAG Simulator &amp; Playground
+        </h2>
+        <span class="nb-badge mint">INTERACTIVE DEMO</span>
+      </div>
+      <p class="section-subtitle">
+        Type a natural language query or pick a golden benchmark query to simulate vector search, Reciprocal Rank Fusion (RRF), and grounded answer generation.
+      </p>
+    </div>
+
+    <div class="nb-card nb-card-dot simulator-card">
+      <!-- Search Input Bar -->
+      <div class="sim-query-bar">
+        <input type="text" id="simQueryInput" class="sim-input" value="how does chunking work?" placeholder="Ask a question about the codebase (e.g., 'where is ChunkFile defined')...">
+        <button id="simRunBtn" class="nb-btn nb-btn-yellow nb-btn-lg">
+          <span>Search &amp; Run ⚡</span>
+        </button>
+      </div>
+
+      <!-- Preset Golden Queries -->
+      <div class="preset-queries">
+        <span class="preset-label">Preset Queries:</span>
+        <button class="preset-btn" data-query="how does chunking work?">how does chunking work?</button>
+        <button class="preset-btn" data-query="where is ChunkFile defined">where is ChunkFile defined</button>
+        <button class="preset-btn" data-query="reciprocal rank fusion implementation">reciprocal rank fusion implementation</button>
+        <button class="preset-btn" data-query="incremental re-indexing change detection">incremental re-indexing change detection</button>
+        <button class="preset-btn" data-query="what happens when embedding dimension doesn't match">what happens when embedding dimension doesn't match</button>
+      </div>
+
+      <!-- Simulator Settings Matrix -->
+      <div class="sim-controls-row">
+        <div class="control-group">
+          <span class="control-label">Search Mode:</span>
+          <div class="pill-toggle-group" id="modeToggleGroup">
+            <button class="pill-toggle-btn active" data-mode="hybrid">⚡ Hybrid (RRF)</button>
+            <button class="pill-toggle-btn" data-mode="dense">🧠 Dense Only</button>
+            <button class="pill-toggle-btn" data-mode="sparse">🔤 Sparse (BM25)</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <span class="control-label">RAG Answer Mode:</span>
+          <button id="simAnswerToggleBtn" class="nb-btn nb-btn-sm nb-btn-mint">
+            <span>💬 --answer ON</span>
+          </button>
+        </div>
+
+        <div class="control-group">
+          <span class="control-label">Language Filter:</span>
+          <div class="pill-toggle-group" id="langToggleGroup">
+            <button class="pill-toggle-btn active" data-lang="all">All</button>
+            <button class="pill-toggle-btn" data-lang="go">Go</button>
+            <button class="pill-toggle-btn" data-lang="rust">Rust</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Simulation Live Execution Pipeline Stepper -->
+      <div class="sim-pipeline-stages">
+        <div class="sim-stage-card">
+          <div class="sim-stage-title">
+            <span>1. DENSE VECTOR</span>
+            <span class="nb-badge blue">768D</span>
+          </div>
+          <div class="sim-stage-val" id="simStageEmbed">
+            [0.021, -0.054, 0.118, 0.082, -0.192, ... +763 floats]
+          </div>
+        </div>
+
+        <div class="sim-stage-card">
+          <div class="sim-stage-title">
+            <span>2. BM25 SPARSE</span>
+            <span class="nb-badge orange">SNOWBALL</span>
+          </div>
+          <div class="sim-stage-val" id="simStageSparse">
+            "chunk" (1.82), "work" (0.94), "ast" (1.45)
+          </div>
+        </div>
+
+        <div class="sim-stage-card">
+          <div class="sim-stage-title">
+            <span>3. RRF FUSION</span>
+            <span class="nb-badge yellow">K=60</span>
+          </div>
+          <div class="sim-stage-val" id="simStageRrf">
+            Score = 1/(60+R_dense) + 1/(60+R_sparse)
+          </div>
+        </div>
+
+        <div class="sim-stage-card">
+          <div class="sim-stage-title">
+            <span>4. RETRIEVAL STATUS</span>
+            <span class="nb-badge mint" id="simStageStatus">SUCCESS (3 HITS)</span>
+          </div>
+          <div class="sim-stage-val" id="simStageTiming">
+            Total: 124ms (Embed: 38ms, Qdrant: 22ms, LLM: 64ms)
+          </div>
+        </div>
+      </div>
+
+      <!-- Grounded Answer Card (RAG Generated) -->
+      <div class="answer-box active" id="simAnswerBox">
+        <div class="answer-header">
+          <div class="answer-title">
+            <span>🤖 Grounded Answer</span>
+            <span class="nb-badge mint">Ollama qwen2.5-coder:7b</span>
+          </div>
+          <span class="nb-badge yellow">Temp: 0.0 (Greedy)</span>
+        </div>
+        <div class="answer-body" id="simAnswerText">
+          Loading answer...
+        </div>
+        <div>
+          <strong style="font-family: var(--font-mono); font-size: 0.78rem; text-transform: uppercase;">Retrieved Sources &amp; Citations:</strong>
+          <div class="citations-list" id="simCitationsList" style="margin-top: 0.5rem;">
+            <!-- Citations pills -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Retrieved Results List -->
+      <div class="retrieved-results-head">
+        <h3 style="font-size: 1.25rem; font-weight: 800;">Retrieved Source Chunks</h3>
+        <span class="nb-badge blue" id="resultsCountBadge">3 Results Ranked</span>
+      </div>
+
+      <div class="results-list" id="simResultsList">
+        <!-- Result cards rendered by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Deep-Dive Technical Showcases -->
+  <section class="section-container" id="deepdives">
+    <div class="section-header">
+      <div class="section-title-wrap">
+        <h2 class="section-title">
+          <span>🔬</span> Technical Deep Dives
+        </h2>
+        <span class="nb-badge purple">ENGINEERING DECISIONS</span>
+      </div>
+      <p class="section-subtitle">
+        Explore the foundational algorithms and engineering decisions that power high-precision code retrieval.
+      </p>
+    </div>
+
+    <!-- Deep Dive Navigation Pills -->
+    <div class="deep-dive-nav">
+      <button class="nb-btn nb-btn-yellow dd-tab-btn active" data-tab="ast">
+        1. Go AST vs. Sliding Window
+      </button>
+      <button class="nb-btn dd-tab-btn" data-tab="enrichment">
+        2. Context Metadata Enrichment
+      </button>
+      <button class="nb-btn dd-tab-btn" data-tab="rrf">
+        3. Hybrid Search &amp; RRF Math
+      </button>
+      <button class="nb-btn dd-tab-btn" data-tab="incremental">
+        4. SHA-256 Change Detection
+      </button>
+    </div>
+
+    <!-- Panel 1: AST vs Sliding Window -->
+    <div class="deep-dive-panel active" id="dd-ast">
+      <div class="comparison-grid">
+        <div class="comparison-box">
+          <div class="comparison-header" style="background-color: var(--accent-mint-light);">
+            <div>
+              <h4 style="font-weight: 800;">Go AST Function-Level Chunker</h4>
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-primary);">internal/ingest/chunker_go.go</span>
+            </div>
+            <span class="nb-badge mint">STRUCTURALLY AWARE</span>
+          </div>
+          <div class="comparison-content">
+            <p style="font-size: 0.9rem; margin-bottom: 1rem; color: var(--text-secondary);">
+              Parses the full Go abstract syntax tree using <code>go/parser</code>. Extracts complete function declarations, method receivers, signatures, and doc comments as a single cohesive unit without arbitrary split boundaries.
+            </p>
+            <div class="inspector-code">// AST Chunker extracts complete logical units:
+// - Package name
+// - Docstring comments
+// - Method receiver (e.g., (c *Client))
+// - Function name &amp; signature
+// - Full function body from { to }
+// - Result: Zero broken syntax or severed scopes!</div>
+          </div>
+        </div>
+
+        <div class="comparison-box">
+          <div class="comparison-header" style="background-color: var(--accent-pink-light);">
+            <div>
+              <h4 style="font-weight: 800;">Generic Sliding Window</h4>
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-primary);">internal/ingest/chunker.go</span>
+            </div>
+            <span class="nb-badge pink">GENERIC FALLBACK</span>
+          </div>
+          <div class="comparison-content">
+            <p style="font-size: 0.9rem; margin-bottom: 1rem; color: var(--text-secondary);">
+              Used for languages without dedicated AST parsers (Python, TypeScript, Shell). Slices files into 40-line windows with a 5-line overlap, using regex heuristics to extract surrounding identifiers.
+            </p>
+            <div class="inspector-code">// 40-line sliding window + 5-line overlap (DefaultChunkLines/DefaultChunkOverlap)
+// Regular expression fallback identifies:
+// - func / def / fn definitions
+// - Prevents functions from losing context across window cuts
+// - Overlap ensures queries near boundary match</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 2: Enrichment -->
+    <div class="deep-dive-panel" id="dd-enrichment">
+      <div class="comparison-grid">
+        <div class="comparison-box">
+          <div class="comparison-header" style="background-color: var(--accent-yellow-light);">
+            <div>
+              <h4 style="font-weight: 800;">Raw Code Chunk</h4>
+              <span style="font-family: var(--font-mono); font-size: 0.75rem;">Before Enrichment</span>
+            </div>
+            <span class="nb-badge yellow">RAW TEXT</span>
+          </div>
+          <div class="comparison-content">
+            <p style="font-size: 0.9rem; margin-bottom: 1rem; color: var(--text-secondary);">
+              Embedding raw code without context leads to false positives when functions use common verbs or variables like <code>Search</code> or <code>Init</code>.
+            </p>
+            <div class="inspector-code">func (c *Client) EnsureCollection(ctx context.Context, name string) error {
+    // ... checks collection existence ...
+}</div>
+          </div>
+        </div>
+
+        <div class="comparison-box">
+          <div class="comparison-header" style="background-color: var(--accent-blue-light);">
+            <div>
+              <h4 style="font-weight: 800;">Enriched Embedding Input</h4>
+              <span style="font-family: var(--font-mono); font-size: 0.75rem;">internal/ingest/enrichment.go</span>
+            </div>
+            <span class="nb-badge blue">STRUCTURAL CONTEXT</span>
+          </div>
+          <div class="comparison-content">
+            <p style="font-size: 0.9rem; margin-bottom: 1rem; color: var(--text-secondary);">
+              Prepending file location, repository, and signature metadata to the text before vectorizing gives symbol-navigation queries like <em>"Qdrant collection setup"</em> an exact-text anchor — this is what lifts navigation hit rates.
+            </p>
+            <div class="inspector-code">file: internal/qdrant/client.go
+package: qdrant
+function: (*Client).EnsureCollection
+language: go
+---
+func (c *Client) EnsureCollection(ctx context.Context, name string) error { ... }</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 3: RRF Math -->
+    <div class="deep-dive-panel" id="dd-rrf">
+      <div class="nb-card nb-card-dot" style="padding: 1.75rem;">
+        <h4 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 0.5rem;">
+          Why Hybrid Search? Reciprocal Rank Fusion (RRF) with k=60
+        </h4>
+        <p style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 1.5rem; max-width: 900px;">
+          Dense vector embeddings excel at semantic similarity (e.g. matching <em>"how does chunking work?"</em> with <code>ChunkFile</code>), but struggle with exact symbol navigation (e.g. <em>"SearchWithTimings"</em>). BM25 keyword matching is the exact opposite. RRF fuses them without needing fragile score calibration:
+        </p>
+
+        <div style="background-color: var(--bg-secondary); border: 2px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 1.25rem; font-family: var(--font-mono); font-size: 1.05rem; font-weight: 700; text-align: center; margin-bottom: 1.5rem;">
+          Score(chunk) = &Sigma;<sub>m &isin; {dense, sparse}</sub> &nbsp; [ 1 / ( 60 + Rank<sub>m</sub>(chunk) ) ]
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+          <div class="nb-card stat-card yellow" style="padding: 1rem;">
+            <div class="stat-label">DENSE COSINE</div>
+            <p style="font-size: 0.85rem; font-weight: 600;">Ollama 768d vector captures natural concepts, high-level intent, and synonyms.</p>
+          </div>
+          <div class="nb-card stat-card orange" style="padding: 1rem;">
+            <div class="stat-label">SPARSE BM25</div>
+            <p style="font-size: 0.85rem; font-weight: 600; color: #fff;">Snowball-stemmed keyword matching pins exact symbols and function names.</p>
+          </div>
+          <div class="nb-card stat-card mint" style="padding: 1rem;">
+            <div class="stat-label">SERVER-SIDE RRF</div>
+            <p style="font-size: 0.85rem; font-weight: 600;">Executed natively inside Qdrant in a single gRPC call with zero client overhead.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 4: Incremental Indexing -->
+    <div class="deep-dive-panel" id="dd-incremental">
+      <div class="nb-card nb-card-dot" style="padding: 1.75rem;">
+        <h4 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 0.5rem;">
+          Incremental Reindexing &amp; SHA-256 Change Detection
+        </h4>
+        <p style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 1.5rem; max-width: 900px;">
+          Embedding 200,000 code chunks at ~50ms each takes 30+ minutes. <code>ragcodepilot</code> avoids redundant work using a two-tier change detection algorithm:
+        </p>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+          <div class="spec-box">
+            <div class="spec-box-label">1. SHA-256 HASHING</div>
+            <p style="font-size: 0.85rem; margin-top: 0.4rem;">Each file's SHA-256 is compared with Qdrant payloads. Unmodified files skip chunking and embedding entirely.</p>
+          </div>
+          <div class="spec-box">
+            <div class="spec-box-label">2. INDEX VERSIONING</div>
+            <p style="font-size: 0.85rem; margin-top: 0.4rem;">When chunker logic or enrichment schemes change, bump <code>index_version</code> to trigger a clean selective refresh.</p>
+          </div>
+          <div class="spec-box">
+            <div class="spec-box-label">3. FSNOTIFY WATCH DAEMON</div>
+            <p style="font-size: 0.85rem; margin-top: 0.4rem;"><code>ragcodepilot index --watch .</code> listens to filesystem events, debounces writes, and upserts changed files in real time.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Evaluation Scoreboard Section -->
+  <section class="section-container" id="eval">
+    <div class="section-header">
+      <div class="section-title-wrap">
+        <h2 class="section-title">
+          <span>📊</span> Retrieval Evaluation Scoreboard
+        </h2>
+        <span class="nb-badge mint">GOLDEN BENCHMARK (23 QUERIES)</span>
+      </div>
+      <p class="section-subtitle">
+        Measured via <code>ragcodepilot eval --dataset docs/eval/golden.yaml</code> — hybrid mode, run 2026-05-27, 182 chunks indexed. Full per-query data lives in <code>docs/eval/baseline_v6.json</code>.
+      </p>
+    </div>
+
+    <!-- Summary Metrics -->
+    <div class="eval-summary-cards">
+      <div class="nb-card eval-card yellow hoverable">
+        <div class="stat-label">HIT@1</div>
+        <div class="stat-number">57.9%</div>
+        <div class="stat-note">Top result is the exact match</div>
+      </div>
+
+      <div class="nb-card eval-card pink hoverable">
+        <div class="stat-label">HIT@5</div>
+        <div class="stat-number">89.5%</div>
+        <div class="stat-note">Relevant chunk in top 5</div>
+      </div>
+
+      <div class="nb-card eval-card blue hoverable">
+        <div class="stat-label">MRR@5</div>
+        <div class="stat-number">0.673</div>
+        <div class="stat-note">Mean Reciprocal Rank</div>
+      </div>
+
+      <div class="nb-card eval-card mint hoverable">
+        <div class="stat-label">RECALL@10</div>
+        <div class="stat-number">92.1%</div>
+        <div class="stat-note">High recall floor</div>
+      </div>
+
+      <div class="nb-card eval-card purple hoverable">
+        <div class="stat-label">NEG PASS RATE</div>
+        <div class="stat-number">1.00</div>
+        <div class="stat-note">Zero false positives</div>
+      </div>
+    </div>
+
+    <!-- Table of Sample Golden Queries -->
+    <div class="nb-card" style="padding: 1.5rem; overflow-x: auto;">
+      <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 0.75rem;">Golden Dataset Benchmark Queries</h3>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+        Sample rows from the baseline_v6 run (17 of 19 positive queries hit within top 5). Includes one honest miss and one negative-query pass.
+      </p>
+      <table class="eval-queries-table">
+        <thead>
+          <tr>
+            <th>Query String</th>
+            <th>Type</th>
+            <th>Expected File</th>
+            <th>Outcome (Hybrid RRF)</th>
+          </tr>
+        </thead>
+        <tbody id="evalTableBody">
+          <!-- Populated by app.js from docs/eval/baseline_v6.json -->
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Interactive Terminal Emulator -->
+  <section class="section-container" id="cli">
+    <div class="section-header">
+      <div class="section-title-wrap">
+        <h2 class="section-title">
+          <span>💻</span> Interactive Terminal &amp; CLI Explorer
+        </h2>
+        <span class="nb-badge yellow">TRY CLI COMMANDS</span>
+      </div>
+      <p class="section-subtitle">
+        Switch tabs to preview realistic terminal execution outputs for indexing, hybrid searching, answer generation, and watch mode.
+      </p>
+    </div>
+
+    <div class="terminal-window">
+      <div class="terminal-top-bar">
+        <div class="terminal-dots">
+          <div class="terminal-dot red"></div>
+          <div class="terminal-dot yellow"></div>
+          <div class="terminal-dot green"></div>
+        </div>
+        <span style="color: #9499a8; font-size: 0.75rem; font-weight: 700;">bash — ragcodepilot (darwin/arm64)</span>
+        <button id="copyTerminalCmdBtn" class="nb-btn nb-btn-sm" style="background-color: #2b2d38; color: #fff; border: 1px solid #454955;">
+          Copy Command 📋
+        </button>
+      </div>
+
+      <div class="terminal-tabs">
+        <button class="terminal-tab-btn active" data-cmd="search-answer">1. Search with --answer</button>
+        <button class="terminal-tab-btn" data-cmd="hybrid-search">2. Hybrid Search</button>
+        <button class="terminal-tab-btn" data-cmd="index">3. Index Repository</button>
+        <button class="terminal-tab-btn" data-cmd="watch">4. Watch Daemon</button>
+        <button class="terminal-tab-btn" data-cmd="eval">5. Run Eval Suite</button>
+      </div>
+
+      <div class="terminal-body" id="terminalOutput">
+        <!-- Terminal animated text renders here -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-credit">
+        <p style="font-weight: 800; font-size: 1.1rem; margin-bottom: 0.25rem;">ragcodepilot</p>
+        <p style="color: var(--text-secondary); font-size: 0.88rem;">
+          © 2026 Vy Dinh. All rights reserved.
+        </p>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/thuyvy3110/ragcodepilot" target="_blank" class="nb-btn nb-btn-sm">GitHub Repo ↗</a>
+        <a href="https://substack.com/@vyndyn" target="_blank" class="nb-btn nb-btn-sm nb-btn-yellow">Substack 📬</a>
+        <a href="https://linkedin.com/in/vydinhtn" target="_blank" class="nb-btn nb-btn-sm nb-btn-blue">LinkedIn ↗</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
