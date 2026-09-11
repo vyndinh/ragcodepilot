@@ -39,6 +39,11 @@ type QueryResult struct {
 
 // NegativeResult holds the pass/fail outcome for a negative query.
 type NegativeResult struct {
+	// ScoreKind is the family of TopScore / Threshold (cosine, rrf, bm25).
+	ScoreKind ScoreKind `json:"score_kind"`
+	// Threshold is the mode-calibrated ceiling actually applied, not the raw
+	// YAML top1_score_below when that value is cosine-calibrated and the run
+	// is hybrid or sparse.
 	Threshold float32 `json:"threshold"`
 	Pass      bool    `json:"pass"`
 }
@@ -235,9 +240,13 @@ func (r *Runner) runQuery(ctx context.Context, q Query, mode search.SearchMode) 
 	}
 
 	if q.Type == TypeNegative {
-		thr := q.Negative.Top1ScoreBelow
-		pass := len(results) == 0 || (thr > 0 && results[0].Score < thr)
-		qr.Negative = &NegativeResult{Threshold: thr, Pass: pass}
+		kind := ScoreKindForMode(mode)
+		ceiling := NegativeCeiling(kind, q.Negative.Top1ScoreBelow)
+		qr.Negative = &NegativeResult{
+			ScoreKind: kind,
+			Threshold: ceiling,
+			Pass:      NegativePasses(len(results), qr.TopScore, ceiling),
+		}
 		return qr
 	}
 

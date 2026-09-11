@@ -49,3 +49,22 @@ func TestFormatHuman_PositiveQueriesShowNumbers(t *testing.T) {
 		t.Errorf("expected hit@5 value in output\n%s", out)
 	}
 }
+
+func TestFormatHuman_NegativeFailureShowsScoreKind(t *testing.T) {
+	t.Parallel()
+
+	r := &Report{
+		Aggregate: Aggregate{Queries: 1, Positive: 0, Negative: 1, NegativePassRate: 0},
+		Queries: []QueryResult{{
+			ID:       "oauth_middleware_negative",
+			Type:     TypeNegative,
+			TopScore: 0.0307,
+			Negative: &NegativeResult{ScoreKind: ScoreKindRRF, Threshold: 0.02, Pass: false},
+		}},
+	}
+
+	out := FormatHuman(r)
+	if !strings.Contains(out, "[negative] oauth_middleware_negative — top1 rrf score 0.0307 >= threshold 0.0200") {
+		t.Errorf("expected score-kind-aware negative failure line, got:\n%s", out)
+	}
+}

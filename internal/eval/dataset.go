@@ -32,8 +32,9 @@ type Filters struct {
 // NegativeMatch holds expectations for a negative query — one that should not
 // have a strong top result.
 type NegativeMatch struct {
-	// Top1ScoreBelow asserts the top-1 result's score is below this threshold.
-	// 0 means no threshold check.
+	// Top1ScoreBelow is the dense cosine ceiling (historically 0.55). 0 means
+	// "use the mode default." Hybrid RRF and sparse BM25 ignore a cosine-
+	// calibrated value; see NegativeCeiling.
 	Top1ScoreBelow float32 `yaml:"top1_score_below"`
 }
 
