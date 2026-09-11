@@ -94,7 +94,7 @@ Dense vector captures:                  Sparse vector captures:
 ✅ conceptual similarity to             ❌ no idea what the code MEANS
    "how does chunking work?"            ❌ can't match "splitting" to "chunk"
                                         ❌ can't match across languages
-❌ "ChunkFile" as an exact name         ✅ "ChunkFile" → ["chunk", "file"]
+❌ "ChunkFile" as an exact name         ✅ "ChunkFile" → ["chunkfile", "chunk", "file"]
    is diluted into general concepts        exact token match
 ```
 
