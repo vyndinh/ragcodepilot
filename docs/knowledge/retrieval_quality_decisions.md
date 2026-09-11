@@ -101,7 +101,7 @@ Pick **answer mode (Phase 5 v0) instead if** you want to start exercising the fu
 | **Hit@K** (K=3, 5) | Is the correct result somewhere in the top K? | Tolerance for slightly imperfect ranking. |
 | **MRR@K** | Average position of the first correct hit (`1/rank`). | Hybrid of precision and top-of-list bias. |
 | **Recall@K** | What fraction of *all* relevant chunks made it to top K? | Coverage — matters when there's more than one right answer. |
-| **Negative pass** | Out-of-scope queries return nothing on-topic. | "We know when we don't know." |
+| **Negative pass** | Out-of-scope queries return nothing on-topic. | "We know when we don't know." Mode-calibrated: dense uses cosine 0.55; hybrid RRF fails only on dual-prefetch agreement (ceiling 0.02); sparse BM25 uses ceiling 10. A single 0.55 cutoff is vacuous under RRF. |
 
 Not currently measured but worth adding eventually:
 
@@ -143,7 +143,7 @@ Given you're between retrieval-CLI (now) and answer mode (next phase):
 
 1. **MRR@5 — headline metric.** Single number that captures both "is top-1 right" and "if not, is the right answer near the top." Best for tracking improvements and catching regressions in one number.
 2. **Hit@5 — RAG-readiness gate.** Once answer mode ships, `hit@5 < 0.70` means the LLM gets the right info less than 70% of the time. Set a floor (e.g., *"no future change drops hit@5 below 0.85"*). Current value (`baseline_v6`, current corpus, 182 chunks): **0.895** — above the floor. It briefly dipped to 0.789 when Phase 5 grew the corpus (`baseline_v5_pre`), but excluding `*_test.go` from indexing recovered it; see §2.5 "Corpus re-baseline + test-file hygiene".
-3. **Negative pass — faithfulness floor.** If this ever drops below 1.0, your hallucination risk in answer mode goes up. Treat as a hard exit-criterion gate.
+3. **Negative pass — faithfulness floor.** Must be able to fail. Under hybrid RRF a cosine 0.55 cutoff cannot (top-1 is ~0.017–0.033), so `negative_pass_rate = 1.00` on `baseline_v6` is not evidence. After the mode-calibrated check, treat a regression against the *new* hybrid rate as the gate — not "must print 1.00."
 4. **Recall@10 vs Recall@5 ratio — diagnostic, not a target.** If recall@10 is much higher than recall@5, *"we know it but can't rank it"* → **reranking** is the right next step. If they're equal, embedding/chunking is the floor → upgrade the embedding model.
 5. **Hit@1 — secondary.** Tracks retrieval-CLI quality. Useful as a leading indicator of "did the algorithm get sharper?" but no longer the final-answer metric.
 
@@ -265,7 +265,7 @@ Same retrieval substrate, different success criterion. Track both axes; emphasiz
 - **Track MRR@5 as the single headline metric.** It blends "did we put the right answer near the top" (CLI relevance) and "is the LLM likely to anchor on something correct" (RAG relevance) — the same blend the product cares about during this transition phase.
 - **Use Hit@5 as a hard floor.** Once answer mode ships, hit@5 below ~0.80 means the LLM is missing the right context too often. No retrieval-algorithm change should violate this floor without an exceptional MRR@5 lift to compensate.
 - **Treat Hit@1 as a precision indicator, not the final-answer metric.** Useful for tracking algorithm sharpness; don't optimize it at the expense of hit@5.
-- **Don't let Negative pass slip from 1.0.** It's a faithfulness floor for answer mode.
+- **Don't let Negative pass become vacuous.** The check is mode-calibrated (cosine / RRF dual-list / BM25). Historical hybrid `1.00` used an unreachable 0.55 cosine cutoff. The floor is "the check can still fail," not "the number is 1.00."
 - **For the next quality investment:**
   - If you want the cheapest fix to the one known regression: **stemming** (S, no latency cost, RAG-aligned).
   - If you want the biggest hit@1 lift and have latency budget: **reranking** (M–L, large latency cost, CLI-aligned, also helps RAG by stabilizing top-K ordering).

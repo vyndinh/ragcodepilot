@@ -123,7 +123,7 @@ All metrics are computed over **positive queries only** (those with expected fil
 | `MRR@k` | Mean reciprocal rank of the first relevant result. Rewards putting the right answer at the top. |
 | `recall@k` | Mean fraction of *expected files* that appear in the top `k` (reported at k=5 and k=10). Symbols don't count toward recall — they live inside expected files. |
 | `recall gap` | `recall@10 − recall@5`. Diagnostic for *what to fix next*: a large gap (≥0.10) means relevant chunks are retrieved but ranked outside the top-5 → **reranking** has headroom; a small gap (<0.10) means the misses are absent from the top-10 → **embedding/chunking** is the floor (reranking can't surface what retrieval didn't return). |
-| `negative_pass_rate` | Fraction of negative queries whose top-1 score is below the configured threshold (or returns no results). |
+| `negative_pass_rate` | Fraction of negative queries whose top-1 score is below a **mode-calibrated** ceiling (or that return no results). Dataset `top1_score_below` is the dense cosine ceiling (0.55). Hybrid RRF and sparse BM25 ignore a cosine-calibrated YAML value: RRF fails only on dual-prefetch agreement (ceiling 0.02, between single-list ~0.017 and dual-list ~0.033); BM25 uses ceiling 10 (unbounded scores; 0.55 would always fail). |
 | `latency_*_p50/p95_ms` | Percentile latencies, broken out by stage. `embed` is Ollama; `qdrant` is the vector search RPC; `total` is end-to-end per query. |
 
 A result is **relevant** when its `file_path` is in the expected file list OR its `name` (function/symbol) is in the expected symbol list.
@@ -242,7 +242,7 @@ queries:
     filters:
       languages: ["go"]
     negative:
-      top1_score_below: 0.55     # top-1 score must be strictly less than this
+      top1_score_below: 0.55     # dense cosine ceiling; hybrid/sparse use mode defaults
 ```
 
 **Type tags** are case-sensitive strings: `navigation`, `concept`, `behavior`, `negative`. They drive the per-type breakdown in the report; pick whichever fits.

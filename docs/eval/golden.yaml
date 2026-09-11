@@ -8,6 +8,7 @@
 #   concept    — natural-language explanatory queries ("how does Y work")
 #   behavior   — runtime-behavior queries ("what happens when Z")
 #   negative   — queries that should NOT have a strong top match
+#                 (top1_score_below is dense cosine; hybrid/sparse use mode defaults)
 
 queries:
   - id: chunkfile_navigation
@@ -221,6 +222,10 @@ queries:
       symbols:
         - runEval
 
+  # Negative queries: no strong match expected. top1_score_below is the dense
+  # cosine ceiling. Hybrid (RRF) and sparse (BM25) ignore a cosine-calibrated
+  # value — RRF top-1 is ~0.017–0.033, so 0.55 can never fail — and use
+  # mode-calibrated ceilings in the eval runner instead.
   - id: oauth_middleware_negative
     query: "where is the OAuth middleware implemented"
     type: negative

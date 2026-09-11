@@ -111,7 +111,8 @@ func FormatHuman(r *Report) string {
 			case q.Error != "":
 				fmt.Fprintf(&b, "  [%s] %s — ERROR: %s\n", q.Type, q.ID, q.Error)
 			case q.Type == TypeNegative:
-				fmt.Fprintf(&b, "  [negative] %s — top1 score %.4f >= threshold %.4f\n", q.ID, q.TopScore, q.Negative.Threshold)
+				fmt.Fprintf(&b, "  [negative] %s — top1 %s score %.4f >= threshold %.4f\n",
+					q.ID, q.Negative.ScoreKind, q.TopScore, q.Negative.Threshold)
 			default:
 				fmt.Fprintf(&b, "  [%s] %s — top-5 missed expected file/symbol; top1=%s (%.4f)\n",
 					q.Type, q.ID, topFile(q), q.TopScore)
