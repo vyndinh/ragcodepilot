@@ -104,10 +104,9 @@ func Run() {}
 
 	blockChunks := filterByType(chunks, "block")
 	if len(blockChunks) == 0 {
-		t.Fatal("expected at least one block chunk for imports/types/vars")
+		t.Fatal("expected at least one block chunk for imports/vars")
 	}
 
-	// Block should contain the import, var, and type declarations.
 	allBlockContent := ""
 	for _, c := range blockChunks {
 		allBlockContent += c.Content + "\n"
@@ -118,8 +117,94 @@ func Run() {}
 	if !strings.Contains(allBlockContent, "var Version") {
 		t.Error("block chunks should contain var declaration")
 	}
-	if !strings.Contains(allBlockContent, "type Config struct") {
-		t.Error("block chunks should contain type declaration")
+
+	typeChunks := filterByType(chunks, "type")
+	if len(typeChunks) != 1 {
+		t.Fatalf("expected 1 type chunk for Config, got %d", len(typeChunks))
+	}
+	if typeChunks[0].Name != "Config" {
+		t.Errorf("type chunk name = %q, want Config", typeChunks[0].Name)
+	}
+	if !strings.Contains(typeChunks[0].Content, "type Config struct") {
+		t.Error("type chunk should contain the struct declaration")
+	}
+}
+
+func TestChunkGoFile_TypeAndInterfaceExtraction(t *testing.T) {
+	t.Parallel()
+
+	src := `package example
+
+// Embedder turns text into vectors.
+type Embedder interface {
+	Embed() error
+	Dimension() int
+}
+
+type Config struct {
+	Host string
+}
+
+type Handler func() error
+`
+	chunks := chunkGoSource(t, src)
+
+	ifaces := filterByType(chunks, "interface")
+	if len(ifaces) != 1 {
+		t.Fatalf("expected 1 interface chunk, got %d", len(ifaces))
+	}
+	if ifaces[0].Name != "Embedder" {
+		t.Errorf("interface name = %q, want Embedder", ifaces[0].Name)
+	}
+	if !strings.Contains(ifaces[0].Content, "type Embedder interface") {
+		t.Error("interface chunk should include the type keyword and name")
+	}
+	if !strings.Contains(ifaces[0].Content, "// Embedder turns text into vectors.") {
+		t.Error("interface chunk should include the doc comment")
+	}
+
+	types := filterByType(chunks, "type")
+	if len(types) != 2 {
+		t.Fatalf("expected 2 type chunks (Config, Handler), got %d", len(types))
+	}
+	names := map[string]bool{}
+	for _, c := range types {
+		names[c.Name] = true
+	}
+	if !names["Config"] || !names["Handler"] {
+		t.Errorf("type names = %v, want Config and Handler", names)
+	}
+}
+
+func TestChunkGoFile_GroupedTypes(t *testing.T) {
+	t.Parallel()
+
+	src := `package example
+
+type (
+	Reader interface {
+		Read([]byte) (int, error)
+	}
+	Buffer struct {
+		n int
+	}
+)
+`
+	chunks := chunkGoSource(t, src)
+
+	ifaces := filterByType(chunks, "interface")
+	if len(ifaces) != 1 || ifaces[0].Name != "Reader" {
+		t.Fatalf("grouped interface = %+v, want Reader", ifaces)
+	}
+	types := filterByType(chunks, "type")
+	if len(types) != 1 || types[0].Name != "Buffer" {
+		t.Fatalf("grouped type = %+v, want Buffer", types)
+	}
+	if !strings.Contains(ifaces[0].Content, "Reader interface") {
+		t.Errorf("Reader chunk content = %q", ifaces[0].Content)
+	}
+	if !strings.Contains(types[0].Content, "Buffer struct") {
+		t.Errorf("Buffer chunk content = %q", types[0].Content)
 	}
 }
 
@@ -224,7 +309,9 @@ func Hello() {}
 		if c.Language != "go" {
 			t.Errorf("chunk language = %q, want go", c.Language)
 		}
-		if c.ChunkType != "function" && c.ChunkType != "block" {
+		switch c.ChunkType {
+		case "function", "block", "type", "interface":
+		default:
 			t.Errorf("unexpected chunk type %q", c.ChunkType)
 		}
 	}

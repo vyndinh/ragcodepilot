@@ -42,6 +42,10 @@ func chunkTypeLabel(chunkType string) string {
 		return "Function"
 	case "block":
 		return "Block"
+	case "type":
+		return "Type"
+	case "interface":
+		return "Interface"
 	default:
 		return "Chunk"
 	}
