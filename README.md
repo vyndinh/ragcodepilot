@@ -10,7 +10,7 @@
 
 **Retrieval is fully implemented** — you can point the tool at a local repository, index it, and search with natural language queries like *"how does the chunking work?"*. **Answer generation (v0) is now available** via the opt-in `--answer` flag, which feeds the retrieved chunks to a local Ollama model (`qwen2.5-coder:7b`) and prints a synthesized answer above its sources. Support for additional LLM providers (OpenAI, Anthropic, etc.) is planned — see the [roadmap](docs/plan/mvp_roadmap.md).
 
-Answer mode is **opt-in** — without it, the tool works as a pure code search engine. Both scripting (CLI one-liners) and interactive (REPL) usage are supported.
+Answer mode is **opt-in** — without it, the tool is a one-shot search CLI. There is no interactive REPL (`ragcodepilot chat` is a later roadmap item).
 
 **How retrieval works:** The tool breaks source code into small chunks (functions, blocks of lines), converts each chunk into a numerical "fingerprint" (embedding) that captures its meaning, and stores everything in a local vector database ([Qdrant](https://qdrant.tech/)). It also builds a keyword index (BM25) alongside the embeddings and combines both signals for better results. When you search, your query is matched against the stored chunks to find the closest results.
 
@@ -23,7 +23,7 @@ Answer mode is **opt-in** — without it, the tool works as a pure code search e
 - Search with dense vector lookup and optional language and repo payload filtering.
 - **Answer mode (`--answer`)**: feeds retrieved chunks to a local Ollama generative model (`qwen2.5-coder:7b` by default) and prints a synthesized answer above its sources. Opt-in; the default `search` path is unchanged.
 - Embedding dimension auto-detection and validation (collection mismatch produces clear error with fix instructions).
-- Incremental re-indexing: only changed files are re-embedded; stale chunks from deleted/renamed files are cleaned up.
+- Incremental re-indexing: if **nothing** changed (file hashes and index version match), indexing is a no-op. If **any** file changed, every current file is re-chunked and re-embedded so BM25 IDF stays corpus-wide; stale chunks from deleted/renamed files are cleaned up. `--watch` uses that same pipeline on each save.
 - **Retrieval evaluation harness** (`ragcodepilot eval`) with golden dataset, `hit@k`, `MRR@5`, `recall@10`, and per-stage latency percentiles.
 - Collection list and delete commands.
 - `config.yaml` is auto-loaded during indexing when present; built-in defaults are used only when it is absent.
@@ -118,13 +118,14 @@ Index this repository (Go files only):
 go run ./cmd/ragcodepilot index --language go .
 ```
 
-Index once, then stay running and re-index on file changes (incremental):
+Index once, then stay running and re-index on file changes:
 
 ```bash
 go run ./cmd/ragcodepilot index --language go --watch .
-# Edits are detected via fsnotify; debounced and re-indexed via the same
-# pipeline. Press Ctrl-C to exit. Respects skip_dirs and skip_file_patterns
-# in config.yaml, just like a one-shot index.
+# Edits are detected via fsnotify, debounced, and run through the same
+# pipeline as a one-shot index (full re-embed when anything changed).
+# Press Ctrl-C to exit. Respects skip_dirs and skip_file_patterns
+# in config.yaml.
 ```
 
 Search indexed code:
@@ -226,7 +227,7 @@ docker compose down
 | `-embedder` | `ollama` | Embedder to use: `ollama`, `fake` |
 | `-ollama-url` | `http://localhost:11434` | Ollama server URL |
 | `-ollama-model` | `nomic-embed-text` | Ollama embedding model |
-| `-watch` | `false` | After the initial index, watch repo for changes and re-index incrementally (blocks until Ctrl-C) |
+| `-watch` | `false` | After the initial index, watch the repo and re-run the index pipeline on changes (blocks until Ctrl-C). Same cost as a one-shot re-index when anything changed. |
 | `-qdrant-host` | `localhost` | Qdrant host |
 | `-qdrant-port` | `6334` | Qdrant gRPC port |
 
@@ -362,6 +363,7 @@ go run ./cmd/ragcodepilot index --language go .
 ## Known limitations
 
 - Function-level chunking is Go-only (AST-based). Other languages use a sliding window.
+- Re-index is not proportional to the diff. Because BM25 IDF is corpus-wide, any file change re-embeds **all** current files through Ollama. Change detection only skips work when the corpus is byte-identical. Fine at ~200 chunks; painful at tens of thousands. See [`docs/improvement/reindexing.md`](docs/improvement/reindexing.md).
 - Sparse vectors use BM25 with a softened `k1=0.5` (Elasticsearch's default `k1=1.2` is calibrated for long, mixed-length documents; code chunks are short and uniform, so milder TF saturation gave a much cleaner result on the May 2026 eval — hit@1 +21pp vs TF-IDF). The original plural/singular token-mismatch regression on the `hasher_concept` query was resolved on 2026-05-15 by additive Snowball stemming (`baseline_v4`). CamelCase/snake_case identifiers also keep a joined token (`ChunkFile` → `chunkfile` + `chunk` + `file`) so exact-symbol queries are not reduced to generic parts. See [`docs/plan/hybrid_search.md`](docs/plan/hybrid_search.md) §3 for the full history and eval matrix.
 - Embedding dimension is auto-detected; switching models requires collection delete + re-index.
 
