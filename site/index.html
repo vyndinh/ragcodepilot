@@ -8,7 +8,7 @@
   <meta property="og:type" content="website">
   <meta property="og:title" content="ragcodepilot — Local RAG Code Search &amp; Generation">
   <meta property="og:description" content="Search your codebase using plain English from the terminal: Go AST chunking, Ollama embeddings, hybrid BM25 + dense RRF retrieval in Qdrant, and grounded answers with citations.">
-  <meta property="og:url" content="https://thuyvy3110.github.io/ragcodepilot/">
+  <meta property="og:url" content="https://vyndinh.github.io/ragcodepilot/">
   <meta name="twitter:card" content="summary">
 
   <!-- Fonts are self-hosted in fonts/ (variable woff2, latin subset) — no external requests -->
@@ -63,7 +63,7 @@
       <a href="#" class="brand-wrapper">
         <div class="brand-avatar">⚡</div>
         <div class="brand-info">
-          <h1>ragcodepilot <span class="nb-badge yellow">v0.5.0</span></h1>
+          <h1>ragcodepilot <span class="nb-badge yellow">local CLI</span></h1>
           <p>Local RAG Code Search &amp; Citations Engine</p>
         </div>
       </a>
@@ -74,7 +74,7 @@
         <a href="#deepdives" class="nav-link">Deep Dives</a>
         <a href="#eval" class="nav-link">Eval Scoreboard</a>
         <a href="#cli" class="nav-link">Terminal</a>
-        <a href="https://github.com/thuyvy3110/ragcodepilot" target="_blank" rel="noopener" class="nb-btn nb-btn-sm">GitHub ↗</a>
+        <a href="https://github.com/vyndinh/ragcodepilot" target="_blank" rel="noopener" class="nb-btn nb-btn-sm">GitHub ↗</a>
       </nav>
     </div>
   </header>
@@ -104,18 +104,18 @@
       <div class="spotlight-header">RAG STATUS &amp; CAPABILITY OVERVIEW</div>
       <div class="spotlight-main">
         <div>
-          <div class="spotlight-big-highlight">ANSWER MODE ACTIVE</div>
+          <div class="spotlight-big-highlight">SEARCH DEFAULT · --answer OPT-IN</div>
           <div class="spotlight-meta">
-            <span>Powered by <strong>qwen2.5-coder:7b</strong></span>
+            <span>Default path is retrieval only</span>
             <span>•</span>
             <span>Retrieval: <strong>Hybrid BM25 + Dense RRF</strong></span>
             <span>•</span>
-            <span>Storage: <strong>Qdrant (Docker gRPC)</strong></span>
+            <span>Optional LLM: <strong>qwen2.5-coder:7b</strong></span>
           </div>
         </div>
         <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-          <a href="#simulator" class="nb-btn nb-btn-orange">Test Sample Query 🚀</a>
-          <a href="#eval" class="nb-btn nb-btn-mint">Eval Report (89.5% Hit@5) 📊</a>
+          <a href="#simulator" class="nb-btn nb-btn-orange">Try scripted demo 🚀</a>
+          <a href="#eval" class="nb-btn nb-btn-mint">Eval Report (97.1% Hit@5) 📊</a>
         </div>
       </div>
     </div>
@@ -124,20 +124,20 @@
     <div class="stats-grid">
       <div class="nb-card stat-card yellow hoverable">
         <div class="stat-label">RETRIEVAL HIT@5</div>
-        <div class="stat-number">89.5%</div>
-        <div class="stat-note">+10.5pp recovered by excluding *_test.go (baseline_v6)</div>
+        <div class="stat-number">97.1%</div>
+        <div class="stat-note">35 positive queries, hybrid mode (baseline_v8)</div>
       </div>
 
       <div class="nb-card stat-card pink hoverable">
         <div class="stat-label">RECALL@10 (GOLDEN)</div>
-        <div class="stat-number">92.1%</div>
-        <div class="stat-note">19 positive queries across navigation, concept &amp; behavior</div>
+        <div class="stat-number">90.3%</div>
+        <div class="stat-note">39 golden queries on this Go repo (199 chunks)</div>
       </div>
 
       <div class="nb-card stat-card blue hoverable">
         <div class="stat-label">HYBRID P95 LATENCY</div>
-        <div class="stat-number">137ms</div>
-        <div class="stat-note">End-to-end: Ollama embedding + Qdrant RRF (baseline_v6)</div>
+        <div class="stat-number">151ms</div>
+        <div class="stat-note">End-to-end: Ollama embedding + Qdrant RRF (baseline_v8)</div>
       </div>
 
       <div class="nb-card stat-card mint hoverable">
@@ -257,7 +257,7 @@
             </div>
             <div class="spec-box">
               <div class="spec-box-label">GO PACKAGE</div>
-              <div class="spec-box-val" id="inspectPackage">internal/ingest/pipeline.go</div>
+              <div class="spec-box-val" id="inspectPackage">internal/ingest/walker.go</div>
             </div>
             <div class="spec-box">
               <div class="spec-box-label">INPUT DATA</div>
@@ -284,24 +284,30 @@
     <div class="section-header">
       <div class="section-title-wrap">
         <h2 class="section-title">
-          <span>⚡</span> Live RAG Simulator &amp; Playground
+          <span>⚡</span> RAG Simulator (scripted)
         </h2>
-        <span class="nb-badge mint">INTERACTIVE DEMO</span>
+        <span class="nb-badge mint">NOT A LIVE INDEX</span>
       </div>
       <p class="section-subtitle">
-        Type a natural language query or pick a golden benchmark query to simulate vector search, Reciprocal Rank Fusion (RRF), and grounded answer generation.
+        Playback of five golden queries with canned rankings and answers. This page does not call Qdrant or Ollama. Type anything else and you will get an empty result, not a silent substitute.
       </p>
     </div>
 
     <div class="nb-card nb-card-dot simulator-card">
       <!-- Search Input Bar -->
       <div class="sim-query-bar">
-        <input type="text" id="simQueryInput" class="sim-input" value="how does chunking work?" placeholder="Ask a question about the codebase (e.g., 'where is ChunkFile defined')...">
+        <input type="text" id="simQueryInput" class="sim-input" value="how does chunking work?" placeholder="Use a preset below, or type an exact golden query…" aria-describedby="simDisclaimer">
         <button id="simRunBtn" class="nb-btn nb-btn-yellow nb-btn-lg">
           <span>Search &amp; Run ⚡</span>
         </button>
       </div>
 
+      <p class="sim-disclaimer" id="simDisclaimer">
+        Simulated only — five scripted queries. Filters and modes restyle the same canned cards; they do not search a live corpus.
+      </p>
+      <p class="sim-empty-msg" id="simEmptyMsg" hidden>
+        No scripted demo for that query. Pick a preset above.
+      </p>
       <!-- Preset Golden Queries -->
       <div class="preset-queries">
         <span class="preset-label">Preset Queries:</span>
@@ -333,9 +339,7 @@
         <div class="control-group">
           <span class="control-label">Language Filter:</span>
           <div class="pill-toggle-group" id="langToggleGroup">
-            <button class="pill-toggle-btn active" data-lang="all">All</button>
-            <button class="pill-toggle-btn" data-lang="go">Go</button>
-            <button class="pill-toggle-btn" data-lang="rust">Rust</button>
+            <button class="pill-toggle-btn active" data-lang="go" type="button" disabled>Go (indexed corpus)</button>
           </div>
         </div>
       </div>
@@ -458,7 +462,7 @@
           </div>
           <div class="comparison-content">
             <p style="font-size: 0.9rem; margin-bottom: 1rem; color: var(--text-secondary);">
-              Parses the full Go abstract syntax tree using <code>go/parser</code>. Extracts complete function declarations, method receivers, signatures, and doc comments as a single cohesive unit without arbitrary split boundaries.
+              Parses the full Go abstract syntax tree using <code>go/parser</code>. Extracts complete function and method declarations, plus named types and interfaces, with doc comments, without arbitrary split boundaries.
             </p>
             <div class="inspector-code">// AST Chunker extracts complete logical units:
 // - Package name
@@ -525,12 +529,11 @@
             <p style="font-size: 0.9rem; margin-bottom: 1rem; color: var(--text-secondary);">
               Prepending file location, repository, and signature metadata to the text before vectorizing gives symbol-navigation queries like <em>"Qdrant collection setup"</em> an exact-text anchor — this is what lifts navigation hit rates.
             </p>
-            <div class="inspector-code">file: internal/qdrant/client.go
-package: qdrant
-function: (*Client).EnsureCollection
-language: go
----
-func (c *Client) EnsureCollection(ctx context.Context, name string) error { ... }</div>
+            <div class="inspector-code">File: internal/qdrant/client.go
+Language: go
+Function: EnsureCollection
+
+func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize uint64) error { ... }</div>
           </div>
         </div>
       </div>
@@ -574,20 +577,20 @@ func (c *Client) EnsureCollection(ctx context.Context, name string) error { ... 
           Incremental Reindexing &amp; SHA-256 Change Detection
         </h4>
         <p style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 1.5rem; max-width: 900px;">
-          Embedding 200,000 code chunks at ~50ms each takes 30+ minutes. <code>ragcodepilot</code> avoids redundant work using a two-tier change detection algorithm:
+          File hashes skip work only when the <em>entire</em> corpus is unchanged. BM25 IDF is corpus-wide, so if any file changes, every current file is re-chunked and re-embedded.
         </p>
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
           <div class="spec-box">
             <div class="spec-box-label">1. SHA-256 HASHING</div>
-            <p style="font-size: 0.85rem; margin-top: 0.4rem;">Each file's SHA-256 is compared with Qdrant payloads. Unmodified files skip chunking and embedding entirely.</p>
+            <p style="font-size: 0.85rem; margin-top: 0.4rem;">Each file's SHA-256 is compared with Qdrant payloads. If hashes <em>and</em> index version all match, indexing is a no-op.</p>
           </div>
           <div class="spec-box">
             <div class="spec-box-label">2. INDEX VERSIONING</div>
-            <p style="font-size: 0.85rem; margin-top: 0.4rem;">When chunker logic or enrichment schemes change, bump <code>index_version</code> to trigger a clean selective refresh.</p>
+            <p style="font-size: 0.85rem; margin-top: 0.4rem;">Tokenizer or chunker changes bump <code>index_version</code> so unchanged files still refresh sparse/chunk shape.</p>
           </div>
           <div class="spec-box">
-            <div class="spec-box-label">3. FSNOTIFY WATCH DAEMON</div>
-            <p style="font-size: 0.85rem; margin-top: 0.4rem;"><code>ragcodepilot index --watch .</code> listens to filesystem events, debounces writes, and upserts changed files in real time.</p>
+            <div class="spec-box-label">3. --watch (same pipeline)</div>
+            <p style="font-size: 0.85rem; margin-top: 0.4rem;"><code>index --watch</code> debounces fsnotify events and re-runs the full index pipeline — not a per-file embed-only daemon.</p>
           </div>
         </div>
       </div>
@@ -601,10 +604,10 @@ func (c *Client) EnsureCollection(ctx context.Context, name string) error { ... 
         <h2 class="section-title">
           <span>📊</span> Retrieval Evaluation Scoreboard
         </h2>
-        <span class="nb-badge mint">GOLDEN BENCHMARK (23 QUERIES)</span>
+        <span class="nb-badge mint">GOLDEN BENCHMARK (39 QUERIES)</span>
       </div>
       <p class="section-subtitle">
-        Measured via <code>ragcodepilot eval --dataset docs/eval/golden.yaml</code> — hybrid mode, run 2026-05-27, 182 chunks indexed. Full per-query data lives in <code>docs/eval/baseline_v6.json</code>.
+        Measured via <code>ragcodepilot eval --mode hybrid</code> — run 2026-09-11, 199 Go chunks. Canonical file: <code>docs/eval/baseline_v8.json</code>. Self-dogfood on this repo, not a public IR benchmark.
       </p>
     </div>
 
@@ -612,32 +615,32 @@ func (c *Client) EnsureCollection(ctx context.Context, name string) error { ... 
     <div class="eval-summary-cards">
       <div class="nb-card eval-card yellow hoverable">
         <div class="stat-label">HIT@1</div>
-        <div class="stat-number">57.9%</div>
-        <div class="stat-note">Top result is the exact match</div>
+        <div class="stat-number">85.7%</div>
+        <div class="stat-note">Top result is a relevant chunk</div>
       </div>
 
       <div class="nb-card eval-card pink hoverable">
         <div class="stat-label">HIT@5</div>
-        <div class="stat-number">89.5%</div>
+        <div class="stat-number">97.1%</div>
         <div class="stat-note">Relevant chunk in top 5</div>
       </div>
 
       <div class="nb-card eval-card blue hoverable">
         <div class="stat-label">MRR@5</div>
-        <div class="stat-number">0.673</div>
+        <div class="stat-number">0.910</div>
         <div class="stat-note">Mean Reciprocal Rank</div>
       </div>
 
       <div class="nb-card eval-card mint hoverable">
         <div class="stat-label">RECALL@10</div>
-        <div class="stat-number">92.1%</div>
-        <div class="stat-note">High recall floor</div>
+        <div class="stat-number">90.3%</div>
+        <div class="stat-note">Share of expected files in top 10</div>
       </div>
 
       <div class="nb-card eval-card purple hoverable">
         <div class="stat-label">NEG PASS RATE</div>
-        <div class="stat-number">1.00</div>
-        <div class="stat-note">Zero false positives</div>
+        <div class="stat-number">0.50</div>
+        <div class="stat-note">Mode-calibrated RRF — 2 of 4 out-of-scope queries still dual-list</div>
       </div>
     </div>
 
@@ -645,7 +648,7 @@ func (c *Client) EnsureCollection(ctx context.Context, name string) error { ... 
     <div class="nb-card" style="padding: 1.5rem; overflow-x: auto;">
       <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 0.75rem;">Golden Dataset Benchmark Queries</h3>
       <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
-        Sample rows from the baseline_v6 run (17 of 19 positive queries hit within top 5). Includes one honest miss and one negative-query pass.
+        Sample rows from baseline_v8 (34 of 35 positive queries hit@5). ChunkFile navigation is now top-1. Negative pass is no longer a vacuous 1.00.
       </p>
       <table class="eval-queries-table">
         <thead>
@@ -657,7 +660,7 @@ func (c *Client) EnsureCollection(ctx context.Context, name string) error { ... 
           </tr>
         </thead>
         <tbody id="evalTableBody">
-          <!-- Populated by app.js from docs/eval/baseline_v6.json -->
+          <!-- Populated by app.js from baseline_v8 sample rows -->
         </tbody>
       </table>
     </div>
@@ -694,7 +697,7 @@ func (c *Client) EnsureCollection(ctx context.Context, name string) error { ... 
         <button class="terminal-tab-btn active" data-cmd="search-answer">1. Search with --answer</button>
         <button class="terminal-tab-btn" data-cmd="hybrid-search">2. Hybrid Search</button>
         <button class="terminal-tab-btn" data-cmd="index">3. Index Repository</button>
-        <button class="terminal-tab-btn" data-cmd="watch">4. Watch Daemon</button>
+        <button class="terminal-tab-btn" data-cmd="watch">4. Watch mode</button>
         <button class="terminal-tab-btn" data-cmd="eval">5. Run Eval Suite</button>
       </div>
 
@@ -714,7 +717,7 @@ func (c *Client) EnsureCollection(ctx context.Context, name string) error { ... 
         </p>
       </div>
       <div class="footer-links">
-        <a href="https://github.com/thuyvy3110/ragcodepilot" target="_blank" class="nb-btn nb-btn-sm">GitHub Repo ↗</a>
+        <a href="https://github.com/vyndinh/ragcodepilot" target="_blank" class="nb-btn nb-btn-sm">GitHub Repo ↗</a>
         <a href="https://substack.com/@vyndyn" target="_blank" class="nb-btn nb-btn-sm nb-btn-yellow">Substack 📬</a>
         <a href="https://linkedin.com/in/vydinhtn" target="_blank" class="nb-btn nb-btn-sm nb-btn-blue">LinkedIn ↗</a>
       </div>
