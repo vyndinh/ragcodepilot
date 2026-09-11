@@ -10,7 +10,7 @@ ChunkFile()
   └── Everything  → chunkGeneric()   (40-line sliding window with 5-line overlap)
 ```
 
-Go files produce precise, function-aligned chunks. All other languages fall back to the sliding window, which can split functions mid-body.
+Go files produce precise, function- and type-aligned chunks. All other languages fall back to the sliding window, which can split functions mid-body.
 
 ## Why Go-specific first
 
@@ -33,7 +33,8 @@ Since this project primarily indexes Go code and is a learning project, the Go A
 
 - Uses `go/parser` (stdlib)
 - One chunk per `*ast.FuncDecl` (function or method)
-- Gap chunks for non-function code (imports, types, vars)
+- One named chunk per `*ast.TypeSpec` (`chunk_type=interface` or `type`)
+- Gap chunks for leftover code (imports, vars, consts)
 - Large functions (>80 lines) split with sliding window
 - Syntax error fallback to `chunkGeneric`
 

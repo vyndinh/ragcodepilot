@@ -33,6 +33,24 @@ func TestEnrichForEmbedding(t *testing.T) {
 			},
 		},
 		{
+			name: "named interface",
+			chunk: model.CodeChunk{
+				FilePath:  "internal/embedding/embedder.go",
+				Language:  "go",
+				ChunkType: "interface",
+				Name:      "Embedder",
+				Content:   "type Embedder interface {}",
+			},
+			contains: []string{
+				"Interface: Embedder",
+				"type Embedder interface {}",
+			},
+			excludes: []string{
+				"Function:",
+				"Type: Interface",
+			},
+		},
+		{
 			name: "block without name",
 			chunk: model.CodeChunk{
 				FilePath:  "internal/config/config.go",
@@ -134,6 +152,8 @@ func TestChunkTypeLabel(t *testing.T) {
 	}{
 		{"function", "Function"},
 		{"block", "Block"},
+		{"type", "Type"},
+		{"interface", "Interface"},
 		{"unknown", "Chunk"},
 		{"", "Chunk"},
 	}
