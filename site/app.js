@@ -72,7 +72,7 @@ const pipelineData = {
       title: '1. File Walker',
       subtitle: 'Recursive traversal',
       symbol: 'WalkFiles(root string, config *Config)',
-      pkg: 'internal/ingest/pipeline.go',
+      pkg: 'internal/ingest/walker.go',
       input: 'Repository root path (e.g., ".")',
       output: '[]string of valid file paths',
       desc: 'Traverses the repository directory tree, enforcing ignore lists from config.yaml. Skips .git, vendor, hidden files, and *_test.go files to ensure test assertions do not contaminate code retrieval.',
@@ -101,7 +101,7 @@ func WalkFiles(root string, cfg *config.Config) ([]string, error) {
       pkg: 'internal/ingest/hasher.go',
       input: 'File content byte stream',
       output: 'Hex-encoded SHA-256 digest per file',
-      desc: 'Calculates the SHA-256 checksum of each file (internal/ingest/hasher.go) and the pipeline compares it with the file_hash payload stored in Qdrant. If a file is byte-identical and matches the index version, chunking and embedding are skipped entirely.',
+      desc: 'Calculates the SHA-256 checksum of each file. If every hash and index version match, the run is a no-op. If any file changed, BM25 IDF is rebuilt and all current files are re-chunked and re-embedded — not only the files that changed.',
       code: `// HashFile returns the hex-encoded SHA-256 hash of the file at the given path.
 func HashFile(path string) (string, error) {
     data, err := os.ReadFile(path)
@@ -120,23 +120,21 @@ func HashFile(path string) (string, error) {
       symbol: 'chunkGoFile(path, repoRoot, repo, chunkSize, overlap, cfg)',
       pkg: 'internal/ingest/chunker_go.go',
       input: 'Raw Go source code',
-      output: '[]model.CodeChunk (functions & methods)',
-      desc: 'Uses go/parser to parse the file into an Abstract Syntax Tree. Isolates standalone functions and type methods, preserving docstrings, parameter signatures, and full bodies without arbitrary boundary cuts.',
-      code: `// chunkGoFile parses Go AST to extract logical function chunks
-// (internal/ingest/chunker_go.go:24)
-func chunkGoFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *config.Config) ([]model.CodeChunk, error) {
-    fset := token.NewFileSet()
-    node, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
-    if err != nil { return nil, err }
-    var chunks []model.CodeChunk
-    ast.Inspect(node, func(n ast.Node) bool {
-        fn, ok := n.(*ast.FuncDecl)
-        if !ok { return true }
-        chunk := extractFuncChunk(fset, fn, src, filePath)
-        chunks = append(chunks, chunk)
-        return false
-    })
-    return chunks, nil
+      output: '[]model.CodeChunk (functions, types, interfaces, blocks)',
+      desc: 'Uses go/parser to extract function/method declarations and named type/interface specs. Remaining imports and vars become block chunks. Syntax errors fall back to the generic sliding window.',
+      code: `func chunkGoFile(...) ([]model.CodeChunk, error) {
+    fset := gotoken.NewFileSet()
+    file, parseErr := parser.ParseFile(fset, filePath, src, parser.ParseComments)
+    if parseErr != nil {
+        return chunkGeneric(...) // syntax-error fallback
+    }
+    for _, decl := range file.Decls {
+        switch d := decl.(type) {
+        case *ast.FuncDecl:  // one chunk per function/method
+        case *ast.GenDecl:   // named type / interface specs
+        }
+    }
+    // leftover lines → block chunks
 }`
     },
     {
@@ -148,16 +146,18 @@ func chunkGoFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *c
       pkg: 'internal/ingest/enrichment.go',
       input: 'CodeChunk struct',
       output: 'Enriched string for embedding input',
-      desc: 'Prepends file path, package name, function signature, and surrounding doc comments to the chunk text before embedding (internal/ingest/enrichment.go:18). Gives symbol-navigation queries an exact-text anchor in the embedding.',
-      code: `// enrichForEmbedding prepends critical structural metadata before embedding
-func enrichForEmbedding(chunk model.CodeChunk) string {
+      desc: 'Prepends File, Language, and Function/Type/Interface (or Type: Block) before embedding. Qdrant still stores the raw code; only the embedder sees the header.',
+      code: `func enrichForEmbedding(chunk model.CodeChunk) string {
     var b strings.Builder
-    b.WriteString(fmt.Sprintf("file: %s\\n", chunk.FilePath))
-    b.WriteString(fmt.Sprintf("package: %s\\n", chunk.PackageName))
+    fmt.Fprintf(&b, "File: %s\\n", chunk.FilePath)
+    fmt.Fprintf(&b, "Language: %s\\n", chunk.Language)
+    label := chunkTypeLabel(chunk.ChunkType)
     if chunk.Name != "" {
-        b.WriteString(fmt.Sprintf("function: %s\\n", chunk.Name))
+        fmt.Fprintf(&b, "%s: %s\\n", label, chunk.Name)
+    } else {
+        fmt.Fprintf(&b, "Type: %s\\n", label)
     }
-    b.WriteString(fmt.Sprintf("language: %s\\n---\\n", chunk.Language))
+    b.WriteString("\\n")
     b.WriteString(chunk.Content)
     return b.String()
 }`
@@ -172,15 +172,9 @@ func enrichForEmbedding(chunk model.CodeChunk) string {
       input: 'Enriched code texts',
       output: '768d float vector + Sparse BM25 term weights',
       desc: 'Calls Ollama HTTP API (nomic-embed-text) to generate 768-dimensional dense semantic vectors. Concurrently builds a BM25 sparse vector with Snowball stemming and CRC32-hashed terms (internal/embedding/sparse.go).',
-      code: `// Embedder generates 768-dimensional dense vectors via Ollama
-func (e *OllamaEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {
-    req := &ollamaEmbedRequest{Model: "nomic-embed-text", Prompt: text}
-    resp, err := e.client.PostJSON(ctx, "/api/embeddings", req)
-    if err != nil { return nil, err }
-    if len(resp.Embedding) != 768 {
-        return nil, fmt.Errorf("dimension mismatch: got %d, want 768", len(resp.Embedding))
-    }
-    return resp.Embedding, nil
+      code: `// Embedder.Embed takes a batch of texts (nomic-embed-text, 768d)
+func (e *OllamaEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
+    // POST /api/embed  { model, input: texts }
 }`
     },
     {
@@ -710,23 +704,20 @@ const mockKnowledgeBase = {
         denseScore: 0.892,
         sparseScore: 0.745,
         rrfRank: 1,
-        code: `// chunkGoFile parses Go source files using the standard go/parser AST
-func chunkGoFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *config.Config) ([]model.CodeChunk, error) {
-    fset := token.NewFileSet()
-    node, err := parser.ParseFile(fset, filePath, src, parser.ParseComments)
-    if err != nil {
-        return nil, fmt.Errorf("parse error in %s: %w", filePath, err)
+        code: `func chunkGoFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *config.Config) ([]model.CodeChunk, error) {
+    fset := gotoken.NewFileSet()
+    file, parseErr := parser.ParseFile(fset, filePath, src, parser.ParseComments)
+    if parseErr != nil {
+        return chunkGeneric(filePath, repoRoot, repo, chunkSize, overlap, cfg)
     }
-
-    var chunks []model.CodeChunk
-    ast.Inspect(node, func(n ast.Node) bool {
-        fn, ok := n.(*ast.FuncDecl)
-        if !ok { return true }
-
-        chunk := extractFuncChunk(fset, fn, src, filePath)
-        chunks = append(chunks, chunk)
-        return false
-    })
+    for _, decl := range file.Decls {
+        switch d := decl.(type) {
+        case *ast.FuncDecl:
+            chunks = append(chunks, namedGoChunks(..., "function", d.Name.Name)...)
+        case *ast.GenDecl:
+            // type / interface specs → named chunks
+        }
+    }
     return chunks, nil
 }`
       },
@@ -758,15 +749,17 @@ func chunkGeneric(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *
         denseScore: 0.812,
         sparseScore: 0.650,
         rrfRank: 3,
-        code: `// enrichForEmbedding adds structural metadata headers to chunk text for embedding
-func enrichForEmbedding(chunk model.CodeChunk) string {
+        code: `func enrichForEmbedding(chunk model.CodeChunk) string {
     var b strings.Builder
-    b.WriteString(fmt.Sprintf("file: %s\\n", chunk.FilePath))
-    b.WriteString(fmt.Sprintf("package: %s\\n", chunk.PackageName))
+    fmt.Fprintf(&b, "File: %s\\n", chunk.FilePath)
+    fmt.Fprintf(&b, "Language: %s\\n", chunk.Language)
+    label := chunkTypeLabel(chunk.ChunkType)
     if chunk.Name != "" {
-        b.WriteString(fmt.Sprintf("function: %s\\n", chunk.Name))
+        fmt.Fprintf(&b, "%s: %s\\n", label, chunk.Name)
+    } else {
+        fmt.Fprintf(&b, "Type: %s\\n", label)
     }
-    b.WriteString(fmt.Sprintf("language: %s\\n---\\n", chunk.Language))
+    b.WriteString("\\n")
     b.WriteString(chunk.Content)
     return b.String()
 }`
@@ -877,7 +870,7 @@ queryPoints = &pb.QueryPoints{
     denseVec: "[0.034, -0.012, 0.155, -0.076, ... +764 floats]",
     sparseTerms: '"increment" (1.9), "reindex" (2.2), "detect" (1.1)',
     timing: "Total: 120ms (Embed: 36ms, Qdrant: 26ms, LLM: 58ms)",
-    answer: "Incremental re-indexing operates via a two-tier change detector:\n\n1. **Cryptographic Check**: `HashFile` (`internal/ingest/hasher.go`) [1] generates a SHA-256 hash of each file, and the pipeline compares it with the `file_hash` payload stored in Qdrant (`internal/ingest/pipeline.go`) [2]. Unmodified files skip chunking and embedding entirely.\n2. **Index Version Guard**: If the chunking or enrichment logic updates, `index_version` forces a selective re-index.\n3. **Orphan Cleanup**: Stale chunks belonging to modified or deleted files are pruned from Qdrant by filtering on `file_path`.",
+    answer: "Change detection is file-hash + index version, but it is not per-file embed skip when the corpus moves:\n\n1. **No-op path**: if every file hash and `index_version` match, indexing returns immediately [1][2].\n2. **Any change**: BM25 IDF is corpus-wide, so the pipeline re-chunks and re-embeds **all current files**, then deletes stale points for deleted/renamed paths.\n3. **`--watch`** runs that same pipeline on each debounced save — not a daemon that embeds only the touched file.",
     citations: [
       { text: "[1] internal/ingest/hasher.go:11-18", link: "#" },
       { text: "[2] internal/ingest/pipeline.go", link: "#" }
@@ -1011,17 +1004,29 @@ function initSimulator() {
     if (e.key === 'Enter') runSimulation(queryInput.value.trim());
   });
 
+  const emptyMsg = document.getElementById('simEmptyMsg');
+
   function runSimulation(query) {
     if (!query) query = "how does chunking work?";
 
-    // Find nearest or default mock
-    let data = mockKnowledgeBase[query];
+    const keys = Object.keys(mockKnowledgeBase);
+    const exact = keys.find(k => k.toLowerCase() === query.toLowerCase());
+    const data = exact ? mockKnowledgeBase[exact] : null;
+
     if (!data) {
-      // Find case-insensitive partial match
-      const keys = Object.keys(mockKnowledgeBase);
-      const match = keys.find(k => k.toLowerCase().includes(query.toLowerCase()) || query.toLowerCase().includes(k.toLowerCase()));
-      data = match ? mockKnowledgeBase[match] : mockKnowledgeBase["how does chunking work?"];
+      if (emptyMsg) emptyMsg.hidden = false;
+      stageStatus.textContent = "NO SCRIPTED DEMO";
+      stageStatus.className = "nb-badge pink";
+      stageEmbed.textContent = "—";
+      stageSparse.textContent = "—";
+      stageRrf.textContent = "—";
+      stageTiming.textContent = "This playground does not call Qdrant or Ollama.";
+      answerBox.classList.remove('active');
+      resultsList.innerHTML = '';
+      resultsCountBadge.textContent = "0 Results";
+      return;
     }
+    if (emptyMsg) emptyMsg.hidden = true;
 
     // Update stages
     stageEmbed.textContent = data.denseVec;
@@ -1126,10 +1131,9 @@ function initDeepDives() {
 
 /* ==========================================================================
    5. Evaluation Scoreboard Table
-   Sample rows transcribed from docs/eval/baseline_v6.json (hybrid mode,
-   run 2026-05-27, 182 chunks). 17 of 19 positive queries hit within top 5;
-   the ChunkFile navigation miss is shown on purpose — it's the weakest
-   navigation query in the benchmark.
+   Sample rows from docs/eval/baseline_v8.json (hybrid mode, 2026-09-11,
+   199 chunks). 34/35 positive queries hit@5. ChunkFile navigation is top-1
+   after additive identifier tokens. Negative pass is 0.50 under RRF.
    ========================================================================== */
 const goldenQueries = [
   {
@@ -1157,7 +1161,7 @@ const goldenQueries = [
     query: "what happens when the embedder returns inconsistent vector dimensions",
     type: "behavior",
     file: "internal/embedding/validate.go",
-    outcome: "Hit at rank #1",
+    outcome: "Hit in top 5 (not #1)",
     hit: true
   },
   {
@@ -1171,29 +1175,29 @@ const goldenQueries = [
     query: "where is HitAtK function implemented",
     type: "navigation",
     file: "internal/eval/metrics.go",
-    outcome: "Hit at rank #3",
+    outcome: "Hit at rank #1",
     hit: true
   },
   {
     query: "where is LoadDataset implemented",
     type: "navigation",
     file: "internal/eval/dataset.go",
-    outcome: "Hit at rank #5",
+    outcome: "Hit at rank #1",
     hit: true
   },
   {
     query: "where is ChunkFile defined",
     type: "navigation",
     file: "internal/ingest/chunker.go",
-    outcome: "Miss (outside top 5)",
-    hit: false
+    outcome: "Hit at rank #1",
+    hit: true
   },
   {
     query: "where is the OAuth middleware implemented",
     type: "negative",
     file: "— (not in corpus)",
-    outcome: "Pass — no strong match",
-    hit: true
+    outcome: "Fail — dual-list RRF (ceiling 0.02)",
+    hit: false
   }
 ];
 
@@ -1207,7 +1211,9 @@ function initEvalTable() {
 
     let outcomeBadge;
     if (q.type === 'negative') {
-      outcomeBadge = `<span class="nb-badge mint">${q.outcome}</span>`;
+      outcomeBadge = q.hit
+        ? `<span class="nb-badge mint">${q.outcome}</span>`
+        : `<span class="nb-badge pink">${q.outcome}</span>`;
     } else if (q.hit) {
       outcomeBadge = `<strong style="color: #10b981;">${q.outcome}</strong>`;
     } else {
@@ -1245,14 +1251,14 @@ const terminalScripts = {
     "│    docstrings without slicing across arbitrary line boundaries.                      │",
     "│                                                                                     │",
     "│ 2. Sliding Window Chunker (internal/ingest/chunker.go) [2]: Fallback for non-Go     │",
-    "│    files using a 40-line window with 10-line overlap and regex symbol detection.    │",
+    "│    files using a 40-line window with 5-line overlap and regex symbol detection.     │",
     "│                                                                                     │",
     "│ Sources:                                                                            │",
-    "│   [1] internal/ingest/chunker_go.go:18-62 (func ChunkGoFile)                         │",
-    "│   [2] internal/ingest/chunker.go:42-88 (func ChunkFile)                             │",
+    "│   [1] internal/ingest/chunker_go.go (func chunkGoFile)                               │",
+    "│   [2] internal/ingest/chunker.go (func ChunkFile)                                   │",
     "└─────────────────────────────────────────────────────────────────────────────────────┘",
     "",
-    "Done in 124ms. Total chunks indexed: 182."
+    "Done. (terminal demo — not a live run)"
   ],
 
   "hybrid-search": [
@@ -1260,9 +1266,9 @@ const terminalScripts = {
     "[info] Mode: HYBRID (Dense + BM25 RRF, k=60)",
     "[info] Ollama nomic-embed-text (768d) query vector generated in 31ms",
     "",
-    "RANK #1  [RRF: 0.0328]  internal/embedding/embedder.go:10-38",
+    "RANK #1  [RRF: 0.0328]  internal/embedding/embedder.go",
     "  type Embedder interface {",
-    "      Embed(ctx context.Context, text string) ([]float32, error)",
+    "      Embed(ctx context.Context, texts []string) ([][]float32, error)",
     "      Dimension() int",
     "  }",
     "",
@@ -1277,52 +1283,53 @@ const terminalScripts = {
 
   "index": [
     "$ go run ./cmd/ragcodepilot index --language go .",
-    "[info] Walking repository files... found 38 Go files (skipping 14 *_test.go files)",
-    "[info] SHA-256 change detection: 38 files up to date, 0 modified, 0 new",
-    "[info] AST function chunking: 182 chunks extracted across 38 files",
-    "[info] Prepending metadata headers (file, package, function, signature)...",
-    "[info] Batching Ollama embeddings (batch_size=32, nomic-embed-text)... [3.2s]",
-    "[info] Building BM25 sparse weights with Snowball stemming...",
-    "[info] Upserting 182 dual-vector points to Qdrant collection 'code_chunks'... [140ms]",
-    "[success] Indexing complete! 182 chunks indexed in 3.42s."
+    "Using Ollama embedder (model: nomic-embed-text, url: http://localhost:11434)",
+    "Filtering to languages: go",
+    "Found 28 source files in ragsearch",
+    "Change detection: 0 unchanged, 0 changed, 28 new, 0 stale, 0 index-version refresh",
+    "Generated 199 chunks from 28 files",
+    "Indexed 199/199 chunks",
+    "Successfully indexed 199 chunks into collection \"code_chunks\""
   ],
 
   "watch": [
     "$ go run ./cmd/ragcodepilot index --language go --watch .",
-    "[watch] Initial index check: 182 chunks verified.",
-    "[watch] Listening for file events via fsnotify (debounce: 350ms)...",
+    "Using Ollama embedder (model: nomic-embed-text)",
+    "Found 28 source files in ragsearch",
+    "Change detection: 28 unchanged, 0 changed, 0 new, 0 stale, 0 index-version refresh",
+    "Everything up to date — nothing to index",
+    "[watch] listening for changes (same pipeline as one-shot index)...",
     "",
-    "[event] WRITE internal/ingest/chunker_go.go (MODIFIED)",
-    "[watch] Re-hashing file: SHA-256 changed (a4f9... -> 7b12...)",
-    "[watch] Parsing AST for internal/ingest/chunker_go.go: 4 function chunks extracted",
-    "[watch] Re-embedding 4 chunks via Ollama (nomic-embed-text)... [180ms]",
-    "[watch] Pruned 4 stale points and upserted 4 new points in Qdrant [24ms]",
-    "[watch] Incremental index synced in 214ms! Waiting for events..."
+    "[event] WRITE internal/ingest/chunker_go.go",
+    "Change detection: 0 unchanged, 1 changed, 0 new, 0 stale, 0 index-version refresh",
+    "Generated 199 chunks from 28 files",
+    "[note] any file change re-embeds ALL current files (BM25 IDF is corpus-wide)",
+    "Successfully indexed 199 chunks into collection \"code_chunks\""
   ],
 
   "eval": [
-    "$ go run ./cmd/ragcodepilot eval --dataset docs/eval/golden.yaml",
+    "$ go run ./cmd/ragcodepilot eval --mode hybrid --output json",
     "Dataset:    docs/eval/golden.yaml",
     "Collection: code_chunks",
-    "Embedder:   ollama/nomic-embed-text (768d)",
-    "Queries:    23 (positive 19, negative 4, errors 0)",
+    "Embedder:   ollama/nomic-embed-text",
+    "Queries:    39 (positive 35, negative 4, errors 0)",
     "",
     "Retrieval Metrics (positive queries):",
-    "  hit@1:        0.579  (57.9%)",
-    "  hit@3:        0.684  (68.4%)",
-    "  hit@5:        0.895  (89.5%)",
-    "  MRR@5:        0.673",
-    "  recall@5:     0.789",
-    "  recall@10:    0.921",
+    "  hit@1:        0.857  (85.7%)",
+    "  hit@3:        0.971  (97.1%)",
+    "  hit@5:        0.971  (97.1%)",
+    "  MRR@5:        0.910",
+    "  recall@5:     0.821",
+    "  recall@10:    0.903",
     "",
-    "Negative Queries Pass Rate: 1.00 (Zero false positives)",
+    "Negative pass rate: 0.50  (RRF ceiling 0.02; 2 of 4 dual-list)",
     "",
     "Latency Percentiles (ms):",
-    "  Total p50/p95:   28 / 137 ms",
-    "  Embed p50/p95:   22 / 46 ms",
-    "  Qdrant p50/p95:  2 / 4 ms",
+    "  Total p50/p95:   20 / 151 ms",
+    "  Embed p50/p95:   16 / 29 ms",
+    "  Qdrant p50/p95:  2 / 8 ms",
     "",
-    "[success] Retrieval benchmark PASSED against baseline_v6."
+    "Canonical baseline: docs/eval/baseline_v8.json"
   ]
 };
 
