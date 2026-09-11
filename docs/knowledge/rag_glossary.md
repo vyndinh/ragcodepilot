@@ -114,7 +114,7 @@ Terms used throughout ragcodepilot, organized from fundamentals to advanced.
 
 **Upsert** — "Update or insert." Writes vectors + metadata to the database. If a record with the same ID exists, it's replaced; otherwise a new record is created.
 
-**Change detection** — During re-indexing, comparing file hashes to skip unchanged files. Avoids the cost of re-embedding everything.
+**Change detection** — During re-indexing, comparing file hashes (and index version) to skip work when **nothing** changed. If any file changed, all current files are still re-embedded so BM25 IDF stays corpus-wide.
 
 **Index version** — A fingerprint stored with each chunk so the system knows when tokenizer or weighting changes require re-embedding, even if the source file hasn't changed.
 
