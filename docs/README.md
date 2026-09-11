@@ -91,8 +91,9 @@ page to find the right entry point.
 ## eval/ — metrics, golden set, baselines
 
 See [`eval/README.md`](eval/README.md). Holds the golden query set and the
-`baseline_v*.json` files; `baseline_v6.json` is the current canonical baseline,
-`baseline_v7_structural.json` is the Phase 6 comparison target.
+`baseline_v*.json` files; `baseline_v8.json` is the current canonical hybrid
+baseline (additive identifier tokens), `baseline_v7_structural.json` is the
+Phase 6 comparison target.
 
 ## task_tracker/ — task tracking
 

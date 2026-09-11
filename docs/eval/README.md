@@ -273,7 +273,10 @@ Each baseline file is tied to the **state of the indexed corpus** at the time it
 |---|---|---|---|
 | `baseline_v1.json` | Phase 1 corpus (~250 chunks) | dense | Historical only |
 | `baseline_v2_dense.json` | Phase 2 corpus (350 chunks) | dense | Same-corpus dense reference for Phase 3 |
-| `baseline_v2.json` | Phase 2 corpus (350 chunks) | hybrid | Canonical Phase 2 baseline; default comparison target |
+| `baseline_v2.json` | Phase 2 corpus (350 chunks) | hybrid | Canonical Phase 2 baseline |
+| `baseline_v6.json` | Phase 5 corpus (182 chunks, `*_test.go` excluded) | hybrid | Pre-identifier-token hybrid baseline |
+| `baseline_v7.json` / `baseline_v7_structural.json` | Same generation + 16 structural queries | hybrid | GraphRAG comparison target |
+| `baseline_v8.json` | 199 Go chunks, `sparse-bm25-snowball-ident-v2` | hybrid | Current canonical hybrid baseline (additive identifier tokens). hit@5 = 0.971; negative_pass_rate = 0.50 (mode-calibrated RRF, not the old cosine 0.55 cutoff) |
 
 A pure-algorithm comparison (e.g. "did the new reranker help?") only makes sense **between runs that share the same corpus**. When the corpus changes — new packages added, chunker upgrades emit different chunks, etc. — the rank ordering shifts for reasons that have nothing to do with the algorithm under test. Comparing across corpus generations conflates "the algorithm changed" with "the inputs changed."
 
