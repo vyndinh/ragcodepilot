@@ -4,6 +4,13 @@
 2026-05-28** — see "Why this before reranking" below. Still gated on extending
 the golden eval with multi-hop / structural queries before A/B begins.
 
+> **Roadmap update 2026-07-06:** sequencing restructured — this build is now
+> gated on **milestone M0** in [`mvp_roadmap.md`](mvp_roadmap.md) (the two
+> prerequisites below plus a symbol-fast-path spike decide build / rescope /
+> shelve), and if justified it enters as **M5 rung 4** after the cheaper
+> levers. This doc remains the unchanged build spec for when that decision
+> says build.
+
 This document proposes adding a **graph layer** over the existing hybrid
 retrieval, so that structural relationships between code entities (calls,
 defines, implements, imports) become a first-class retrieval signal. It is the
