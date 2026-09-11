@@ -48,7 +48,7 @@ Query: "how does crash recovery work?"
 - Handles natural language: "what happens when the file is too large" works
 
 **Weaknesses:**
-- Loses exact identifiers: "ChunkFile" becomes a vague cloud of "chunk" + "file" concepts
+- Loses exact identifiers unless the tokenizer keeps them: "ChunkFile" is also indexed as `chunkfile`, not only "chunk" + "file"
 - Can't distinguish `ChunkFile` from `FileChunk` or `splitFileIntoChunks`
 - Short identifier queries ("ValidateVectorBatch") get poor results
 
@@ -65,8 +65,8 @@ Query: "ChunkFile"
    Code-aware tokenizer
          │
          ▼
-   Tokens: ["chunk", "file"]
-   Weights: [1.0,    1.0  ]
+   Tokens: ["chunkfile", "chunk", "file"]
+   Weights: [1.0,        1.0,     1.0  ]
          │
          ▼
    Qdrant: match tokens by BM25 score

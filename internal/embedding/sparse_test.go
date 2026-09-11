@@ -10,31 +10,31 @@ import (
 
 func TestTokenize_CamelCase(t *testing.T) {
 	got := Tokenize("ChunkFile")
-	want := []string{"chunk", "file"}
+	want := []string{"chunkfile", "chunk", "file"}
 	assertTokens(t, got, want)
 }
 
 func TestTokenize_SnakeCase(t *testing.T) {
 	got := Tokenize("chunk_file")
-	want := []string{"chunk", "file"}
+	want := []string{"chunkfile", "chunk", "file"}
 	assertTokens(t, got, want)
 }
 
 func TestTokenize_MixedCamelCase(t *testing.T) {
 	got := Tokenize("NewVectorInputSparse")
-	want := []string{"new", "vector", "input", "sparse", "spars"}
+	want := []string{"newvectorinputsparse", "new", "vector", "input", "sparse", "spars"}
 	assertTokens(t, got, want)
 }
 
 func TestTokenize_NumbersAttached(t *testing.T) {
 	got := Tokenize("sha256Hash")
-	want := []string{"sha256", "hash"}
+	want := []string{"sha256hash", "sha256", "hash"}
 	assertTokens(t, got, want)
 }
 
 func TestTokenize_UppercaseAcronym(t *testing.T) {
 	got := Tokenize("HTTPClient")
-	want := []string{"http", "client"}
+	want := []string{"httpclient", "http", "client"}
 	assertTokens(t, got, want)
 }
 
@@ -99,6 +99,34 @@ func TestTokenize_AdditiveStem_NoChange(t *testing.T) {
 	// "chunk" is already a root — should emit only "chunk".
 	got := Tokenize("chunk")
 	assertTokens(t, got, []string{"chunk"})
+}
+
+// --- Additive identifier tokens -----------------------------------------
+
+func TestTokenize_Identifier_CamelAndSnakeShareJoinedForm(t *testing.T) {
+	camel := Tokenize("ChunkFile")
+	snake := Tokenize("chunk_file")
+	assertContains(t, camel, "chunkfile")
+	assertContains(t, snake, "chunkfile")
+	assertContains(t, camel, "chunk")
+	assertContains(t, camel, "file")
+}
+
+func TestTokenize_Identifier_SingleWordNotDuplicated(t *testing.T) {
+	got := Tokenize("chunker")
+	assertTokens(t, got, []string{"chunker"})
+}
+
+func TestTokenize_Identifier_StopWordPartsStillEmitJoined(t *testing.T) {
+	// "the" and "func" are stop words; previously TheFunc emitted nothing.
+	got := Tokenize("TheFunc")
+	assertTokens(t, got, []string{"thefunc"})
+}
+
+func TestTokenize_Identifier_NoStemOnJoinedForm(t *testing.T) {
+	got := Tokenize("ChunkFile")
+	assertContains(t, got, "chunkfile")
+	assertNotContains(t, got, "chunkfil")
 }
 
 func TestTokenize_AdditiveStem_Computing(t *testing.T) {
@@ -288,6 +316,24 @@ func TestComputeCorpusStats_StemExpansionDoesNotInflateDocLength(t *testing.T) {
 	}
 	if _, ok := stats.IDF["hash"]; !ok {
 		t.Fatal("expected stemmed token IDF for hash")
+	}
+}
+
+func TestComputeCorpusStats_IdentifierExpansionDoesNotInflateDocLength(t *testing.T) {
+	stats := ComputeCorpusStats([]string{"ChunkFile"})
+
+	// Split parts "chunk"+"file" count as length 2; "chunkfile" is extra.
+	if math.Abs(stats.AvgDocLen-2.0) > 0.001 {
+		t.Fatalf("avgdl = %.4f, want 2.0 from split parts only", stats.AvgDocLen)
+	}
+	if _, ok := stats.IDF["chunkfile"]; !ok {
+		t.Fatal("expected joined identifier IDF for chunkfile")
+	}
+	if _, ok := stats.IDF["chunk"]; !ok {
+		t.Fatal("expected part IDF for chunk")
+	}
+	if _, ok := stats.IDF["file"]; !ok {
+		t.Fatal("expected part IDF for file")
 	}
 }
 

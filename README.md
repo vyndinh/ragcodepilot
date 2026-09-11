@@ -362,7 +362,7 @@ go run ./cmd/ragcodepilot index --language go .
 ## Known limitations
 
 - Function-level chunking is Go-only (AST-based). Other languages use a sliding window.
-- Sparse vectors use BM25 with a softened `k1=0.5` (Elasticsearch's default `k1=1.2` is calibrated for long, mixed-length documents; code chunks are short and uniform, so milder TF saturation gave a much cleaner result on the May 2026 eval — hit@1 +21pp vs TF-IDF). The original plural/singular token-mismatch regression on the `hasher_concept` query was resolved on 2026-05-15 by additive Snowball stemming (`baseline_v4`). See [`docs/plan/hybrid_search.md`](docs/plan/hybrid_search.md) §3 for the full history and eval matrix.
+- Sparse vectors use BM25 with a softened `k1=0.5` (Elasticsearch's default `k1=1.2` is calibrated for long, mixed-length documents; code chunks are short and uniform, so milder TF saturation gave a much cleaner result on the May 2026 eval — hit@1 +21pp vs TF-IDF). The original plural/singular token-mismatch regression on the `hasher_concept` query was resolved on 2026-05-15 by additive Snowball stemming (`baseline_v4`). CamelCase/snake_case identifiers also keep a joined token (`ChunkFile` → `chunkfile` + `chunk` + `file`) so exact-symbol queries are not reduced to generic parts. See [`docs/plan/hybrid_search.md`](docs/plan/hybrid_search.md) §3 for the full history and eval matrix.
 - Embedding dimension is auto-detected; switching models requires collection delete + re-index.
 
 ## Further docs
