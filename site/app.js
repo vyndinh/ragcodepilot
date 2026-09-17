@@ -4,6 +4,7 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
+  initNav();
   initPipeline();
   initSimulator();
   initDeepDives();
@@ -12,6 +13,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initQuickActions();
   initScrollSpy();
 });
+
+function prefersReducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
 
 /* ==========================================================================
    1. Theme Management (Light Parchment <-> Sleek Dark Neobrutalism)
@@ -443,10 +448,11 @@ function initPipeline() {
   const resetBtn = document.getElementById('streamResetBtn');
 
   let currentFlow = 'ingestion';
-  let isPlaying = true;
+  let isPlaying = !prefersReducedMotion();
   let speedMultiplier = 1;
   let animFrameId = null;
   let activeNodeIndex = 0;
+  const mobileList = document.getElementById('pipelineMobileList');
 
   // Particle tracking
   let particles = [];
@@ -521,9 +527,28 @@ function initPipeline() {
       });
     });
 
+    renderMobileList();
+
     // Select initial node
     selectCanvasNode(0);
     updateTicker();
+  }
+
+  function renderMobileList() {
+    if (!mobileList) return;
+    const flowDef = canvasFlowDefinitions[currentFlow];
+    mobileList.innerHTML = flowDef.nodes.map((node, idx) => `
+      <li>
+        <button type="button" class="pipeline-mobile-step${idx === activeNodeIndex ? ' active' : ''}" data-idx="${idx}">
+          <span class="pipeline-mobile-stage">STAGE ${node.step}</span>
+          <span class="pipeline-mobile-name">${node.icon} ${node.name}</span>
+          <span class="pipeline-mobile-sub">${node.sub} · ${node.pkg}</span>
+        </button>
+      </li>
+    `).join('');
+    mobileList.querySelectorAll('.pipeline-mobile-step').forEach(btn => {
+      btn.addEventListener('click', () => selectCanvasNode(Number(btn.getAttribute('data-idx'))));
+    });
   }
 
   function selectCanvasNode(idx) {
@@ -537,8 +562,15 @@ function initPipeline() {
     const activeG = document.getElementById(`cnode-${node.id}`);
     if (activeG) {
       activeG.classList.add('active');
-      activeG.classList.add('pulse-hit');
-      setTimeout(() => activeG.classList.remove('pulse-hit'), 600);
+      if (!prefersReducedMotion()) {
+        activeG.classList.add('pulse-hit');
+        setTimeout(() => activeG.classList.remove('pulse-hit'), 600);
+      }
+    }
+    if (mobileList) {
+      mobileList.querySelectorAll('.pipeline-mobile-step').forEach((btn, i) => {
+        btn.classList.toggle('active', i === idx);
+      });
     }
 
     // Lookup corresponding deep inspector data via the node's explicit detail id
@@ -568,28 +600,45 @@ function initPipeline() {
     }
   }
 
-  // Animation Loop for Flying Particles
-  function animate() {
-    if (isPlaying) {
-      // Clear particle layer
-      let particlesSvg = '';
+  function stopAnimation() {
+    isPlaying = false;
+    if (animFrameId) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+    svgParticlesLayer.innerHTML = '';
+    playPauseIcon.textContent = '▶️';
+    playPauseText.textContent = 'Play Animation';
+    playPauseBtn.classList.remove('nb-btn-yellow');
+    canvasWrapper.classList.add('paused');
+  }
 
+  function startAnimation() {
+    if (isPlaying && animFrameId) return;
+    isPlaying = true;
+    playPauseIcon.textContent = '⏸️';
+    playPauseText.textContent = 'Pause Animation';
+    playPauseBtn.classList.add('nb-btn-yellow');
+    canvasWrapper.classList.remove('paused');
+    function animate() {
+      if (!isPlaying) {
+        animFrameId = null;
+        return;
+      }
+      let particlesSvg = '';
       particles.forEach(p => {
         p.progress += p.speed * speedMultiplier;
         if (p.progress >= 1) {
           p.progress = 0;
-          // Trigger subtle pulse on target node
           const pathObj = pathElements[p.connId];
-          if (pathObj) {
-            const targetNodeId = pathObj.conn.to;
-            const targetEl = document.getElementById(`cnode-${targetNodeId}`);
+          if (pathObj && !prefersReducedMotion()) {
+            const targetEl = document.getElementById(`cnode-${pathObj.conn.to}`);
             if (targetEl && Math.random() < 0.3) {
               targetEl.classList.add('pulse-hit');
               setTimeout(() => targetEl.classList.remove('pulse-hit'), 600);
             }
           }
         }
-
         const pathObj = pathElements[p.connId];
         if (pathObj && pathObj.el) {
           const pt = pathObj.el.getPointAtLength(p.progress * pathObj.length);
@@ -601,27 +650,16 @@ function initPipeline() {
           `;
         }
       });
-
       svgParticlesLayer.innerHTML = particlesSvg;
+      animFrameId = requestAnimationFrame(animate);
     }
-
     animFrameId = requestAnimationFrame(animate);
   }
 
   // Play / Pause Toggle
   playPauseBtn.addEventListener('click', () => {
-    isPlaying = !isPlaying;
-    if (isPlaying) {
-      playPauseIcon.textContent = '⏸️';
-      playPauseText.textContent = 'Pause Animation';
-      playPauseBtn.classList.add('nb-btn-yellow');
-      canvasWrapper.classList.remove('paused');
-    } else {
-      playPauseIcon.textContent = '▶️';
-      playPauseText.textContent = 'Play Animation';
-      playPauseBtn.classList.remove('nb-btn-yellow');
-      canvasWrapper.classList.add('paused');
-    }
+    if (isPlaying) stopAnimation();
+    else startAnimation();
   });
 
   // Speed Toggle (1x / 2x)
@@ -639,14 +677,7 @@ function initPipeline() {
 
   // Step Next Button
   stepBtn.addEventListener('click', () => {
-    // Pause stream if running
-    if (isPlaying) {
-      isPlaying = false;
-      playPauseIcon.textContent = '▶️';
-      playPauseText.textContent = 'Play Animation';
-      playPauseBtn.classList.remove('nb-btn-yellow');
-      canvasWrapper.classList.add('paused');
-    }
+    if (isPlaying) stopAnimation();
 
     const flowDef = canvasFlowDefinitions[currentFlow];
     activeNodeIndex = (activeNodeIndex + 1) % flowDef.nodes.length;
@@ -674,7 +705,28 @@ function initPipeline() {
 
   // Initial load
   loadFlow('ingestion');
-  animate();
+  if (isPlaying) startAnimation();
+  else stopAnimation();
+}
+
+function initNav() {
+  const toggle = document.getElementById('navToggleBtn');
+  const nav = document.getElementById('siteNav');
+  if (!toggle || !nav) return;
+
+  toggle.addEventListener('click', () => {
+    const open = nav.classList.toggle('is-open');
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggle.textContent = open ? 'Close' : 'Menu';
+  });
+
+  nav.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      nav.classList.remove('is-open');
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.textContent = 'Menu';
+    });
+  });
 }
 
 /* ==========================================================================
@@ -1346,6 +1398,11 @@ function initTerminal() {
 
     const lines = terminalScripts[cmdKey];
     terminalBody.textContent = '';
+    if (prefersReducedMotion()) {
+      terminalBody.textContent = lines.join('\n');
+      terminalBody.scrollTop = terminalBody.scrollHeight;
+      return;
+    }
     let lineIdx = 0;
 
     animationInterval = setInterval(() => {

@@ -68,7 +68,10 @@
         </div>
       </a>
 
-      <nav class="nav-pills">
+      <button type="button" id="navToggleBtn" class="nb-btn nb-btn-sm nav-toggle" aria-expanded="false" aria-controls="siteNav">
+        Menu
+      </button>
+      <nav id="siteNav" class="nav-pills">
         <a href="#pipeline" class="nav-link active">Pipeline Flow</a>
         <a href="#simulator" class="nav-link">RAG Simulator</a>
         <a href="#deepdives" class="nav-link">Deep Dives</a>
@@ -82,7 +85,7 @@
   <!-- Hero Section -->
   <section class="hero-section">
     <p class="hero-tagline">
-      A local semantic code search and generation CLI • Inspired by <a href="https://vyndinh.github.io/" target="_blank">Vy Dinh's portfolio</a>
+      A local semantic code search and generation CLI
     </p>
     <h2 class="hero-title">
       Search your codebase using plain English, right from the terminal.
@@ -185,11 +188,11 @@
     <!-- Interactive Animation Toolbar -->
     <div class="stream-toolbar">
       <div class="stream-actions">
-        <button id="streamPlayPauseBtn" class="nb-btn nb-btn-sm nb-btn-yellow" aria-label="Play or pause stream animation">
+        <button id="streamPlayPauseBtn" class="nb-btn nb-btn-sm nb-btn-yellow stream-anim-only" aria-label="Play or pause stream animation">
           <span id="playPauseIcon">⏸️</span>
           <span id="playPauseText">Pause Animation</span>
         </button>
-        <button id="streamSpeedBtn" class="nb-btn nb-btn-sm" aria-label="Toggle animation speed">
+        <button id="streamSpeedBtn" class="nb-btn nb-btn-sm stream-anim-only" aria-label="Toggle animation speed">
           <span id="speedText">⚡ 1x Speed</span>
         </button>
         <button id="streamStepBtn" class="nb-btn nb-btn-sm" aria-label="Step to next pipeline stage">
@@ -200,7 +203,7 @@
         </button>
       </div>
 
-      <div class="stream-ticker" id="streamTicker">
+      <div class="stream-ticker stream-anim-only" id="streamTicker">
         <span class="pulse-dot"></span>
         <span id="tickerText">STREAM: Ingesting repository files ➔ SHA-256 Check ➔ AST Function Chunker...</span>
       </div>
@@ -241,6 +244,8 @@
         <g id="svgNodesLayer"></g>
       </svg>
     </div>
+
+    <ol class="pipeline-mobile-list" id="pipelineMobileList" aria-label="Pipeline stages"></ol>
 
     <!-- Pipeline Node Detail Inspector -->
     <div class="nb-card pipeline-inspector" id="pipelineInspector">
