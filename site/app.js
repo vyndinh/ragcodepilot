@@ -3,16 +3,67 @@
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
+  initEvidence();
   initTheme();
   initNav();
   initPipeline();
   initSimulator();
   initDeepDives();
+  initWorkedExamples();
+  initSourceLinks();
   initEvalTable();
   initTerminal();
   initQuickActions();
+  document.querySelectorAll('[data-copy-command]').forEach(button => {
+    button.addEventListener('click', () => copyCommand(document.getElementById(button.dataset.copyCommand).textContent, button));
+  });
   initScrollSpy();
 });
+
+// Pin source links so the illustrated implementation remains reviewable as main changes.
+const sourceBase = `${SITE_EVIDENCE.repository}/blob/${SITE_EVIDENCE.implementation_revision}/`;
+
+function initEvidence() {
+  const report = SITE_EVIDENCE.retrieval_report;
+  const a = report.aggregate;
+  const generation = SITE_EVIDENCE.generation_report;
+  const percent = value => `${(value * 100).toFixed(1)}%`;
+  const values = {
+    hit1: percent(a.hit_at_1), hit5: percent(a.hit_at_5),
+    recall10: percent(a.recall_at_10), mrr5: a.mrr_at_5.toFixed(3),
+    negativePass: a.negative_pass_rate.toFixed(2), p95: `${a.latency_total_p95_ms}ms`,
+    positiveScope: `${a.positive_queries} positive queries, ${report.mode} mode`,
+    corpusScope: `${a.queries} golden queries on this Go repository`,
+    queryCount: `GOLDEN BENCHMARK (${a.queries} QUERIES)`,
+    retrievalDate: report.run_id.slice(0, 10),
+    allRows: `All ${a.queries} queries from the saved report; ${report.queries.filter(q => q.type !== 'negative' && q.hit_at_5).length} of ${a.positive_queries} positives hit@5. Returned files may be irrelevant, especially for negative queries.`,
+    negativeScope: `${report.queries.filter(q => q.type === 'negative' && !q.negative.pass).length} of ${a.negative_queries} out-of-scope queries fail the calibrated check`,
+    generationScope: `${generation.answer.generated}-query structural answer run`,
+    generationDate: generation.run_id.slice(0, 10),
+    generationP50: `${(generation.answer.generate_p50_ms / 1000).toFixed(1)}s`,
+    generationP95: `${(generation.answer.generate_p95_ms / 1000).toFixed(1)}s`,
+    revision: SITE_EVIDENCE.implementation_revision.slice(0, 12),
+    reviewed: SITE_EVIDENCE.implementation_reviewed_on,
+    goVersion: SITE_EVIDENCE.go_version
+  };
+  document.querySelectorAll('[data-evidence]').forEach(node => {
+    node.textContent = values[node.dataset.evidence];
+  });
+  document.getElementById('implementationRevision').href = `${SITE_EVIDENCE.repository}/tree/${SITE_EVIDENCE.implementation_revision}`;
+}
+
+function sourceUrl(path, lines = '') {
+  const range = /^(\d+)(?:-(\d+))?$/.exec(lines);
+  return sourceBase + path + (range ? `#L${range[1]}${range[2] ? `-L${range[2]}` : ''}` : '');
+}
+
+function initSourceLinks() {
+  document.querySelectorAll('[data-source]').forEach(link => {
+    link.href = sourceUrl(link.dataset.source, link.dataset.lines);
+    link.target = '_blank';
+    link.rel = 'noopener';
+  });
+}
 
 function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -63,7 +114,7 @@ const pipelineData = {
       pkg: 'root filesystem',
       input: 'Local repository path (e.g., ".")',
       output: 'File tree for the walker to traverse',
-      desc: 'The indexing entry point: a local checkout of a Git repository. Nothing ever leaves this machine — walking, hashing, chunking, and embedding all run locally under the language and skip rules defined in config.yaml.',
+      desc: 'The indexing entry point: a local checkout of a Git repository. With the default local service addresses, source content stays on this machine. The walker applies the language and skip rules defined in config.yaml.',
       code: `// Everything runs locally — no file content is sent to any cloud API.
 //   ragcodepilot index --language go <repoPath>
 //
@@ -126,7 +177,7 @@ func HashFile(path string) (string, error) {
       pkg: 'internal/ingest/chunker_go.go',
       input: 'Raw Go source code',
       output: '[]model.CodeChunk (functions, types, interfaces, blocks)',
-      desc: 'Uses go/parser to extract function/method declarations and named type/interface specs. Remaining imports and vars become block chunks. Syntax errors fall back to the generic sliding window.',
+      desc: 'Uses go/parser to extract function/method declarations and named type/interface specs. Declarations longer than 80 lines use sliding-window splitting. Remaining imports and vars become block chunks. Syntax errors fall back to the generic sliding window.',
       code: `func chunkGoFile(...) ([]model.CodeChunk, error) {
     fset := gotoken.NewFileSet()
     file, parseErr := parser.ParseFile(fset, filePath, src, parser.ParseComments)
@@ -151,7 +202,7 @@ func HashFile(path string) (string, error) {
       pkg: 'internal/ingest/enrichment.go',
       input: 'CodeChunk struct',
       output: 'Enriched string for embedding input',
-      desc: 'Prepends File, Language, and Function/Type/Interface (or Type: Block) before embedding. Qdrant still stores the raw code; only the embedder sees the header.',
+      desc: 'Prepends File, Language, and Function/Type/Interface (or Type: Block). Both dense embedding and sparse document vector generation use this enriched text. Qdrant stores the original raw code payload.',
       code: `func enrichForEmbedding(chunk model.CodeChunk) string {
     var b strings.Builder
     fmt.Fprintf(&b, "File: %s\\n", chunk.FilePath)
@@ -176,7 +227,7 @@ func HashFile(path string) (string, error) {
       pkg: 'internal/embedding/ollama.go',
       input: 'Enriched code texts',
       output: '768d float vector + Sparse BM25 term weights',
-      desc: 'Calls Ollama HTTP API (nomic-embed-text) to generate 768-dimensional dense semantic vectors. Concurrently builds a BM25 sparse vector with Snowball stemming and CRC32-hashed terms (internal/embedding/sparse.go).',
+      desc: 'Calls Ollama HTTP /api/embed (nomic-embed-text) for dense vectors, then builds sparse BM25 document vectors using corpus-wide statistics. Tokenization preserves full identifiers and adds Snowball stems; terms are CRC32-hashed. These are sequential steps in each ingestion batch, not parallel workers.',
       code: `// Embedder.Embed takes a batch of texts (nomic-embed-text, 768d)
 func (e *OllamaEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
     // POST /api/embed  { model, input: texts }
@@ -187,32 +238,20 @@ func (e *OllamaEmbedder) Embed(ctx context.Context, texts []string) ([][]float32
       icon: '🗄️',
       title: '6. Qdrant Upsert',
       subtitle: 'gRPC multi-vector batch',
-      symbol: 'UpsertChunks(ctx, collection, points)',
+      symbol: '(*Client).Upsert(ctx, collection, chunks, vectors, sparseVectors)',
       pkg: 'internal/qdrant/client.go',
       input: 'Multi-vector points with payloads',
       output: 'Qdrant points stored & indexes synced',
-      desc: 'Batches chunks into Qdrant via high-performance gRPC. Stores dual vectors ("dense" + "sparse") and indexes payload fields (file_hash, language, repo, index_version). Also deletes stale orphaned chunks.',
-      code: `// UpsertChunks stores dual-vector points in Qdrant over gRPC
-func (c *Client) UpsertChunks(ctx context.Context, coll string, points []*Point) error {
-    qdrantPoints := make([]*qdrant.PointStruct, len(points))
-    for i, p := range points {
-        qdrantPoints[i] = &qdrant.PointStruct{
-            Id: &qdrant.PointId{PointIdOptions: &qdrant.PointId_Uuid{Uuid: p.ID}},
-            Vectors: &qdrant.Vectors{
-                VectorsOptions: &qdrant.Vectors_Vectors{
-                    Vectors: &qdrant.NamedVectors{
-                        Vectors: map[string]*qdrant.Vector{
-                            "dense":  {Data: p.DenseVector},
-                            "sparse": {Data: p.SparseVector},
-                        },
-                    },
-                },
-            },
-            Payload: p.Payload,
-        }
-    }
-    return c.grpc.Upsert(ctx, coll, qdrantPoints)
-}`
+      desc: 'Upserts dense and sparse vectors plus raw code and metadata over gRPC. Keyword payload indexes cover repo, language, and file_path. file_hash and index_version are stored metadata. The ingestion pipeline separately deletes stale points.',
+      code: `// Excerpt of Client.Upsert: one named dense and sparse vector per point.
+// Validation, payload construction, and the batch loop are omitted here.
+vectorsMap := map[string]*pb.Vector{
+    "dense": pb.NewVectorDense(vectors[i]),
+}
+vectorsMap["sparse"] = pb.NewVectorSparse(
+    sparseVectors[i].Indices, sparseVectors[i].Values,
+)
+// Point ID + vectorsMap + raw code payload → batches of up to 64 points.`
     }
   ],
 
@@ -267,12 +306,13 @@ if mode == SearchModeSparse || mode == SearchModeHybrid {
       symbol: 'TokenizeQuery(query string) SparseVector',
       pkg: 'internal/embedding/sparse.go',
       input: 'Query text',
-      output: 'Sparse vector (CRC32 term hashes + BM25 weights)',
-      desc: 'Splits the query on word boundaries and camelCase/handle_case shapes, stems tokens with Snowball, hashes them to 32-bit term IDs, and weights them with BM25 IDF statistics computed over the indexed corpus.',
-      code: `// TokenizeQuery produces the sparse BM25 representation of a query
+      output: 'Sparse vector (CRC32 term hashes + uniform weights of 1.0)',
+      desc: 'Uses the same identifier splitting, preserved full identifiers, and additive Snowball stems as indexing. Each unique term hash gets query weight 1.0. Corpus IDF and length normalization are already included in stored document vectors, not recomputed for a query.',
+      code: `// Query weights are uniform; BM25 weights live in document vectors.
 func TokenizeQuery(query string) SparseVector {
-    tokens := tokenize(query, true) // includes Snowball stems
-    return sparseFromTokens(tokens)
+    tokens := Tokenize(query)
+    // Deduplicate CRC32 hashes, then append 1.0 per unique hash.
+    // Return SparseVector{Indices: indices, Values: values}.
 }
 
 // tokenHash maps a term to its 32-bit sparse index (CRC32).
@@ -331,7 +371,7 @@ Prefetch: []*pb.PrefetchQuery{
       pkg: 'internal/qdrant/client.go',
       input: 'Ranked dense & sparse candidate lists',
       output: 'Fused & sorted []SearchResult',
-      desc: 'Fusion runs server-side inside Qdrant in the same gRPC call: Reciprocal Rank Fusion with rrfK = 60 combines the dense and sparse rank orders, Score = 1/(60 + R_dense) + 1/(60 + R_sparse). No client-side score normalization needed.',
+      desc: 'Fusion runs inside Qdrant in the same query RPC. With k=60 and zero-based positions (first = 0), each list contributes 1/(60 + position), or 0 if the chunk is absent. The sum determines the fused order; raw cosine and BM25 scores are not added.',
       code: `// rrfK is the standard Reciprocal Rank Fusion constant (client.go:269)
 const rrfK = 60
 
@@ -372,7 +412,19 @@ for i, r := range results {
       desc: 'When --answer is enabled, retrieved code chunks are injected into a prompt built by answer.BuildPrompt. Local Ollama (qwen2.5-coder:7b) generates a concise, grounded explanation with exact file citations.',
       code: `// Generate calls local qwen2.5-coder with the grounded prompt
 func (o *OllamaGenerator) Generate(ctx context.Context, prompt Prompt) (string, error) {
-    // POST /api/generate { model: "qwen2.5-coder:7b", ... }
+    // POST /api/chat { model: "qwen2.5-coder:7b", messages: [...], ... }
+}`
+    },
+    {
+      id: 'search-results', icon: '💻', title: '7. Ranked Code Results',
+      subtitle: 'Default CLI output', symbol: 'FormatResults(results)',
+      pkg: 'internal/search/searcher.go', input: 'Ranked results with raw source payloads',
+      output: 'Code, scores, file paths, symbols, and line ranges',
+      desc: 'The default search ends here. FormatResults prints ranked source code directly; no generative model is called. Only --answer opts into generation from the top answer-limit results.',
+      code: `// cmd/ragcodepilot/main.go: retrieval-only branch
+if gen == nil {
+    fmt.Print(search.FormatResults(results))
+    return nil
 }`
     }
   ]
@@ -415,7 +467,8 @@ const canvasFlowDefinitions = {
       { id: 'search-qdrant', detail: 'search-lookup', x: 535, y: 145, w: 130, h: 76, icon: '🔍', name: 'Vector Lookup', sub: 'Parallel Top-K', pkg: 'qdrant gRPC', color: '#9be3ff', step: 4 },
       { id: 'search-rrf', detail: 'search-rrf', x: 700, y: 145, w: 130, h: 76, icon: '⚖️', name: 'RRF Fusion', sub: 'Rank Merge (k=60)', pkg: 'qdrant/client.go', color: '#a7f3d0', step: 5 },
       { id: 'search-context', detail: 'search-context', x: 865, y: 145, w: 125, h: 76, icon: '📄', name: 'Context Chunks', sub: 'Top-K assembly', pkg: 'search/searcher.go', color: '#ffde59', step: 6 },
-      { id: 'search-answer', detail: 'search-answer', x: 1020, y: 145, w: 105, h: 76, icon: '🤖', name: 'Ollama LLM', sub: 'qwen2.5-coder:7b', pkg: 'answer/ollama.go', color: '#d8b4fe', step: 7 }
+      { id: 'search-results', detail: 'search-results', x: 1000, y: 45, w: 125, h: 76, icon: '💻', name: 'Code Results', sub: 'Default: print code', pkg: 'Go CLI · stdout', color: '#a7f3d0', step: 7 },
+      { id: 'search-answer', detail: 'search-answer', x: 1000, y: 245, w: 125, h: 76, icon: '🤖', name: 'Ollama LLM', sub: '--answer only', pkg: 'HTTP /api/chat', color: '#d8b4fe', step: 7 }
     ],
     connections: [
       { id: 'sconn-0-1a', from: 'search-query', to: 'search-ollama', d: 'M 155 170 C 175 170, 175 83, 195 83', color: 'blue', marker: 'arrowBlue', speed: 1 },
@@ -425,7 +478,8 @@ const canvasFlowDefinitions = {
       { id: 'sconn-2-3', from: 'search-filter', to: 'search-qdrant', d: 'M 500 183 L 535 183', color: 'pink', marker: 'arrowBlue', speed: 1 },
       { id: 'sconn-3-4', from: 'search-qdrant', to: 'search-rrf', d: 'M 665 183 L 700 183', color: 'blue', marker: 'arrowMint', speed: 1 },
       { id: 'sconn-4-5', from: 'search-rrf', to: 'search-context', d: 'M 830 183 L 865 183', color: 'mint', marker: 'arrowYellow', speed: 1 },
-      { id: 'sconn-5-6', from: 'search-context', to: 'search-answer', d: 'M 990 183 L 1020 183', color: 'yellow', marker: 'arrowPink', speed: 1 }
+      { id: 'sconn-default', from: 'search-context', to: 'search-results', d: 'M 928 145 L 928 83 L 1000 83', color: 'mint', marker: 'arrowMint', speed: 1 },
+      { id: 'sconn-answer', from: 'search-context', to: 'search-answer', d: 'M 928 221 L 928 283 L 1000 283', color: 'pink', marker: 'arrowPink', speed: 1 }
     ]
   }
 };
@@ -465,6 +519,10 @@ function initPipeline() {
     pathElements = {};
 
     const flowDef = canvasFlowDefinitions[flowKey];
+    document.getElementById('svgLabelsLayer').innerHTML = flowKey === 'search' ? `
+      <text x="677" y="121" class="svg-boundary-label" text-anchor="middle">QDRANT · ONE QUERY RPC</text>
+      <text x="943" y="64" class="svg-route-label">DEFAULT</text>
+      <text x="942" y="310" class="svg-route-label">OPTIONAL</text>` : '';
 
     // 1. Render SVG Paths
     svgPathsLayer.innerHTML = flowDef.connections.map(conn => `
@@ -479,7 +537,7 @@ function initPipeline() {
 
     // 2. Render SVG Nodes (Neobrutalist cards)
     svgNodesLayer.innerHTML = flowDef.nodes.map((node, idx) => `
-      <g class="canvas-node-group ${idx === 0 ? 'active' : ''}" id="cnode-${node.id}" data-node-id="${node.id}" transform="translate(${node.x}, ${node.y})" tabindex="0" role="button" aria-label="${node.name}: ${node.sub}">
+      <g class="canvas-node-group ${idx === 0 ? 'active' : ''}" id="cnode-${node.id}" data-node-id="${node.id}" transform="translate(${node.x}, ${node.y})" tabindex="0" role="button" aria-pressed="${idx === 0}" aria-label="${node.name}: ${node.sub}">
         <!-- Card Drop Shadow & Border -->
         <rect class="canvas-node-rect" width="${node.w}" height="${node.h}" />
 
@@ -539,7 +597,7 @@ function initPipeline() {
     const flowDef = canvasFlowDefinitions[currentFlow];
     mobileList.innerHTML = flowDef.nodes.map((node, idx) => `
       <li>
-        <button type="button" class="pipeline-mobile-step${idx === activeNodeIndex ? ' active' : ''}" data-idx="${idx}">
+        <button type="button" class="pipeline-mobile-step${idx === activeNodeIndex ? ' active' : ''}" data-idx="${idx}" aria-pressed="${idx === activeNodeIndex}">
           <span class="pipeline-mobile-stage">STAGE ${node.step}</span>
           <span class="pipeline-mobile-name">${node.icon} ${node.name}</span>
           <span class="pipeline-mobile-sub">${node.sub} · ${node.pkg}</span>
@@ -558,10 +616,14 @@ function initPipeline() {
     if (!node) return;
 
     // Update active class on SVG nodes
-    document.querySelectorAll('.canvas-node-group').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.canvas-node-group').forEach(n => {
+      n.classList.remove('active');
+      n.setAttribute('aria-pressed', 'false');
+    });
     const activeG = document.getElementById(`cnode-${node.id}`);
     if (activeG) {
       activeG.classList.add('active');
+      activeG.setAttribute('aria-pressed', 'true');
       if (!prefersReducedMotion()) {
         activeG.classList.add('pulse-hit');
         setTimeout(() => activeG.classList.remove('pulse-hit'), 600);
@@ -570,6 +632,7 @@ function initPipeline() {
     if (mobileList) {
       mobileList.querySelectorAll('.pipeline-mobile-step').forEach((btn, i) => {
         btn.classList.toggle('active', i === idx);
+        btn.setAttribute('aria-pressed', String(i === idx));
       });
     }
 
@@ -585,6 +648,7 @@ function initPipeline() {
       document.getElementById('inspectInput').textContent = matchedData.input;
       document.getElementById('inspectOutput').textContent = matchedData.output;
       document.getElementById('inspectCodeSnippet').textContent = matchedData.code;
+      document.getElementById('inspectSourceLink').href = sourceUrl(matchedData.pkg === 'root filesystem' ? 'cmd/ragcodepilot/main.go' : matchedData.pkg);
     }
 
     updateTicker();
@@ -596,7 +660,7 @@ function initPipeline() {
     if (currentFlow === 'ingestion') {
       tickerText.textContent = `STREAM: [${node.name}] Active ➔ Processing ${node.pkg} ➔ Ingesting chunks to Qdrant (gRPC:6334)...`;
     } else {
-      tickerText.textContent = `STREAM: [${node.name}] Active ➔ RAG Pipeline ➔ Hybrid RRF Fusion (k=60) ➔ qwen2.5-coder:7b...`;
+      tickerText.textContent = `SELECTED: ${node.name} · Default: ranked code · Optional --answer: HTTP /api/chat`;
     }
   }
 
@@ -692,13 +756,16 @@ function initPipeline() {
 
   // Flow Switcher Tabs (Ingestion vs Retrieval)
   flowTabBtns.forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.classList.contains('active')));
     btn.addEventListener('click', () => {
       flowTabBtns.forEach(b => {
         b.classList.remove('active');
         b.classList.remove('nb-btn-yellow');
+        b.setAttribute('aria-pressed', 'false');
       });
       btn.classList.add('active');
       btn.classList.add('nb-btn-yellow');
+      btn.setAttribute('aria-pressed', 'true');
       loadFlow(btn.getAttribute('data-flow'));
     });
   });
@@ -707,6 +774,9 @@ function initPipeline() {
   loadFlow('ingestion');
   if (isPlaying) startAnimation();
   else stopAnimation();
+  window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', event => {
+    if (event.matches) stopAnimation();
+  });
 }
 
 function initNav() {
@@ -734,13 +804,9 @@ function initNav() {
    ========================================================================== */
 const mockKnowledgeBase = {
   "how does chunking work?": {
-    denseScore: 0.892,
-    sparseScore: 0.745,
-    rrfScore: 0.0328,
     denseVec: "[0.021, -0.054, 0.118, 0.082, -0.192, ... +763 floats]",
-    sparseTerms: '"chunk" (1.82), "work" (0.94), "ast" (1.45)',
-    timing: "Total: 124ms (Embed: 38ms, Qdrant: 22ms, LLM: 64ms)",
-    answer: "ragcodepilot uses a two-tier chunking architecture:\n\n1. **Go AST Function-Level Chunker** (`internal/ingest/chunker_go.go`) [1]: For Go files, it parses the complete syntax tree using `go/parser`. It isolates function and method declarations along with their receiver, signature, parameter types, and doc comments as complete cohesive units.\n\n2. **Generic Sliding Window Chunker** (`internal/ingest/chunker.go`) [2]: For other languages (Rust, Python, Shell), it slices files into 40-line windows with a 5-line overlap, using regex pattern matching to extract enclosing symbol names.\n\nChunk enrichment [3] then prepends the file path, package, and signature metadata to the text before vectorization.",
+    sparseTerms: 'Example query terms: "chunking" (1.0), "chunk" (1.0), "work" (1.0)',
+    answer: "ragcodepilot uses a two-tier chunking architecture:\n\n1. **Go AST Function-Level Chunker** (`internal/ingest/chunker_go.go`) [1]: For Go files, it parses the complete syntax tree using `go/parser`. It isolates function and method declarations along with their receiver, signature, parameter types, and doc comments as units when they fit; declarations longer than 80 lines are split, and syntax errors trigger the generic fallback.\n\n2. **Generic Sliding Window Chunker** (`internal/ingest/chunker.go`) [2]: For other languages (Rust, Python, Shell), it slices files into 40-line windows with a 5-line overlap, using regex pattern matching to extract enclosing symbol names.\n\nChunk enrichment [3] then prepends the file path, language, and chunk type/name metadata to the text before vectorization.",
     citations: [
       { text: "[1] internal/ingest/chunker_go.go:24-105", link: "#" },
       { text: "[2] internal/ingest/chunker.go:32-87", link: "#" },
@@ -755,7 +821,6 @@ const mockKnowledgeBase = {
         type: "function",
         denseScore: 0.892,
         sparseScore: 0.745,
-        rrfRank: 1,
         code: `func chunkGoFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *config.Config) ([]model.CodeChunk, error) {
     fset := gotoken.NewFileSet()
     file, parseErr := parser.ParseFile(fset, filePath, src, parser.ParseComments)
@@ -781,7 +846,6 @@ const mockKnowledgeBase = {
         type: "function",
         denseScore: 0.841,
         sparseScore: 0.710,
-        rrfRank: 2,
         code: `// chunkGeneric splits non-Go code files into sliding windows with overlap
 func chunkGeneric(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *config.Config) ([]model.CodeChunk, error) {
     lines := strings.Split(string(content), "\\n")
@@ -800,7 +864,6 @@ func chunkGeneric(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *
         type: "function",
         denseScore: 0.812,
         sparseScore: 0.650,
-        rrfRank: 3,
         code: `func enrichForEmbedding(chunk model.CodeChunk) string {
     var b strings.Builder
     fmt.Fprintf(&b, "File: %s\\n", chunk.FilePath)
@@ -820,30 +883,25 @@ func chunkGeneric(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *
   },
 
   "where is ChunkFile defined": {
-    denseScore: 0.710,
-    sparseScore: 0.965,
-    rrfScore: 0.0325,
     denseVec: "[0.012, -0.098, 0.045, 0.142, ... +764 floats]",
-    sparseTerms: '"chunkfile" (3.12), "defin" (1.05)',
-    timing: "Total: 98ms (Embed: 31ms, Qdrant: 18ms, LLM: 49ms)",
-    answer: "`ChunkFile` is defined in `internal/ingest/chunker.go:23-28` [1]. It routes Go files to the AST chunker and everything else to the generic sliding-window chunker (40-line window with 5-line overlap). The AST-based Go chunking itself is `chunkGoFile` in `internal/ingest/chunker_go.go:24` [2].",
+    sparseTerms: '"chunkfile" (1.0), "defin" (1.0)',
+    answer: "`ChunkFile` is defined in `internal/ingest/chunker.go:20-28` [1]. It routes Go files to the AST chunker and everything else to the generic sliding-window chunker (40-line window with 5-line overlap). The AST-based Go chunking itself is `chunkGoFile` in `internal/ingest/chunker_go.go:24` [2].",
     citations: [
-      { text: "[1] internal/ingest/chunker.go:23-28", link: "#" },
+      { text: "[1] internal/ingest/chunker.go:20-28", link: "#" },
       { text: "[2] internal/ingest/chunker_go.go:24-105", link: "#" }
     ],
     results: [
       {
         file: "internal/ingest/chunker.go",
-        lines: "23-28",
+        lines: "20-28",
         name: "ChunkFile",
         lang: "go",
         type: "function",
         denseScore: 0.710,
         sparseScore: 0.965,
-        rrfRank: 1,
         code: `// ChunkFile routes Go files to the AST chunker, others to the sliding window
 func ChunkFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *config.Config) ([]model.CodeChunk, error) {
-    if isGoFile(filePath) {
+    if cfg.DetectLanguage(filePath) == "go" {
         return chunkGoFile(filePath, repoRoot, repo, chunkSize, overlap, cfg)
     }
     return chunkGeneric(filePath, repoRoot, repo, chunkSize, overlap, cfg)
@@ -857,7 +915,6 @@ func ChunkFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *con
         type: "call site",
         denseScore: 0.680,
         sparseScore: 0.750,
-        rrfRank: 2,
         code: `// The ingestion pipeline invokes the chunker for every non-skipped file
 chunks, err := ChunkFile(file, absPath, repoName, p.chunkSize, p.chunkOverlap, p.cfg)
 if err != nil {
@@ -868,13 +925,9 @@ if err != nil {
   },
 
   "reciprocal rank fusion implementation": {
-    denseScore: 0.865,
-    sparseScore: 0.880,
-    rrfScore: 0.0327,
     denseVec: "[0.056, 0.112, -0.044, 0.091, ... +764 floats]",
-    sparseTerms: '"reciproc" (2.1), "rank" (1.8), "fusion" (2.4)',
-    timing: "Total: 115ms (Embed: 35ms, Qdrant: 24ms, LLM: 56ms)",
-    answer: "Hybrid fusion is executed server-side inside Qdrant (`internal/qdrant/client.go`) [1]. Two prefetch stages — dense cosine over the 768d vectors and sparse BM25 — are combined with Reciprocal Rank Fusion using the constant `rrfK = 60` [2]:\n\n`Score(chunk) = 1 / (60 + Rank_dense) + 1 / (60 + Rank_sparse)`\n\nThis prevents dense scores (which cluster near 0.8-0.9) from overwhelming sparse keyword spikes without requiring fragile score calibration.",
+    sparseTerms: '"reciproc" (1.0), "rank" (1.0), "fusion" (1.0)',
+    answer: "Hybrid fusion is executed server-side inside Qdrant (`internal/qdrant/client.go`) [1]. Two prefetch stages — dense cosine over the 768d vectors and sparse BM25 — are combined with Reciprocal Rank Fusion using the constant `rrfK = 60` [2]:\n\n`Score(chunk) = 1 / (60 + Rank_dense) + 1 / (60 + Rank_sparse)`\n\nFusion combines positions rather than incompatible raw scores. Positions start at 0 in Qdrant; a candidate absent from a list receives no contribution from it.",
     citations: [
       { text: "[1] internal/qdrant/client.go:336-358", link: "#" },
       { text: "[2] internal/qdrant/client.go:267-269", link: "#" }
@@ -888,7 +941,6 @@ if err != nil {
         type: "query builder",
         denseScore: 0.865,
         sparseScore: 0.880,
-        rrfRank: 1,
         code: `// Hybrid mode: two prefetch stages fused by server-side RRF (k=60)
 prefetchLimit := limit * 2
 queryPoints = &pb.QueryPoints{
@@ -916,12 +968,8 @@ queryPoints = &pb.QueryPoints{
   },
 
   "incremental re-indexing change detection": {
-    denseScore: 0.872,
-    sparseScore: 0.820,
-    rrfScore: 0.0326,
     denseVec: "[0.034, -0.012, 0.155, -0.076, ... +764 floats]",
-    sparseTerms: '"increment" (1.9), "reindex" (2.2), "detect" (1.1)',
-    timing: "Total: 120ms (Embed: 36ms, Qdrant: 26ms, LLM: 58ms)",
+    sparseTerms: '"increment" (1.0), "reindex" (1.0), "detect" (1.0)',
     answer: "Change detection is file-hash + index version, but it is not per-file embed skip when the corpus moves:\n\n1. **No-op path**: if every file hash and `index_version` match, indexing returns immediately [1][2].\n2. **Any change**: BM25 IDF is corpus-wide, so the pipeline re-chunks and re-embeds **all current files**, then deletes stale points for deleted/renamed paths.\n3. **`--watch`** runs that same pipeline on each debounced save — not a daemon that embeds only the touched file.",
     citations: [
       { text: "[1] internal/ingest/hasher.go:11-18", link: "#" },
@@ -936,7 +984,6 @@ queryPoints = &pb.QueryPoints{
         type: "function",
         denseScore: 0.872,
         sparseScore: 0.820,
-        rrfRank: 1,
         code: `// HashFile returns the hex-encoded SHA-256 hash of the file at the given path.
 func HashFile(path string) (string, error) {
     data, err := os.ReadFile(path)
@@ -951,13 +998,9 @@ func HashFile(path string) (string, error) {
   },
 
   "what happens when embedding dimension doesn't match": {
-    denseScore: 0.880,
-    sparseScore: 0.810,
-    rrfScore: 0.0324,
     denseVec: "[-0.015, 0.088, 0.124, 0.042, ... +764 floats]",
-    sparseTerms: '"embed" (1.4), "dimens" (2.5), "match" (1.2)',
-    timing: "Total: 105ms (Embed: 33ms, Qdrant: 22ms, LLM: 50ms)",
-    answer: "In `internal/embedding/validate.go` [1], ragcodepilot performs pre-flight vector validation before upserting or querying, and `ValidateCollectionVectorSize` double-checks the query vector against the collection dimension at search time. If a collection was created with 768 dimensions (nomic-embed-text) but an embedder returns a different count (e.g., 1536 from OpenAI), the CLI halts with an explicit error explaining how to delete or re-create the collection via `ragcodepilot collections delete`.",
+    sparseTerms: '"embed" (1.0), "dimens" (1.0), "match" (1.0)',
+    answer: "In `internal/embedding/validate.go` [1], ragcodepilot validates vector batches before upserting or querying. The search path [2] calls `ValidateCollectionVectorSize` to check the query vector against the collection dimension at search time. If a collection was created with 768 dimensions (nomic-embed-text) but the query embedder returns a different dimension (e.g., 1536 from a different embedding model), the CLI returns an error before lookup. Use the matching model or intentionally rebuild the collection for the new model; deletion should not be the first automatic response.",
     citations: [
       { text: "[1] internal/embedding/validate.go:14-38", link: "#" },
       { text: "[2] internal/search/searcher.go:109-112", link: "#" }
@@ -971,7 +1014,6 @@ func HashFile(path string) (string, error) {
         type: "function",
         denseScore: 0.880,
         sparseScore: 0.810,
-        rrfRank: 1,
         code: `// ValidateVectorBatch checks that a batch of vectors is valid and consistent.
 //
 // Rules:
@@ -980,7 +1022,9 @@ func HashFile(path string) (string, error) {
 //   - All vectors in the batch must have the same dimension.
 //   - If expectedDim > 0, all vectors must match that dimension.
 func ValidateVectorBatch(vectors [][]float32, expectedDim int) (int, error) {
+    if len(vectors) == 0 { return 0, fmt.Errorf("empty vector batch") }
     dim := len(vectors[0])
+    if dim == 0 { return 0, fmt.Errorf("vector 0 is empty") }
     for i := 1; i < len(vectors); i++ {
         if len(vectors[i]) != dim {
             return 0, fmt.Errorf("inconsistent dimensions in batch: vector 0 has %d, vector %d has %d", dim, i, len(vectors[i]))
@@ -996,161 +1040,123 @@ func ValidateVectorBatch(vectors [][]float32, expectedDim int) (int, error) {
   }
 };
 
+// Only the small formatting vocabulary in our authored examples is rendered.
+// Escape first: neither query text nor source code can introduce HTML.
+function formatExampleAnswer(text) {
+  const inline = value => escapeHtml(value)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  return text.split(/\n\n+/).map(paragraph => {
+    const lines = paragraph.split('\n');
+    if (lines.every(line => /^\d+\. /.test(line))) {
+      const first = Number(lines[0].match(/^\d+/)[0]);
+      return `<ol start="${first}">${lines.map(line => `<li>${inline(line.replace(/^\d+\. /, ''))}</li>`).join('')}</ol>`;
+    }
+    return `<p>${inline(paragraph).replace(/\n/g, '<br>')}</p>`;
+  }).join('');
+}
+
 function initSimulator() {
-  const queryInput = document.getElementById('simQueryInput');
-  const runBtn = document.getElementById('simRunBtn');
-  const answerToggleBtn = document.getElementById('simAnswerToggleBtn');
-  const answerBox = document.getElementById('simAnswerBox');
-  const answerText = document.getElementById('simAnswerText');
-  const citationsList = document.getElementById('simCitationsList');
-  const resultsList = document.getElementById('simResultsList');
-  const resultsCountBadge = document.getElementById('resultsCountBadge');
+  const el = id => document.getElementById(id);
+  const queryInput = el('simQueryInput');
+  const answerToggle = el('simAnswerToggleBtn');
+  const answerBox = el('simAnswerBox');
+  const modes = [...document.querySelectorAll('#modeToggleGroup [data-mode]')];
+  let answerEnabled = false;
+  let mode = 'hybrid';
 
-  const stageEmbed = document.getElementById('simStageEmbed');
-  const stageSparse = document.getElementById('simStageSparse');
-  const stageRrf = document.getElementById('simStageRrf');
-  const stageTiming = document.getElementById('simStageTiming');
-  const stageStatus = document.getElementById('simStageStatus');
+  function render() {
+    const query = queryInput.value.trim().toLowerCase();
+    const key = Object.keys(mockKnowledgeBase).find(k => k.toLowerCase() === query);
+    const data = key ? mockKnowledgeBase[key] : null;
+    const dense = mode !== 'sparse';
+    const sparse = mode !== 'dense';
+    const hybrid = mode === 'hybrid';
 
-  let answerModeActive = true;
-  let currentMode = 'hybrid'; // 'hybrid' | 'dense' | 'sparse'
-
-  // Mode buttons
-  const modeButtons = document.querySelectorAll('#modeToggleGroup .pill-toggle-btn');
-  modeButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      modeButtons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentMode = btn.getAttribute('data-mode');
-      runSimulation(queryInput.value.trim());
+    modes.forEach(button => {
+      button.classList.toggle('active', button.dataset.mode === mode);
+      button.setAttribute('aria-pressed', String(button.dataset.mode === mode));
     });
-  });
+    answerToggle.setAttribute('aria-pressed', String(answerEnabled));
+    answerToggle.classList.toggle('nb-btn-mint', answerEnabled);
+    answerToggle.textContent = `💬 --answer ${answerEnabled ? 'ON' : 'OFF'}`;
+    el('simEmptyMsg').hidden = Boolean(data);
+    answerBox.classList.toggle('active', Boolean(data && answerEnabled));
+    // Always clear previous state, including when no fixture matches.
+    el('simAnswerText').replaceChildren();
+    el('simCitationsList').replaceChildren();
+    el('simResultsList').replaceChildren();
 
-  // Answer mode toggle
-  answerToggleBtn.addEventListener('click', () => {
-    answerModeActive = !answerModeActive;
-    if (answerModeActive) {
-      answerToggleBtn.classList.add('nb-btn-mint');
-      answerToggleBtn.innerHTML = '<span>💬 --answer ON</span>';
-      answerBox.classList.add('active');
-    } else {
-      answerToggleBtn.classList.remove('nb-btn-mint');
-      answerToggleBtn.innerHTML = '<span>💬 --answer OFF</span>';
-      answerBox.classList.remove('active');
-    }
-  });
-
-  // Preset query pills
-  document.querySelectorAll('.preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      queryInput.value = btn.getAttribute('data-query');
-      runSimulation(queryInput.value);
+    [['simDenseCard', dense], ['simSparseCard', sparse], ['simFusionCard', hybrid]].forEach(([id, runs]) => {
+      el(id).classList.toggle('is-skipped', !data || !runs);
     });
-  });
+    el('simStageEmbed').textContent = !data ? 'No demo selected.' : dense ? data.denseVec : 'Skipped — sparse-only search does not call /api/embed.';
+    el('simStageSparse').textContent = !data ? 'No demo selected.' : sparse ? data.sparseTerms : 'Skipped — dense-only search does not tokenize a sparse query.';
+    el('simStageRrf').textContent = !data ? 'No demo selected.' : hybrid ? 'Sum 1/(60 + position) for each list. First position = 0.' : 'Skipped — a single retrieval list needs no fusion.';
+    el('simStageTiming').textContent = 'Not measured. This page runs no model or database requests.';
+    el('simStageStatus').textContent = data ? `${mode.toUpperCase()} EXAMPLE` : 'NO SCRIPTED DEMO';
+    el('simStageStatus').className = `nb-badge ${data ? 'mint' : 'pink'}`;
+    el('simExecutionPath').textContent = data
+      ? `${dense ? 'Ollama embedding' : 'No embedding call'} → ${hybrid ? 'dense + sparse lookup → RRF' : mode + ' lookup'} → ${answerEnabled ? 'top chunks → optional Ollama /api/chat → example answer + sources' : 'ranked code results (no LLM call)'}`
+      : 'No scripted result or answer. Choose a preset to continue.';
+    el('resultsCountBadge').textContent = '0 Results';
+    if (!data) return;
 
-  runBtn.addEventListener('click', () => {
-    runSimulation(queryInput.value.trim());
-  });
+    // Rank only the illustrative fixture candidates. Qdrant performs real fusion.
+    const results = data.results.map((r, sourceIndex) => ({ ...r, sourceIndex }));
+    const denseOrder = [...results].sort((a, b) => b.denseScore - a.denseScore);
+    const sparseOrder = [...results].sort((a, b) => b.sparseScore - a.sparseScore);
+    results.forEach(r => {
+      r.fusedScore = 1 / (60 + denseOrder.indexOf(r)) + 1 / (60 + sparseOrder.indexOf(r));
+    });
+    results.sort((a, b) => mode === 'dense' ? b.denseScore - a.denseScore : mode === 'sparse' ? b.sparseScore - a.sparseScore : b.fusedScore - a.fusedScore);
+    el('resultsCountBadge').textContent = `${results.length} Results · ${mode.toUpperCase()}`;
+    el('simResultsList').innerHTML = results.map((r, rank) => `
+      <article class="result-card" id="sim-source-${r.sourceIndex}" tabindex="-1">
+        <div class="result-card-header">
+          <div class="result-file"><span class="nb-badge mint">#${rank + 1}</span><span>${escapeHtml(r.file)}:${escapeHtml(r.lines)}</span><span class="nb-badge">${escapeHtml(r.name)}</span></div>
+          <div class="score-breakdown"><span class="nb-badge ${hybrid ? 'yellow' : dense ? 'blue' : 'orange'}">${hybrid ? `RRF: ${r.fusedScore.toFixed(5)}` : dense ? `Cosine: ${r.denseScore}` : `BM25: ${r.sparseScore}`}</span><span>Illustrative score</span></div>
+          <a href="${sourceUrl(r.file, r.lines)}" target="_blank" rel="noopener">View source ↗</a>
+        </div><div class="result-code-view">${escapeHtml(r.code)}</div>
+      </article>`).join('');
 
-  queryInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') runSimulation(queryInput.value.trim());
-  });
-
-  const emptyMsg = document.getElementById('simEmptyMsg');
-
-  function runSimulation(query) {
-    if (!query) query = "how does chunking work?";
-
-    const keys = Object.keys(mockKnowledgeBase);
-    const exact = keys.find(k => k.toLowerCase() === query.toLowerCase());
-    const data = exact ? mockKnowledgeBase[exact] : null;
-
-    if (!data) {
-      if (emptyMsg) emptyMsg.hidden = false;
-      stageStatus.textContent = "NO SCRIPTED DEMO";
-      stageStatus.className = "nb-badge pink";
-      stageEmbed.textContent = "—";
-      stageSparse.textContent = "—";
-      stageRrf.textContent = "—";
-      stageTiming.textContent = "This playground does not call Qdrant or Ollama.";
-      answerBox.classList.remove('active');
-      resultsList.innerHTML = '';
-      resultsCountBadge.textContent = "0 Results";
-      return;
+    if (answerEnabled) {
+      el('simAnswerText').innerHTML = formatExampleAnswer(data.answer);
+      data.citations.forEach(citation => {
+        const match = citation.text.match(/^\[\d+\] ([^: ]+)(?::([\d-]+))?$/);
+        if (!match) return;
+        const [, file, lines = ''] = match;
+        const index = data.results.findIndex(r => r.file === file && (!lines || r.lines === lines));
+        const link = document.createElement('a');
+        link.className = 'citation-pill';
+        link.textContent = citation.text + (index < 0 ? ' ↗' : ' ↓');
+        if (index >= 0) {
+          link.href = `#sim-source-${index}`;
+          link.addEventListener('click', event => {
+            event.preventDefault();
+            const target = el(`sim-source-${index}`);
+            target.focus({ preventScroll: true });
+            target.scrollIntoView({ behavior: prefersReducedMotion() ? 'instant' : 'smooth', block: 'center' });
+          });
+        } else {
+          link.href = sourceUrl(file, lines);
+          link.target = '_blank';
+          link.rel = 'noopener';
+        }
+        el('simCitationsList').append(link);
+      });
     }
-    if (emptyMsg) emptyMsg.hidden = true;
-
-    // Update stages
-    stageEmbed.textContent = data.denseVec;
-    stageSparse.textContent = data.sparseTerms;
-    stageTiming.textContent = data.timing;
-
-    if (currentMode === 'hybrid') {
-      stageRrf.textContent = "Score = 1/(60+R_dense) + 1/(60+R_sparse)";
-      stageStatus.textContent = "HYBRID RRF SUCCESS";
-      stageStatus.className = "nb-badge mint";
-    } else if (currentMode === 'dense') {
-      stageRrf.textContent = "Cosine Similarity (Dense Only)";
-      stageStatus.textContent = "DENSE LOOKUP SUCCESS";
-      stageStatus.className = "nb-badge blue";
-    } else {
-      stageRrf.textContent = "BM25 Sparse Weight Matching";
-      stageStatus.textContent = "SPARSE LOOKUP SUCCESS";
-      stageStatus.className = "nb-badge orange";
-    }
-
-    // Update Answer Box
-    if (answerModeActive) {
-      answerBox.classList.add('active');
-      answerText.textContent = data.answer;
-      citationsList.innerHTML = data.citations.map(c => `
-        <span class="citation-pill">${c.text}</span>
-      `).join('');
-    } else {
-      answerBox.classList.remove('active');
-    }
-
-    // Sort results based on mode
-    let results = [...data.results];
-    if (currentMode === 'dense') {
-      results.sort((a, b) => b.denseScore - a.denseScore);
-    } else if (currentMode === 'sparse') {
-      results.sort((a, b) => b.sparseScore - a.sparseScore);
-    }
-
-    resultsCountBadge.textContent = `${results.length} Results Ranked (${currentMode.toUpperCase()})`;
-
-    // Render results cards
-    resultsList.innerHTML = results.map((r, i) => {
-      let scoreBadge = '';
-      if (currentMode === 'hybrid') {
-        scoreBadge = `<span class="nb-badge yellow">RRF Rank #${i + 1}</span> <span style="color: var(--text-muted);">Dense: ${r.denseScore} · BM25: ${r.sparseScore}</span>`;
-      } else if (currentMode === 'dense') {
-        scoreBadge = `<span class="nb-badge blue">Cosine Score: ${r.denseScore}</span>`;
-      } else {
-        scoreBadge = `<span class="nb-badge orange">BM25 Score: ${r.sparseScore}</span>`;
-      }
-
-      return `
-        <div class="result-card">
-          <div class="result-card-header">
-            <div class="result-file">
-              <span class="nb-badge ${i === 0 ? 'mint' : 'yellow'}">#${i + 1}</span>
-              <span>📄 ${r.file}:${r.lines}</span>
-              <span class="nb-badge" style="font-size: 0.7rem;">${r.name}</span>
-            </div>
-            <div class="score-breakdown">
-              ${scoreBadge}
-            </div>
-          </div>
-          <div class="result-code-view">${escapeHtml(r.code)}</div>
-        </div>
-      `;
-    }).join('');
   }
 
-  // Run initial simulation
-  runSimulation("how does chunking work?");
+  modes.forEach(button => button.addEventListener('click', () => { mode = button.dataset.mode; render(); }));
+  answerToggle.addEventListener('click', () => { answerEnabled = !answerEnabled; render(); });
+  document.querySelectorAll('.preset-btn').forEach(button => button.addEventListener('click', () => {
+    queryInput.value = button.dataset.query;
+    render();
+  }));
+  el('simRunBtn').addEventListener('click', render);
+  queryInput.addEventListener('keydown', event => { if (event.key === 'Enter') render(); });
+  render();
 }
 
 /* ==========================================================================
@@ -1161,13 +1167,16 @@ function initDeepDives() {
   const panels = document.querySelectorAll('.deep-dive-panel');
 
   tabBtns.forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.classList.contains('active')));
     btn.addEventListener('click', () => {
       tabBtns.forEach(b => {
         b.classList.remove('active');
         b.classList.remove('nb-btn-yellow');
+        b.setAttribute('aria-pressed', 'false');
       });
       btn.classList.add('active');
       btn.classList.add('nb-btn-yellow');
+      btn.setAttribute('aria-pressed', 'true');
 
       const targetId = `dd-${btn.getAttribute('data-tab')}`;
       panels.forEach(p => {
@@ -1181,77 +1190,65 @@ function initDeepDives() {
   });
 }
 
+function initWorkedExamples() {
+  const success = document.getElementById('walkSuccess');
+  const failure = document.getElementById('walkFailure');
+  function showScenario(failed) {
+    success.setAttribute('aria-pressed', String(!failed));
+    failure.setAttribute('aria-pressed', String(failed));
+    success.classList.toggle('nb-btn-yellow', !failed);
+    failure.classList.toggle('nb-btn-yellow', failed);
+    document.getElementById('walkFailureMessage').hidden = !failed;
+    document.getElementById('walkRetrievalText').hidden = failed;
+    document.getElementById('walkRecordedResult').hidden = failed;
+    document.getElementById('walkQueryTitle').textContent = failed ? '4. Validate the query dimension' : '4. Retrieve the stored chunk';
+    document.getElementById('walkOutputStage').hidden = failed;
+    document.getElementById('walkQueryStage').classList.toggle('has-failure', failed);
+    document.getElementById('walkScenarioStatus').textContent = failed
+      ? 'Failure scenario: the existing index remains stored, but validation stops this search before lookup or generation.'
+      : 'Success: index → retrieve → code results → optional cited answer.';
+  }
+  success.addEventListener('click', () => showScenario(false));
+  failure.addEventListener('click', () => showScenario(true));
+
+  const candidates = [
+    { name: 'Conceptual overview', dense: 0, sparse: null },
+    { name: 'ChunkFile definition', dense: 1, sparse: 0 },
+    { name: 'Pipeline call site', dense: 2, sparse: 1 }
+  ];
+  const contribution = position => position === null ? 0 : 1 / (60 + position);
+  function showRanks(mode) {
+    document.querySelectorAll('[data-rrf-mode]').forEach(button => {
+      const active = button.dataset.rrfMode === mode;
+      button.setAttribute('aria-pressed', String(active));
+      button.classList.toggle('nb-btn-yellow', active);
+    });
+    const rows = candidates.map(candidate => ({ ...candidate, score: contribution(candidate.dense) + contribution(candidate.sparse) }));
+    rows.sort((a, b) => mode === 'hybrid' ? b.score - a.score : (a[mode] ?? Infinity) - (b[mode] ?? Infinity));
+    document.getElementById('rrfExampleBody').innerHTML = rows.map((row, i) => {
+      const formula = [row.dense, row.sparse].map(position => position === null ? '0 (absent)' : `1/${60 + position}`).join(' + ');
+      return `<tr><th scope="row">${row.name}</th><td>${row.dense ?? 'Absent'}</td><td>${row.sparse ?? 'Absent'}</td><td>${formula} = ${row.score.toFixed(5)}</td><td>${mode !== 'hybrid' && row[mode] === null ? 'Not retrieved' : `#${i + 1}`}</td></tr>`;
+    }).join('');
+    document.getElementById('rrfExplanation').textContent = mode === 'hybrid'
+      ? 'ChunkFile wins: appearing near the top of both lists beats appearing first in only one. No raw cosine or BM25 scores are added.'
+      : `${mode === 'dense' ? 'Dense ranks the conceptual overview first.' : 'Sparse ranks the exact ChunkFile definition first; the overview is absent.'} RRF is skipped in this mode; the calculation column stays visible only for comparison.`;
+  }
+  document.querySelectorAll('[data-rrf-mode]').forEach(button => button.addEventListener('click', () => showRanks(button.dataset.rrfMode)));
+  showRanks('hybrid');
+}
+
 /* ==========================================================================
    5. Evaluation Scoreboard Table
-   Sample rows from docs/eval/baseline_v8.json (hybrid mode, 2026-09-11,
-   199 chunks). 34/35 positive queries hit@5. ChunkFile navigation is top-1
-   after additive identifier tokens. Negative pass is 0.50 under RRF.
+   Outcomes are generated from the complete saved retrieval report.
    ========================================================================== */
-const goldenQueries = [
-  {
-    query: "how does code chunking work",
-    type: "concept",
-    file: "internal/ingest/chunker_go.go",
-    outcome: "Hit at rank #1",
-    hit: true
-  },
-  {
-    query: "EnsureCollection function on Qdrant client",
-    type: "navigation",
-    file: "internal/qdrant/client.go",
-    outcome: "Hit at rank #1",
-    hit: true
-  },
-  {
-    query: "how is code enriched before embedding",
-    type: "concept",
-    file: "internal/ingest/enrichment.go",
-    outcome: "Hit at rank #1",
-    hit: true
-  },
-  {
-    query: "what happens when the embedder returns inconsistent vector dimensions",
-    type: "behavior",
-    file: "internal/embedding/validate.go",
-    outcome: "Hit in top 5 (not #1)",
-    hit: true
-  },
-  {
-    query: "how does the system detect changed files when re-indexing",
-    type: "behavior",
-    file: "internal/ingest/pipeline.go",
-    outcome: "Hit at rank #1",
-    hit: true
-  },
-  {
-    query: "where is HitAtK function implemented",
-    type: "navigation",
-    file: "internal/eval/metrics.go",
-    outcome: "Hit at rank #1",
-    hit: true
-  },
-  {
-    query: "where is LoadDataset implemented",
-    type: "navigation",
-    file: "internal/eval/dataset.go",
-    outcome: "Hit at rank #1",
-    hit: true
-  },
-  {
-    query: "where is ChunkFile defined",
-    type: "navigation",
-    file: "internal/ingest/chunker.go",
-    outcome: "Hit at rank #1",
-    hit: true
-  },
-  {
-    query: "where is the OAuth middleware implemented",
-    type: "negative",
-    file: "— (not in corpus)",
-    outcome: "Fail — dual-list RRF (ceiling 0.02)",
-    hit: false
-  }
-];
+const goldenQueries = SITE_EVIDENCE.retrieval_report.queries.map(query => {
+  const negative = query.type === 'negative';
+  const hit = negative ? query.negative.pass : query.hit_at_5;
+  const outcome = negative
+    ? `${hit ? 'Pass' : 'Fail'} — ${query.negative.score_kind} threshold ${query.negative.threshold}`
+    : query.hit_at_1 ? 'Hit at rank #1' : query.hit_at_5 ? 'Hit in top 5 (not #1)' : 'Miss in top 5';
+  return { query: query.query, type: query.type, file: query.top_results[0]?.file_path || 'No results', hit, outcome };
+});
 
 function initEvalTable() {
   const tbody = document.getElementById('evalTableBody');
@@ -1264,19 +1261,19 @@ function initEvalTable() {
     let outcomeBadge;
     if (q.type === 'negative') {
       outcomeBadge = q.hit
-        ? `<span class="nb-badge mint">${q.outcome}</span>`
-        : `<span class="nb-badge pink">${q.outcome}</span>`;
+        ? `<span class="nb-badge mint">${escapeHtml(q.outcome)}</span>`
+        : `<span class="nb-badge pink">${escapeHtml(q.outcome)}</span>`;
     } else if (q.hit) {
-      outcomeBadge = `<strong style="color: #10b981;">${q.outcome}</strong>`;
+      outcomeBadge = `<strong style="color: #10b981;">${escapeHtml(q.outcome)}</strong>`;
     } else {
-      outcomeBadge = `<strong style="color: #e11d48;">${q.outcome}</strong>`;
+      outcomeBadge = `<strong style="color: #e11d48;">${escapeHtml(q.outcome)}</strong>`;
     }
 
     return `
       <tr>
-        <td style="font-weight: 700;">"${q.query}"</td>
-        <td><span class="nb-badge ${typeBadge}">${q.type}</span></td>
-        <td><code>${q.file}</code></td>
+        <td style="font-weight: 700;">"${escapeHtml(q.query)}"</td>
+        <td><span class="nb-badge ${typeBadge}">${escapeHtml(q.type)}</span></td>
+        <td><code>${escapeHtml(q.file)}</code></td>
         <td>${outcomeBadge}</td>
       </tr>
     `;
@@ -1289,34 +1286,21 @@ function initEvalTable() {
 const terminalScripts = {
   "search-answer": [
     "$ go run ./cmd/ragcodepilot search --answer \"how does chunking work?\"",
-    "[info] Loading configuration from config.yaml...",
-    "[info] Qdrant connected at localhost:6334 (collection: code_chunks)",
-    "[info] Ollama embedding query via nomic-embed-text (768 dimensions)... [34ms]",
-    "[info] Executing hybrid retrieval: Dense (Cosine) + Sparse (BM25) with RRF (k=60)... [22ms]",
-    "[info] Top 3 chunks retrieved. Synthesizing answer via qwen2.5-coder:7b (temp=0.0)... [62ms]",
+    "Warming up generative model (first call may take a while)...",
     "",
-    "┌────────────────────────────────── GROUNDED ANSWER ──────────────────────────────────┐",
-    "│ ragcodepilot implements a two-tier chunking architecture:                           │",
-    "│                                                                                     │",
-    "│ 1. Go AST Chunker (internal/ingest/chunker_go.go) [1]: Uses go/parser to extract     │",
-    "│    complete function and method declarations with their signature, receiver, and    │",
-    "│    docstrings without slicing across arbitrary line boundaries.                      │",
-    "│                                                                                     │",
-    "│ 2. Sliding Window Chunker (internal/ingest/chunker.go) [2]: Fallback for non-Go     │",
-    "│    files using a 40-line window with 5-line overlap and regex symbol detection.     │",
-    "│                                                                                     │",
-    "│ Sources:                                                                            │",
-    "│   [1] internal/ingest/chunker_go.go (func chunkGoFile)                               │",
-    "│   [2] internal/ingest/chunker.go (func ChunkFile)                                   │",
-    "└─────────────────────────────────────────────────────────────────────────────────────┘",
+    "Answer: Go files use go/parser to form named function, method, type, and interface chunks [1]. Declarations over 80 lines are split. Other languages, and Go parse failures, use 40-line windows with 5-line overlap [2].",
     "",
-    "Done. (terminal demo — not a live run)"
+    "Sources (abbreviated illustration):",
+    "[1] internal/ingest/chunker_go.go — chunkGoFile",
+    "[2] internal/ingest/chunker.go — ChunkFile / chunkGeneric",
+    "",
+    "This transcript is illustrative. No model or database is called here; no latency is measured."
   ],
 
   "hybrid-search": [
     "$ go run ./cmd/ragcodepilot search --mode hybrid --limit 3 \"embedding interface\"",
     "[info] Mode: HYBRID (Dense + BM25 RRF, k=60)",
-    "[info] Ollama nomic-embed-text (768d) query vector generated in 31ms",
+    "[info] Ollama nomic-embed-text (768d) query vector generated (illustrative output)",
     "",
     "RANK #1  [RRF: 0.0328]  internal/embedding/embedder.go",
     "  type Embedder interface {",
@@ -1325,12 +1309,12 @@ const terminalScripts = {
     "  }",
     "",
     "RANK #2  [RRF: 0.0315]  internal/embedding/ollama.go:45-78",
-    "  func (e *OllamaEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {",
-    "      // HTTP client calling /api/embeddings",
+    "  func (e *OllamaEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {",
+    "      // HTTP client calling /api/embed",
     "  }",
     "",
     "RANK #3  [RRF: 0.0298]  internal/embedding/validate.go:15-40",
-    "  func ValidateDimensions(actual, expected int, coll string) error"
+    "  func ValidateVectorBatch(vectors [][]float32, expectedDim int) (int, error)"
   ],
 
   "index": [
@@ -1360,28 +1344,12 @@ const terminalScripts = {
   ],
 
   "eval": [
-    "$ go run ./cmd/ragcodepilot eval --mode hybrid --output json",
-    "Dataset:    docs/eval/golden.yaml",
-    "Collection: code_chunks",
-    "Embedder:   ollama/nomic-embed-text",
-    "Queries:    39 (positive 35, negative 4, errors 0)",
-    "",
-    "Retrieval Metrics (positive queries):",
-    "  hit@1:        0.857  (85.7%)",
-    "  hit@3:        0.971  (97.1%)",
-    "  hit@5:        0.971  (97.1%)",
-    "  MRR@5:        0.910",
-    "  recall@5:     0.821",
-    "  recall@10:    0.903",
-    "",
-    "Negative pass rate: 0.50  (RRF ceiling 0.02; 2 of 4 dual-list)",
-    "",
-    "Latency Percentiles (ms):",
-    "  Total p50/p95:   20 / 151 ms",
-    "  Embed p50/p95:   16 / 29 ms",
-    "  Qdrant p50/p95:  2 / 8 ms",
-    "",
-    "Canonical baseline: docs/eval/baseline_v8.json"
+    '$ go run ./cmd/ragcodepilot eval --mode hybrid --output human',
+    'Recorded report summary (not a live execution):',
+    `Source: ${SITE_EVIDENCE.retrieval}`,
+    `Run: ${SITE_EVIDENCE.retrieval_report.run_id}`,
+    ...Object.entries(SITE_EVIDENCE.retrieval_report.aggregate).map(([key, value]) =>
+      `${key}: ${Number.isInteger(value) ? value : value.toFixed(3)}`)
   ]
 };
 
@@ -1417,9 +1385,11 @@ function initTerminal() {
   }
 
   tabBtns.forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.classList.contains('active')));
     btn.addEventListener('click', () => {
-      tabBtns.forEach(b => b.classList.remove('active'));
+      tabBtns.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
       btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
       renderTerminal(btn.getAttribute('data-cmd'));
     });
   });
@@ -1427,11 +1397,7 @@ function initTerminal() {
   copyBtn.addEventListener('click', () => {
     const lines = terminalScripts[currentCmd];
     const cmdLine = lines[0].replace('$ ', '');
-    navigator.clipboard.writeText(cmdLine).then(() => {
-      const orig = copyBtn.textContent;
-      copyBtn.textContent = 'Copied! ✓';
-      setTimeout(() => copyBtn.textContent = orig, 1800);
-    });
+    copyCommand(cmdLine, copyBtn);
   });
 
   renderTerminal('search-answer');
@@ -1444,14 +1410,22 @@ function initQuickActions() {
   const copyBtn = document.getElementById('copyCliQuickstartBtn');
   if (copyBtn) {
     copyBtn.addEventListener('click', () => {
-      const text = 'go run ./cmd/ragcodepilot search --answer "how does chunking work?"';
-      navigator.clipboard.writeText(text).then(() => {
-        const orig = copyBtn.innerHTML;
-        copyBtn.innerHTML = '<span>Copied Command! ✓</span>';
-        setTimeout(() => copyBtn.innerHTML = orig, 2000);
-      });
+      copyCommand(document.getElementById('quickstartCommand').textContent, copyBtn);
     });
   }
+}
+
+async function copyCommand(text, button) {
+  const original = button.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    button.textContent = 'Copied! ✓';
+    document.getElementById('copyStatus').textContent = 'Command copied to clipboard.';
+  } catch {
+    button.textContent = 'Select command to copy';
+    document.getElementById('copyStatus').textContent = 'Clipboard unavailable. Select and copy the displayed command manually.';
+  }
+  setTimeout(() => { button.textContent = original; }, 2000);
 }
 
 function escapeHtml(str) {

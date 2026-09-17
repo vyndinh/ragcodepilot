@@ -8,6 +8,10 @@ on:
     branches: [main]
     paths:
       - 'site/**'
+      - 'tools/site/**'
+      - 'docs/eval/**'
+      - 'go.mod'
+      - '.github/workflows/site-check.yml'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -21,7 +25,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  checks:
+    uses: ./.github/workflows/site-check.yml
+    permissions:
+      contents: read
+
   deploy:
+    needs: checks
     runs-on: ubuntu-latest
     environment:
       name: github-pages

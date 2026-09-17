@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/thuyvy3110/ragcodepilot",
+  "implementation_revision": "8ded844803ec9a530237ff9d3eed58d842d427ee",
+  "implementation_reviewed_on": "2026-09-17",
+  "retrieval": "docs/eval/baseline_v8.json",
+  "generation": "docs/eval/baseline_v7_structural_answer_al5.json"
+}

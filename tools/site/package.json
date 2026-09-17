@@ -1,0 +1,12 @@
+{
+  "name": "ragcodepilot-site-checks",
+  "private": true,
+  "scripts": {
+    "build": "python3 build_evidence.py",
+    "check": "python3 build_evidence.py --check && node --check ../../site/app.js && python3 -m unittest discover -s tests -p test_evidence.py",
+    "test": "npm run check && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}
