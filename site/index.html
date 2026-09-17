@@ -8,7 +8,7 @@
   <meta property="og:type" content="website">
   <meta property="og:title" content="ragcodepilot — Local RAG Code Search &amp; Generation">
   <meta property="og:description" content="Search your codebase using plain English from the terminal: Go AST chunking, Ollama embeddings, hybrid BM25 + dense RRF retrieval in Qdrant, and grounded answers with citations.">
-  <meta property="og:url" content="https://vyndinh.github.io/ragcodepilot/">
+  <meta property="og:url" content="https://thuyvy3110.github.io/ragcodepilot/">
   <meta name="twitter:card" content="summary">
 
   <!-- Fonts are self-hosted in fonts/ (variable woff2, latin subset) — no external requests -->
@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <a class="skip-link" href="#pipeline">Skip to architecture</a>
 
   <!-- Top Architecture Matrix Bar -->
   <div class="top-bar">
@@ -74,14 +75,17 @@
       <nav id="siteNav" class="nav-pills">
         <a href="#pipeline" class="nav-link active">Pipeline Flow</a>
         <a href="#simulator" class="nav-link">RAG Simulator</a>
+        <a href="#walkthrough" class="nav-link">Worked Example</a>
         <a href="#deepdives" class="nav-link">Deep Dives</a>
         <a href="#eval" class="nav-link">Eval Scoreboard</a>
+        <a href="#getting-started" class="nav-link">Get Started</a>
         <a href="#cli" class="nav-link">Terminal</a>
-        <a href="https://github.com/vyndinh/ragcodepilot" target="_blank" rel="noopener" class="nb-btn nb-btn-sm">GitHub ↗</a>
+        <a href="https://github.com/thuyvy3110/ragcodepilot" target="_blank" rel="noopener" class="nb-btn nb-btn-sm">GitHub ↗</a>
       </nav>
     </div>
   </header>
 
+  <main>
   <!-- Hero Section -->
   <section class="hero-section">
     <p class="hero-tagline">
@@ -91,15 +95,18 @@
       Search your codebase using plain English, right from the terminal.
     </h2>
     <p class="hero-desc">
-      <code>ragcodepilot</code> indexes source repositories locally with Go AST function-level chunking, embeds code via Ollama (<code>nomic-embed-text</code>), indexes BM25 keywords, and executes server-side Reciprocal Rank Fusion (RRF) inside Qdrant — synthesizing grounded answers with citations.
+      <code>ragcodepilot</code> indexes source repositories locally with Go AST function-level chunking, embeds code via Ollama (<code>nomic-embed-text</code>), indexes BM25 keywords, and executes server-side Reciprocal Rank Fusion (RRF) inside Qdrant — optionally generating answers with source citations via <code>--answer</code>.
     </p>
 
+    <p class="learning-note">Implementation reviewed <span data-evidence="reviewed">—</span> · <a id="implementationRevision" target="_blank" rel="noopener">revision <span data-evidence="revision">—</span> ↗</a>. Evaluation dates appear with their reports.</p>
     <div class="hero-action-row">
       <a href="#simulator" class="nb-btn nb-btn-yellow nb-btn-lg">⚡ Try RAG Playground</a>
+      <a href="#getting-started" class="nb-btn nb-btn-lg">Get started locally</a>
       <a href="#pipeline" class="nb-btn nb-btn-lg">🗺️ Inspect Architecture</a>
-      <button id="copyCliQuickstartBtn" class="nb-btn nb-btn-lg" title="Copy CLI Command">
-        📋 <code>go run ./cmd/ragcodepilot search --answer "how does chunking work?"</code>
-      </button>
+      <div class="quickstart-command">
+        <code id="quickstartCommand" tabindex="0">go run ./cmd/ragcodepilot search --answer "how does chunking work?"</code>
+        <button id="copyCliQuickstartBtn" class="nb-btn nb-btn-sm" aria-label="Copy quickstart command">Copy command</button>
+      </div>
     </div>
 
     <!-- Spotlight Codex-Resets Style Big Dot Card -->
@@ -118,7 +125,7 @@
         </div>
         <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
           <a href="#simulator" class="nb-btn nb-btn-orange">Try scripted demo 🚀</a>
-          <a href="#eval" class="nb-btn nb-btn-mint">Eval Report (97.1% Hit@5) 📊</a>
+          <a href="#eval" class="nb-btn nb-btn-mint">Eval Report (<span data-evidence="hit5">—</span> Hit@5) 📊</a>
         </div>
       </div>
     </div>
@@ -127,26 +134,26 @@
     <div class="stats-grid">
       <div class="nb-card stat-card yellow hoverable">
         <div class="stat-label">RETRIEVAL HIT@5</div>
-        <div class="stat-number">97.1%</div>
-        <div class="stat-note">35 positive queries, hybrid mode (baseline_v8)</div>
+        <div class="stat-number" data-evidence="hit5">—</div>
+        <div class="stat-note"><span data-evidence="positiveScope">—</span></div>
       </div>
 
       <div class="nb-card stat-card pink hoverable">
         <div class="stat-label">RECALL@10 (GOLDEN)</div>
-        <div class="stat-number">90.3%</div>
-        <div class="stat-note">39 golden queries on this Go repo (199 chunks)</div>
+        <div class="stat-number" data-evidence="recall10">—</div>
+        <div class="stat-note"><span data-evidence="corpusScope">—</span></div>
       </div>
 
       <div class="nb-card stat-card blue hoverable">
         <div class="stat-label">HYBRID P95 LATENCY</div>
-        <div class="stat-number">151ms</div>
-        <div class="stat-note">End-to-end: Ollama embedding + Qdrant RRF (baseline_v8)</div>
+        <div class="stat-number" data-evidence="p95">—</div>
+        <div class="stat-note">Recorded retrieval time: embedding, validation, and Qdrant lookup</div>
       </div>
 
       <div class="nb-card stat-card mint hoverable">
-        <div class="stat-label">DATA PRIVACY</div>
-        <div class="stat-number">100%</div>
-        <div class="stat-note">Zero cloud APIs; runs fully offline on host &amp; Docker</div>
+        <div class="stat-label">DEFAULT DEPLOYMENT</div>
+        <div class="stat-number">Local</div>
+        <div class="stat-note">Host CLI + Ollama + Docker Qdrant. Offline after setup and model downloads.</div>
       </div>
     </div>
   </section>
@@ -161,9 +168,36 @@
         <span class="nb-badge yellow">STEP-BY-STEP FLOW</span>
       </div>
       <p class="section-subtitle">
-        Click any stage to inspect its internal logic, Go implementation structs, and transformation payloads.
+        Start with where the work runs, then select a stage to inspect its input, output, and a simplified code example.
       </p>
     </div>
+
+    <div class="deployment-grid" aria-label="Default local deployment boundaries">
+      <article class="nb-card boundary-card">
+        <span class="nb-badge yellow">HOST PROCESS</span>
+        <h3>Go CLI</h3>
+        <p>Reads source files, chunks and enriches code, builds BM25 vectors, and orchestrates search. Prints ranked code by default.</p>
+        <p class="boundary-transport">HTTP → Ollama · gRPC → Qdrant</p>
+      </article>
+      <article class="nb-card boundary-card">
+        <span class="nb-badge blue">LOCAL MODEL SERVICE</span>
+        <h3>Ollama · :11434</h3>
+        <p><code>/api/embed</code> creates dense vectors. With <code>--answer</code>, <code>/api/chat</code> generates text from retrieved chunks.</p>
+        <p class="boundary-transport">Sparse-only search skips embeddings.</p>
+      </article>
+      <article class="nb-card boundary-card">
+        <span class="nb-badge mint">DOCKER SERVICE</span>
+        <h3>Qdrant · gRPC :6334</h3>
+        <p>Persists vectors and raw source payloads. Applies filters and performs dense/sparse retrieval and hybrid RRF fusion.</p>
+        <p class="boundary-transport">Lookup and fusion share one query RPC.</p>
+      </article>
+    </div>
+    <div class="storage-bridge nb-card">
+      <span>Indexing <strong>writes</strong></span><span aria-hidden="true">→</span>
+      <strong><code>code_chunks</code><small>Shared Qdrant collection: dense + sparse + raw code payload</small></strong>
+      <span aria-hidden="true">←</span><span>Search <strong>reads</strong></span>
+    </div>
+    <p class="learning-note">The diagrams show logical data flow, not concurrent Go workers. Search returns code directly; the separate <code>--answer</code> branch sends context to the LLM. Selecting a diagram does not change the simulator below.</p>
 
     <!-- Flow Mode Switcher & Stream Controls -->
     <div class="flow-controls">
@@ -211,7 +245,7 @@
 
     <!-- Animated Interactive Visual Canvas -->
     <div class="pipeline-canvas-wrapper" id="pipelineCanvasWrapper">
-      <svg class="pipeline-canvas-svg" id="pipelineSvg" viewBox="0 0 1140 370" preserveAspectRatio="xMidYMid meet">
+      <svg class="pipeline-canvas-svg" id="pipelineSvg" viewBox="0 0 1140 370" preserveAspectRatio="xMidYMid meet" aria-label="Interactive logical pipeline stages">
         <!-- SVG Definitions (Markers, Filters) -->
         <defs>
           <marker id="arrowYellow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -236,6 +270,7 @@
 
         <!-- Dynamic Connection Paths Layer -->
         <g id="svgPathsLayer"></g>
+        <g id="svgLabelsLayer" aria-hidden="true"></g>
 
         <!-- Dynamic Animated Data Particles Layer -->
         <g id="svgParticlesLayer"></g>
@@ -276,6 +311,7 @@
         </div>
 
         <div>
+          <p class="snippet-label">Simplified example · <a id="inspectSourceLink" href="https://github.com/thuyvy3110/ragcodepilot" target="_blank" rel="noopener">View implementation ↗</a></p>
           <div class="inspector-code" id="inspectCodeSnippet">
 // Code preview will render here
           </div>
@@ -294,24 +330,24 @@
         <span class="nb-badge mint">NOT A LIVE INDEX</span>
       </div>
       <p class="section-subtitle">
-        Playback of five golden queries with canned rankings and answers. This page does not call Qdrant or Ollama. Type anything else and you will get an empty result, not a silent substitute.
+        Five scripted examples show which stages run in each mode. Rankings, vectors, and answers are illustrative; this page does not call Qdrant or Ollama. Unsupported queries return no demo.
       </p>
     </div>
 
     <div class="nb-card nb-card-dot simulator-card">
       <!-- Search Input Bar -->
       <div class="sim-query-bar">
-        <input type="text" id="simQueryInput" class="sim-input" value="how does chunking work?" placeholder="Use a preset below, or type an exact golden query…" aria-describedby="simDisclaimer">
+        <input type="text" id="simQueryInput" class="sim-input" value="how does chunking work?" aria-label="Scripted search query" placeholder="Choose a preset, or type its exact query…" aria-describedby="simDisclaimer">
         <button id="simRunBtn" class="nb-btn nb-btn-yellow nb-btn-lg">
           <span>Search &amp; Run ⚡</span>
         </button>
       </div>
 
       <p class="sim-disclaimer" id="simDisclaimer">
-        Simulated only — five scripted queries. Filters and modes restyle the same canned cards; they do not search a live corpus.
+        Simulated only. Modes rank a fixed illustrative candidate set. Reference numbers identify example sources, not result ranks. No timings are measured here.
       </p>
       <p class="sim-empty-msg" id="simEmptyMsg" hidden>
-        No scripted demo for that query. Pick a preset above.
+        No scripted demo for that query. Pick a preset below. This is a demo limitation, not evidence that the real index has no match.
       </p>
       <!-- Preset Golden Queries -->
       <div class="preset-queries">
@@ -336,8 +372,8 @@
 
         <div class="control-group">
           <span class="control-label">RAG Answer Mode:</span>
-          <button id="simAnswerToggleBtn" class="nb-btn nb-btn-sm nb-btn-mint">
-            <span>💬 --answer ON</span>
+          <button id="simAnswerToggleBtn" class="nb-btn nb-btn-sm" aria-pressed="false">
+            <span>💬 --answer OFF</span>
           </button>
         </div>
 
@@ -350,8 +386,9 @@
       </div>
 
       <!-- Simulation Live Execution Pipeline Stepper -->
+      <p id="simExecutionPath" class="execution-path" role="status"></p>
       <div class="sim-pipeline-stages">
-        <div class="sim-stage-card">
+        <div class="sim-stage-card" id="simDenseCard">
           <div class="sim-stage-title">
             <span>1. DENSE VECTOR</span>
             <span class="nb-badge blue">768D</span>
@@ -361,23 +398,23 @@
           </div>
         </div>
 
-        <div class="sim-stage-card">
+        <div class="sim-stage-card" id="simSparseCard">
           <div class="sim-stage-title">
             <span>2. BM25 SPARSE</span>
             <span class="nb-badge orange">SNOWBALL</span>
           </div>
           <div class="sim-stage-val" id="simStageSparse">
-            "chunk" (1.82), "work" (0.94), "ast" (1.45)
+            Query tokens carry uniform weights of 1.0.
           </div>
         </div>
 
-        <div class="sim-stage-card">
+        <div class="sim-stage-card" id="simFusionCard">
           <div class="sim-stage-title">
             <span>3. RRF FUSION</span>
             <span class="nb-badge yellow">K=60</span>
           </div>
           <div class="sim-stage-val" id="simStageRrf">
-            Score = 1/(60+R_dense) + 1/(60+R_sparse)
+            Sum 1/(60 + position); first position = 0.
           </div>
         </div>
 
@@ -387,16 +424,16 @@
             <span class="nb-badge mint" id="simStageStatus">SUCCESS (3 HITS)</span>
           </div>
           <div class="sim-stage-val" id="simStageTiming">
-            Total: 124ms (Embed: 38ms, Qdrant: 22ms, LLM: 64ms)
+            Not measured. This page runs no model or database requests.
           </div>
         </div>
       </div>
 
       <!-- Grounded Answer Card (RAG Generated) -->
-      <div class="answer-box active" id="simAnswerBox">
+      <div class="answer-box" id="simAnswerBox">
         <div class="answer-header">
           <div class="answer-title">
-            <span>🤖 Grounded Answer</span>
+            <span>🤖 Example answer</span>
             <span class="nb-badge mint">Ollama qwen2.5-coder:7b</span>
           </div>
           <span class="nb-badge yellow">Temp: 0.0 (Greedy)</span>
@@ -417,11 +454,47 @@
         <h3 style="font-size: 1.25rem; font-weight: 800;">Retrieved Source Chunks</h3>
         <span class="nb-badge blue" id="resultsCountBadge">3 Results Ranked</span>
       </div>
+      <p class="learning-note">Code excerpts are simplified for explanation. Use each source link to inspect the implementation at the documented revision.</p>
 
       <div class="results-list" id="simResultsList">
         <!-- Result cards rendered by JS -->
       </div>
     </div>
+  </section>
+
+  <section class="section-container" id="walkthrough">
+    <div class="section-header">
+      <h2 class="section-title">🧩 Follow one function through the system</h2>
+      <p class="section-subtitle">The same <code>ChunkFile</code> function moves from a local file to a cited answer. Source text is real; the abbreviated payload and answer below are teaching examples.</p>
+    </div>
+    <div class="walkthrough-controls" role="group" aria-label="Walkthrough scenario">
+      <button class="nb-btn nb-btn-yellow" id="walkSuccess" aria-pressed="true">Successful search</button>
+      <button class="nb-btn" id="walkFailure" aria-pressed="false">Failure: wrong vector dimension</button>
+    </div>
+    <ol class="walkthrough-list" id="walkthroughSteps">
+      <li class="nb-card"><h3>1. Read &amp; chunk</h3><p>The walker selects <code>internal/ingest/chunker.go</code>. The Go parser retains the function and its doc comment, lines 20–28, as one named chunk.</p><pre><code>// ChunkFile reads a source file and splits it into chunks.
+// For Go files, it uses go/parser to produce function-level chunks.
+// For all other languages, it falls back to a line-based sliding window.
+func ChunkFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *config.Config) ([]model.CodeChunk, error) {
+    if cfg.DetectLanguage(filePath) == "go" {
+        return chunkGoFile(filePath, repoRoot, repo, chunkSize, overlap, cfg)
+    }
+    return chunkGeneric(filePath, repoRoot, repo, chunkSize, overlap, cfg)
+}</code></pre></li>
+      <li class="nb-card"><h3>2. Add context for embedding</h3><p>Prefix the code with this header. The enriched text is used for dense embeddings and sparse document vectors; the original code remains the stored payload.</p><pre><code>File: internal/ingest/chunker.go
+Language: go
+Function: ChunkFile
+
+[the same source text from step 1]</code></pre></li>
+      <li class="nb-card"><h3>3. Store one point in Qdrant</h3><p>The CLI calls Ollama over HTTP for a dense vector, builds BM25 document weights using corpus statistics, then upserts both over gRPC.</p><pre><code>collection: code_chunks
+vectors: dense [768 floats], sparse {term IDs, BM25 weights}
+payload: {repo, file_path, language: go, name: ChunkFile,
+          chunk_type: function, start_line: 20, end_line: 28,
+          content: original source, file_hash, index_version}</code></pre></li>
+      <li class="nb-card" id="walkQueryStage"><h3 id="walkQueryTitle">4. Retrieve the stored chunk</h3><p id="walkRetrievalText">Query: <strong>“where is ChunkFile defined”</strong>. Hybrid mode embeds it and tokenizes it into sparse terms with weight 1.0 each. Qdrant filters both candidate lists and fuses their positions with RRF.</p><p id="walkRecordedResult">The saved <code>baseline_v8</code> run returned this function at rank #1. This is a recorded result on this repository, not a guarantee for other corpora.</p><p id="walkFailureMessage" class="failure-message" hidden>Stop: a hypothetical 1,536-dimensional query vector does not match this 768-dimensional collection. <code>ValidateCollectionVectorSize</code> returns an error before vector lookup. Use the matching embedding model, or intentionally rebuild the index for the new model. No retrieval or answer is produced.</p></li>
+      <li class="nb-card" id="walkOutputStage"><h3>5. Print code, or request an answer</h3><p>Default: return ranked code chunks. With <code>--answer</code>: warm the local generator, select up to <code>--answer-limit</code> chunks (default 5), build the prompt, and call Ollama <code>/api/chat</code>.</p><blockquote>“ChunkFile is defined in internal/ingest/chunker.go. It dispatches Go files to the AST chunker and other files to the generic chunker. [1]”</blockquote><p><a data-source="internal/ingest/chunker.go" data-lines="20-28">[1] Inspect the original function ↗</a></p><p class="learning-note">Illustrative answer. Citations make evidence inspectable; their presence alone does not prove the explanation is correct.</p></li>
+    </ol>
+    <p id="walkScenarioStatus" role="status" class="learning-note">Success: index → retrieve → code results → optional cited answer.</p>
   </section>
 
   <!-- Deep-Dive Technical Showcases -->
@@ -467,7 +540,7 @@
           </div>
           <div class="comparison-content">
             <p style="font-size: 0.9rem; margin-bottom: 1rem; color: var(--text-secondary);">
-              Parses the full Go abstract syntax tree using <code>go/parser</code>. Extracts complete function and method declarations, plus named types and interfaces, with doc comments, without arbitrary split boundaries.
+              Parses Go with <code>go/parser</code>. Keeps function/method declarations and named types/interfaces together when they fit. Declarations longer than 80 lines use sliding-window splitting; syntax errors fall back to the generic chunker.
             </p>
             <div class="inspector-code">// AST Chunker extracts complete logical units:
 // - Package name
@@ -475,7 +548,7 @@
 // - Method receiver (e.g., (c *Client))
 // - Function name &amp; signature
 // - Full function body from { to }
-// - Result: Zero broken syntax or severed scopes!</div>
+// - Large declarations can still cross syntax boundaries when split.</div>
           </div>
         </div>
 
@@ -494,8 +567,8 @@
             <div class="inspector-code">// 40-line sliding window + 5-line overlap (DefaultChunkLines/DefaultChunkOverlap)
 // Regular expression fallback identifies:
 // - func / def / fn definitions
-// - Prevents functions from losing context across window cuts
-// - Overlap ensures queries near boundary match</div>
+// - Overlap retains some neighboring context
+// - It cannot guarantee intact syntax or a relevant search hit</div>
           </div>
         </div>
       </div>
@@ -516,7 +589,7 @@
             <p style="font-size: 0.9rem; margin-bottom: 1rem; color: var(--text-secondary);">
               Embedding raw code without context leads to false positives when functions use common verbs or variables like <code>Search</code> or <code>Init</code>.
             </p>
-            <div class="inspector-code">func (c *Client) EnsureCollection(ctx context.Context, name string) error {
+            <div class="inspector-code">func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize uint64) error {
     // ... checks collection existence ...
 }</div>
           </div>
@@ -532,7 +605,7 @@
           </div>
           <div class="comparison-content">
             <p style="font-size: 0.9rem; margin-bottom: 1rem; color: var(--text-secondary);">
-              Prepending file location, repository, and signature metadata to the text before vectorizing gives symbol-navigation queries like <em>"Qdrant collection setup"</em> an exact-text anchor — this is what lifts navigation hit rates.
+              Prepending the file path, language, and chunk type/name gives the embedding input explicit context. Repository and signature fields are not added to this header; a signature may already appear in the raw code.
             </p>
             <div class="inspector-code">File: internal/qdrant/client.go
 Language: go
@@ -551,26 +624,40 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
           Why Hybrid Search? Reciprocal Rank Fusion (RRF) with k=60
         </h4>
         <p style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 1.5rem; max-width: 900px;">
-          Dense vector embeddings excel at semantic similarity (e.g. matching <em>"how does chunking work?"</em> with <code>ChunkFile</code>), but struggle with exact symbol navigation (e.g. <em>"SearchWithTimings"</em>). BM25 keyword matching is the exact opposite. RRF fuses them without needing fragile score calibration:
+          Dense vector embeddings excel at semantic similarity (e.g. matching <em>"how does chunking work?"</em> with <code>ChunkFile</code>), but struggle with exact symbol navigation (e.g. <em>"SearchWithTimings"</em>). BM25 complements them with identifier and keyword matches. RRF fuses them without needing fragile score calibration:
         </p>
 
         <div style="background-color: var(--bg-secondary); border: 2px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 1.25rem; font-family: var(--font-mono); font-size: 1.05rem; font-weight: 700; text-align: center; margin-bottom: 1.5rem;">
-          Score(chunk) = &Sigma;<sub>m &isin; {dense, sparse}</sub> &nbsp; [ 1 / ( 60 + Rank<sub>m</sub>(chunk) ) ]
+          Score(chunk) = &Sigma;<sub>m &isin; {dense, sparse}</sub> &nbsp; [ 1 / ( 60 + Position<sub>m</sub>(chunk) ) ]
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+        <div class="three-column-grid">
           <div class="nb-card stat-card yellow" style="padding: 1rem;">
             <div class="stat-label">DENSE COSINE</div>
             <p style="font-size: 0.85rem; font-weight: 600;">Ollama 768d vector captures natural concepts, high-level intent, and synonyms.</p>
           </div>
           <div class="nb-card stat-card orange" style="padding: 1rem;">
             <div class="stat-label">SPARSE BM25</div>
-            <p style="font-size: 0.85rem; font-weight: 600; color: #fff;">Snowball-stemmed keyword matching pins exact symbols and function names.</p>
+            <p style="font-size: 0.85rem; font-weight: 600;">Split identifier tokens, preserved full identifiers, and additive stems support keyword matching.</p>
           </div>
           <div class="nb-card stat-card mint" style="padding: 1rem;">
             <div class="stat-label">SERVER-SIDE RRF</div>
-            <p style="font-size: 0.85rem; font-weight: 600;">Executed natively inside Qdrant in a single gRPC call with zero client overhead.</p>
+            <p style="font-size: 0.85rem; font-weight: 600;">Lookup and fusion run inside Qdrant in one query RPC; the CLI still handles encoding and transport.</p>
           </div>
+        </div>
+        <div class="rrf-example">
+          <h3>Work through the ranks</h3>
+          <p>Illustrative candidate lists: dense favors a conceptual overview; sparse favors the exact <code>ChunkFile</code> symbol. Switch modes to compare the resulting order.</p>
+          <div class="walkthrough-controls" role="group" aria-label="RRF example retrieval mode">
+            <button class="nb-btn nb-btn-sm nb-btn-yellow" data-rrf-mode="hybrid" aria-pressed="true">Hybrid</button>
+            <button class="nb-btn nb-btn-sm" data-rrf-mode="dense" aria-pressed="false">Dense</button>
+            <button class="nb-btn nb-btn-sm" data-rrf-mode="sparse" aria-pressed="false">Sparse</button>
+          </div>
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Worked RRF calculation">
+            <table class="eval-queries-table"><caption>Invented ranks, calculated scores — not evaluation data</caption><thead><tr><th scope="col">Candidate</th><th scope="col">Dense position</th><th scope="col">Sparse position</th><th scope="col">RRF calculation</th><th scope="col">Result rank</th></tr></thead><tbody id="rrfExampleBody"></tbody></table>
+          </div>
+          <p id="rrfExplanation" class="learning-note" role="status"></p>
+          <p class="learning-note">Qdrant uses zero-based positions: first = 0. With this project's <code>k=60</code>, a first-place contribution is <code>1/60</code>. An absent candidate contributes 0. <a href="https://qdrant.tech/documentation/search/hybrid-queries/#reciprocal-rank-fusion-rrf" target="_blank" rel="noopener">Qdrant's formula ↗</a></p>
         </div>
       </div>
     </div>
@@ -584,7 +671,7 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
         <p style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 1.5rem; max-width: 900px;">
           File hashes skip work only when the <em>entire</em> corpus is unchanged. BM25 IDF is corpus-wide, so if any file changes, every current file is re-chunked and re-embedded.
         </p>
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+        <div class="three-column-grid">
           <div class="spec-box">
             <div class="spec-box-label">1. SHA-256 HASHING</div>
             <p style="font-size: 0.85rem; margin-top: 0.4rem;">Each file's SHA-256 is compared with Qdrant payloads. If hashes <em>and</em> index version all match, indexing is a no-op.</p>
@@ -609,10 +696,10 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
         <h2 class="section-title">
           <span>📊</span> Retrieval Evaluation Scoreboard
         </h2>
-        <span class="nb-badge mint">GOLDEN BENCHMARK (39 QUERIES)</span>
+        <span class="nb-badge mint"><span data-evidence="queryCount">—</span></span>
       </div>
       <p class="section-subtitle">
-        Measured via <code>ragcodepilot eval --mode hybrid</code> — run 2026-09-11, 199 Go chunks. Canonical file: <code>docs/eval/baseline_v8.json</code>. Self-dogfood on this repo, not a public IR benchmark.
+        Measured via <code>ragcodepilot eval --mode hybrid</code> — run <span data-evidence="retrievalDate">—</span>. <a href="data/retrieval.json" target="_blank" rel="noopener">Inspect saved retrieval report ↗</a>. Self-dogfood on this repo, not a public IR benchmark. Retrieval metrics do not measure answer correctness or generation latency.
       </p>
     </div>
 
@@ -620,55 +707,75 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
     <div class="eval-summary-cards">
       <div class="nb-card eval-card yellow hoverable">
         <div class="stat-label">HIT@1</div>
-        <div class="stat-number">85.7%</div>
+        <div class="stat-number" data-evidence="hit1">—</div>
         <div class="stat-note">Top result is a relevant chunk</div>
       </div>
 
       <div class="nb-card eval-card pink hoverable">
         <div class="stat-label">HIT@5</div>
-        <div class="stat-number">97.1%</div>
+        <div class="stat-number" data-evidence="hit5">—</div>
         <div class="stat-note">Relevant chunk in top 5</div>
       </div>
 
       <div class="nb-card eval-card blue hoverable">
         <div class="stat-label">MRR@5</div>
-        <div class="stat-number">0.910</div>
+        <div class="stat-number" data-evidence="mrr5">—</div>
         <div class="stat-note">Mean Reciprocal Rank</div>
       </div>
 
       <div class="nb-card eval-card mint hoverable">
         <div class="stat-label">RECALL@10</div>
-        <div class="stat-number">90.3%</div>
+        <div class="stat-number" data-evidence="recall10">—</div>
         <div class="stat-note">Share of expected files in top 10</div>
       </div>
 
       <div class="nb-card eval-card purple hoverable">
         <div class="stat-label">NEG PASS RATE</div>
-        <div class="stat-number">0.50</div>
-        <div class="stat-note">Mode-calibrated RRF — 2 of 4 out-of-scope queries still dual-list</div>
+        <div class="stat-number" data-evidence="negativePass">—</div>
+        <div class="stat-note"><span data-evidence="negativeScope">—</span></div>
       </div>
     </div>
 
     <!-- Table of Sample Golden Queries -->
-    <div class="nb-card" style="padding: 1.5rem; overflow-x: auto;">
+    <p class="learning-note">Generation is a separate cost: the saved <span data-evidence="generationScope">—</span> from <span data-evidence="generationDate">—</span> with <code>--answer-limit 5</code> measured <span data-evidence="generationP50">—</span> p50 and <span data-evidence="generationP95">—</span> p95 for generation. This older, different workload is not an end-to-end latency comparison with baseline_v8. <a href="data/generation.json" target="_blank" rel="noopener">Inspect saved answer report ↗</a>.</p>
+    <div class="nb-card table-scroll" tabindex="0" role="region" aria-label="Golden query evaluation results" style="padding: 1.5rem;">
       <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 0.75rem;">Golden Dataset Benchmark Queries</h3>
       <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
-        Sample rows from baseline_v8 (34 of 35 positive queries hit@5). ChunkFile navigation is now top-1. Negative pass is no longer a vacuous 1.00.
+        <span data-evidence="allRows">—</span>
       </p>
       <table class="eval-queries-table">
         <thead>
           <tr>
             <th>Query String</th>
             <th>Type</th>
-            <th>Expected File</th>
+            <th>Top Returned File</th>
             <th>Outcome (Hybrid RRF)</th>
           </tr>
         </thead>
         <tbody id="evalTableBody">
-          <!-- Populated by app.js from baseline_v8 sample rows -->
+          <!-- Populated from generated evidence.js -->
         </tbody>
       </table>
     </div>
+  </section>
+
+  <section class="section-container" id="getting-started">
+    <div class="section-header">
+      <h2 class="section-title">🚀 Run it on your machine</h2>
+      <p class="section-subtitle">Install Go <span data-evidence="goVersion">—</span>, Git, Docker with Compose, and Ollama first. Start Docker and the Ollama app/service. Commands below run in your terminal, not in this website.</p>
+    </div>
+    <ol class="walkthrough-list setup-list">
+      <li class="nb-card"><h3>1. Get the source</h3><p>If you already have this repository, open its root directory and skip cloning.</p><pre><code id="setupClone">git clone https://github.com/thuyvy3110/ragcodepilot.git
+cd ragcodepilot</code></pre><button class="nb-btn nb-btn-sm" data-copy-command="setupClone">Copy clone commands</button></li>
+      <li class="nb-card"><h3>2. Start services &amp; download embeddings</h3><p>Qdrant runs in Docker; Ollama runs on the host. If Ollama is not already running, start <code>ollama serve</code> in a separate terminal. Downloads require internet access.</p><pre><code id="setupServices">docker compose up -d qdrant
+ollama pull nomic-embed-text
+go run ./cmd/ragcodepilot version</code></pre><button class="nb-btn nb-btn-sm" data-copy-command="setupServices">Copy service commands</button></li>
+      <li class="nb-card"><h3>3. Index this repository</h3><p>Wait for indexing to finish before searching. This creates the default <code>code_chunks</code> collection using Go source files.</p><pre><code id="setupIndex">go run ./cmd/ragcodepilot index --language go .</code></pre><button class="nb-btn nb-btn-sm" data-copy-command="setupIndex">Copy index command</button></li>
+      <li class="nb-card"><h3>4. Retrieve code</h3><p>Hybrid search returns ranked source chunks, file paths, and line ranges. It does not need a generative model.</p><pre><code id="setupSearch">go run ./cmd/ragcodepilot search "how does chunking work?"</code></pre><button class="nb-btn nb-btn-sm" data-copy-command="setupSearch">Copy search command</button></li>
+      <li class="nb-card"><h3>5. Optional: generate an answer</h3><p>Download the additional model, then use <code>--answer</code>. The first call can take longer while the model loads. Inspect its source citations to judge the answer.</p><pre><code id="setupAnswer">ollama pull qwen2.5-coder:7b
+go run ./cmd/ragcodepilot search --answer "how does chunking work?"</code></pre><button class="nb-btn nb-btn-sm" data-copy-command="setupAnswer">Copy answer commands</button></li>
+    </ol>
+    <details class="nb-card setup-help"><summary>Service errors or an empty search?</summary><ul><li>Ollama connection refused: start the Ollama app or <code>ollama serve</code>. Run <code>ollama list</code> to check downloaded models.</li><li>Qdrant connection refused: check <code>docker compose ps</code> and <code>docker compose logs qdrant</code>. The CLI uses port 6334.</li><li>Missing collection or no results: finish indexing first and use matching collection/language/repository filters.</li><li>Vector dimension mismatch: use the same embedding model for index and search, or deliberately rebuild for the new model.</li></ul><p><a data-source="README.md">Full CLI reference and configuration ↗</a></p></details>
   </section>
 
   <!-- Interactive Terminal Emulator -->
@@ -681,7 +788,7 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
         <span class="nb-badge yellow">TRY CLI COMMANDS</span>
       </div>
       <p class="section-subtitle">
-        Switch tabs to preview realistic terminal execution outputs for indexing, hybrid searching, answer generation, and watch mode.
+        Switch tabs for abbreviated, illustrative output. These examples do not execute commands or measure performance. Run the copied commands locally after setup.
       </p>
     </div>
 
@@ -712,6 +819,7 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
     </div>
   </section>
 
+  </main>
   <!-- Footer -->
   <footer class="site-footer">
     <div class="footer-inner">
@@ -722,13 +830,15 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
         </p>
       </div>
       <div class="footer-links">
-        <a href="https://github.com/vyndinh/ragcodepilot" target="_blank" class="nb-btn nb-btn-sm">GitHub Repo ↗</a>
-        <a href="https://substack.com/@vyndyn" target="_blank" class="nb-btn nb-btn-sm nb-btn-yellow">Substack 📬</a>
-        <a href="https://linkedin.com/in/vydinhtn" target="_blank" class="nb-btn nb-btn-sm nb-btn-blue">LinkedIn ↗</a>
+        <a href="https://github.com/thuyvy3110/ragcodepilot" target="_blank" rel="noopener" class="nb-btn nb-btn-sm">GitHub Repo ↗</a>
+        <a href="https://substack.com/@vyndyn" target="_blank" rel="noopener" class="nb-btn nb-btn-sm nb-btn-yellow">Substack 📬</a>
+        <a href="https://linkedin.com/in/vydinhtn" target="_blank" rel="noopener" class="nb-btn nb-btn-sm nb-btn-blue">LinkedIn ↗</a>
       </div>
     </div>
   </footer>
 
+  <div id="copyStatus" class="sr-only" role="status"></div>
+  <script src="evidence.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

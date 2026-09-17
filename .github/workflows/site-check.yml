@@ -1,0 +1,32 @@
+name: Website checks
+
+on:
+  pull_request:
+    paths:
+      - 'site/**'
+      - 'tools/site/**'
+      - 'docs/eval/**'
+      - 'go.mod'
+      - '.github/workflows/site-check.yml'
+      - '.github/workflows/pages.yml'
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/site
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/site/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm test

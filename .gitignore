@@ -30,3 +30,9 @@ go.work.sum
 
 # Go build cache (created by the sandboxed harness)
 .gocache/
+
+# Static website development checks
+/tools/site/node_modules/
+/tools/site/test-results/
+/tools/site/playwright-report/
+/tools/site/**/__pycache__/
