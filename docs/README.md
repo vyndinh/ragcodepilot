@@ -25,6 +25,8 @@ page to find the right entry point.
 |---|---|
 | [`mvp_roadmap.md`](plan/mvp_roadmap.md) | **Canonical next-up tasks** and product direction. Start here. |
 | [`graphrag.md`](plan/graphrag.md) | Phase 6 — GraphRAG structural retrieval layer (design doc). |
+| [`cheaper_levers.md`](plan/cheaper_levers.md) | Conventional ladder (code embeddings + cross-encoder reranker) to run before committing to GraphRAG. |
+| [`mcp_server_mode.md`](plan/mcp_server_mode.md) | MCP server mode design — expose search as MCP tools for coding agents (draft, sequencing open). |
 | [`phase5_v0_answer_mode.md`](plan/phase5_v0_answer_mode.md) | Phase 5 v0 — `--answer` mode (minimal RAG seam). |
 | [`hybrid_search.md`](plan/hybrid_search.md) | Phase 2 — hybrid search (BM25 + dense + RRF) implementation + eval history. |
 | [`phase3_rust_chunker.md`](plan/phase3_rust_chunker.md) | Phase 3 — Rust AST chunker plan (deferred). |
@@ -86,7 +88,8 @@ page to find the right entry point.
 | Doc | Purpose |
 |---|---|
 | [`incremental_processing_roadmap.md`](improvement/incremental_processing_roadmap.md) | Incremental processing roadmap. |
-| [`reindexing.md`](improvement/reindexing.md) | Re-indexing via file-hash change detection. |
+| [`reindexing.md`](improvement/reindexing.md) | Re-indexing via file-hash + index-version change detection. |
+| [`production_readiness_and_features.md`](improvement/production_readiness_and_features.md) | External review (2026-07): production gaps + practical feature proposals (MCP, symbol fast path, streaming, multi-repo UX). |
 
 ## eval/ — metrics, golden set, baselines
 
