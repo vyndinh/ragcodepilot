@@ -8,7 +8,7 @@ const SITE_EVIDENCE = {
   "source_hashes": {
     "docs/eval/baseline_v8.json": "731be872ec8e9ade721e71d68ea6b521922056ced2a74a15af87d3984dbbec43",
     "docs/eval/baseline_v7_structural_answer_al5.json": "9a74b6359e5ebca1eea5d9b38ef2304554aec3123921be7d05e9ac134882973d",
-    "go.mod": "a60545c0891386c0ca062f9ca645ea5ea26ddbaaa9190dccacb6f86c46d3e92f"
+    "go.mod": "05a31c4bb0938f118f63df3cbcda0363b966ce7cfa4343485e028c415d4b65af"
   },
   "retrieval_report": {
     "run_id": "2026-09-11T11-14-50Z",
