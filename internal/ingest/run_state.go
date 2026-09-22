@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -205,12 +206,12 @@ func inputFingerprint(collection, repository, representation string, languages [
 		keys = append(keys, path)
 	}
 	sort.Strings(keys)
-	h := sha256.New()
-	fmt.Fprintf(h, "collection=%s\nrepository=%s\nrepresentation=%s\nchunk_size=%d\nchunk_overlap=%d\nlanguages=%v\n", collection, repository, representation, chunkSize, chunkOverlap, langs)
+	parts := []string{fmt.Sprintf("collection=%s\nrepository=%s\nrepresentation=%s\nchunk_size=%d\nchunk_overlap=%d\nlanguages=%v\n", collection, repository, representation, chunkSize, chunkOverlap, langs)}
 	for _, path := range keys {
-		fmt.Fprintf(h, "%s=%s\n", path, fileHashes[path])
+		parts = append(parts, fmt.Sprintf("%s=%s\n", path, fileHashes[path]))
 	}
-	return hex.EncodeToString(h.Sum(nil))
+	digest := sha256.Sum256([]byte(strings.Join(parts, "")))
+	return hex.EncodeToString(digest[:])
 }
 
 func readLockOwner(path string) string {
