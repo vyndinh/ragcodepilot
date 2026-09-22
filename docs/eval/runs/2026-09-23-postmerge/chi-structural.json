@@ -1,0 +1,382 @@
+{
+  "run_id": "2026-09-22T18-59-48Z",
+  "dataset": "/Users/dinhvy/code/aiproject/ragsearch/docs/eval/external/chi-v5.2.3/golden.yaml",
+  "collection": "m0_chi_postmerge_20260922_185850",
+  "embedder": "ollama/nomic-embed-text:latest",
+  "mode": "hybrid",
+  "limit": 10,
+  "aggregate": {
+    "queries": 4,
+    "positive_queries": 4,
+    "negative_queries": 0,
+    "errors": 0,
+    "hit_at_1": 1,
+    "hit_at_3": 1,
+    "hit_at_5": 1,
+    "mrr_at_5": 1,
+    "recall_at_5": 0.875,
+    "recall_at_10": 0.875,
+    "negative_pass_rate": 0,
+    "latency_total_p50_ms": 22,
+    "latency_total_p95_ms": 26,
+    "latency_embed_p50_ms": 16,
+    "latency_embed_p95_ms": 17,
+    "latency_qdrant_p50_ms": 2,
+    "latency_qdrant_p95_ms": 7
+  },
+  "by_type": {
+    "navigation": {
+      "count": 4,
+      "hit_at_5": 1,
+      "mrr_at_5": 1
+    }
+  },
+  "queries": [
+    {
+      "id": "url_parameter_flow",
+      "type": "navigation",
+      "query": "Trace how matched URL parameter keys and values are recorded by the routing tree and then read by URLParam.",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.03306011,
+      "embed_ms": 16,
+      "qdrant_ms": 7,
+      "total_ms": 26,
+      "top_results": [
+        {
+          "file_path": "context.go",
+          "name": "URLParam",
+          "score": 0.03306011,
+          "start_line": 98,
+          "end_line": 107
+        },
+        {
+          "file_path": "context.go",
+          "name": "RouteParams",
+          "score": 0.03201844,
+          "start_line": 146,
+          "end_line": 149
+        },
+        {
+          "file_path": "context.go",
+          "name": "URLParam",
+          "score": 0.031280547,
+          "start_line": 9,
+          "end_line": 15
+        },
+        {
+          "file_path": "tree.go",
+          "name": "FindRoute",
+          "score": 0.030414745,
+          "start_line": 372,
+          "end_line": 395
+        },
+        {
+          "file_path": "context.go",
+          "name": "URLParamFromCtx",
+          "score": 0.030330881,
+          "start_line": 17,
+          "end_line": 23
+        },
+        {
+          "file_path": "context.go",
+          "name": "Context",
+          "score": 0.029877368,
+          "start_line": 42,
+          "end_line": 79
+        },
+        {
+          "file_path": "tree.go",
+          "name": "endpoint",
+          "score": 0.02965368,
+          "start_line": 117,
+          "end_line": 126
+        },
+        {
+          "file_path": "context.go",
+          "name": "Add",
+          "score": 0.029386532,
+          "start_line": 151,
+          "end_line": 155
+        },
+        {
+          "file_path": "middleware/url_format.go",
+          "name": "URLFormat",
+          "score": 0.02920635,
+          "start_line": 17,
+          "end_line": 77
+        },
+        {
+          "file_path": "context.go",
+          "name": "Reset",
+          "score": 0.028258707,
+          "start_line": 81,
+          "end_line": 96
+        }
+      ]
+    },
+    {
+      "id": "method_not_allowed_flow",
+      "type": "navigation",
+      "query": "Trace a path match with the wrong HTTP method through allowed-method collection to the 405 response and Allow header.",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 0.5,
+      "recall_at_10": 0.5,
+      "top_score": 0.033333335,
+      "embed_ms": 17,
+      "qdrant_ms": 2,
+      "total_ms": 24,
+      "top_results": [
+        {
+          "file_path": "mux.go",
+          "name": "methodNotAllowedHandler",
+          "score": 0.033333335,
+          "start_line": 515,
+          "end_line": 526
+        },
+        {
+          "file_path": "mux.go",
+          "name": "MethodNotAllowedHandler",
+          "score": 0.03175403,
+          "start_line": 405,
+          "end_line": 412
+        },
+        {
+          "file_path": "mux.go",
+          "name": "routeHTTP",
+          "score": 0.030213539,
+          "start_line": 439,
+          "end_line": 485
+        },
+        {
+          "file_path": "mux.go",
+          "name": "MethodNotAllowed",
+          "score": 0.030158732,
+          "start_line": 215,
+          "end_line": 233
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Trace",
+          "score": 0.028850146,
+          "start_line": 189,
+          "end_line": 193
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Match",
+          "score": 0.016393442,
+          "start_line": 353,
+          "end_line": 361
+        },
+        {
+          "file_path": "context.go",
+          "name": "Context",
+          "score": 0.016393442,
+          "start_line": 42,
+          "end_line": 79
+        },
+        {
+          "file_path": "path_value.go",
+          "score": 0.015873017,
+          "start_line": 1,
+          "end_line": 13
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Method",
+          "score": 0.015625,
+          "start_line": 125,
+          "end_line": 133
+        },
+        {
+          "file_path": "chi.go",
+          "name": "Router",
+          "score": 0.015384615,
+          "start_line": 64,
+          "end_line": 114
+        }
+      ]
+    },
+    {
+      "id": "custom_http_method_flow",
+      "type": "navigation",
+      "query": "How does registering a custom HTTP method make it usable when adding a method-specific route?",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.03159204,
+      "embed_ms": 16,
+      "qdrant_ms": 2,
+      "total_ms": 21,
+      "top_results": [
+        {
+          "file_path": "tree.go",
+          "name": "RegisterMethod",
+          "score": 0.03159204,
+          "start_line": 58,
+          "end_line": 75
+        },
+        {
+          "file_path": "_examples/custom-method/main.go",
+          "name": "init",
+          "score": 0.031498015,
+          "start_line": 10,
+          "end_line": 14
+        },
+        {
+          "file_path": "mux.go",
+          "name": "handle",
+          "score": 0.028404512,
+          "start_line": 414,
+          "end_line": 437
+        },
+        {
+          "file_path": "tree.go",
+          "name": "walk",
+          "score": 0.016666668,
+          "start_line": 844,
+          "end_line": 879
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Mux",
+          "score": 0.016393442,
+          "start_line": 13,
+          "end_line": 48
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Method",
+          "score": 0.016393442,
+          "start_line": 125,
+          "end_line": 133
+        },
+        {
+          "file_path": "_examples/custom-method/main.go",
+          "name": "main",
+          "score": 0.016129032,
+          "start_line": 16,
+          "end_line": 33
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Use",
+          "score": 0.016129032,
+          "start_line": 94,
+          "end_line": 105
+        },
+        {
+          "file_path": "mux.go",
+          "name": "MethodFunc",
+          "score": 0.015873017,
+          "start_line": 135,
+          "end_line": 139
+        },
+        {
+          "file_path": "_examples/rest/main.go",
+          "name": "ErrResponse",
+          "score": 0.015625,
+          "start_line": 396,
+          "end_line": 408
+        }
+      ]
+    },
+    {
+      "id": "panic_log_entry_flow",
+      "type": "navigation",
+      "query": "Trace how request logging puts a log entry into context and panic recovery retrieves it to record a panic.",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.033333335,
+      "embed_ms": 16,
+      "qdrant_ms": 2,
+      "total_ms": 22,
+      "top_results": [
+        {
+          "file_path": "middleware/logger.go",
+          "name": "LogEntry",
+          "score": 0.033333335,
+          "start_line": 67,
+          "end_line": 72
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "GetLogEntry",
+          "score": 0.032002047,
+          "start_line": 74,
+          "end_line": 78
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "Panic",
+          "score": 0.031544957,
+          "start_line": 162,
+          "end_line": 164
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "score": 0.031544957,
+          "start_line": 1,
+          "end_line": 22
+        },
+        {
+          "file_path": "middleware/recoverer.go",
+          "name": "Recoverer",
+          "score": 0.03125,
+          "start_line": 17,
+          "end_line": 49
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "WithLogEntry",
+          "score": 0.031054404,
+          "start_line": 80,
+          "end_line": 84
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "LogFormatter",
+          "score": 0.030309988,
+          "start_line": 61,
+          "end_line": 65
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "Logger",
+          "score": 0.029571647,
+          "start_line": 23,
+          "end_line": 41
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "defaultLogEntry",
+          "score": 0.028991597,
+          "start_line": 127,
+          "end_line": 132
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "RequestLogger",
+          "score": 0.02857726,
+          "start_line": 43,
+          "end_line": 59
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1791 @@
+{
+  "run_id": "2026-09-22T18-59-47Z",
+  "dataset": "/Users/dinhvy/code/aiproject/ragsearch/docs/eval/external/chi-v5.2.3/golden.yaml",
+  "collection": "m0_chi_postmerge_20260922_185850",
+  "embedder": "ollama/nomic-embed-text:latest",
+  "mode": "hybrid",
+  "limit": 10,
+  "aggregate": {
+    "queries": 20,
+    "positive_queries": 16,
+    "negative_queries": 4,
+    "errors": 0,
+    "hit_at_1": 0.9375,
+    "hit_at_3": 1,
+    "hit_at_5": 1,
+    "mrr_at_5": 0.9583333333333333,
+    "recall_at_5": 0.96875,
+    "recall_at_10": 0.96875,
+    "negative_pass_rate": 0.25,
+    "latency_total_p50_ms": 28,
+    "latency_total_p95_ms": 42,
+    "latency_embed_p50_ms": 21,
+    "latency_embed_p95_ms": 31,
+    "latency_qdrant_p50_ms": 3,
+    "latency_qdrant_p95_ms": 7
+  },
+  "by_type": {
+    "behavior": {
+      "count": 4,
+      "hit_at_5": 1,
+      "mrr_at_5": 1
+    },
+    "concept": {
+      "count": 4,
+      "hit_at_5": 1,
+      "mrr_at_5": 0.8333333333333334
+    },
+    "navigation": {
+      "count": 8,
+      "hit_at_5": 1,
+      "mrr_at_5": 1
+    },
+    "negative": {
+      "count": 4,
+      "negative_pass_rate": 0.25
+    }
+  },
+  "queries": [
+    {
+      "id": "urlparam_definition",
+      "type": "navigation",
+      "query": "Where is URLParam defined for reading a named URL parameter from an HTTP request?",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.033333335,
+      "embed_ms": 23,
+      "qdrant_ms": 24,
+      "total_ms": 54,
+      "top_results": [
+        {
+          "file_path": "context.go",
+          "name": "URLParam",
+          "score": 0.033333335,
+          "start_line": 9,
+          "end_line": 15
+        },
+        {
+          "file_path": "context.go",
+          "name": "URLParam",
+          "score": 0.032522473,
+          "start_line": 98,
+          "end_line": 107
+        },
+        {
+          "file_path": "context.go",
+          "name": "URLParamFromCtx",
+          "score": 0.032522473,
+          "start_line": 17,
+          "end_line": 23
+        },
+        {
+          "file_path": "_examples/rest/main.go",
+          "name": "ArticleCtx",
+          "score": 0.03076923,
+          "start_line": 121,
+          "end_line": 145
+        },
+        {
+          "file_path": "context.go",
+          "name": "RouteParams",
+          "score": 0.030117754,
+          "start_line": 146,
+          "end_line": 149
+        },
+        {
+          "file_path": "_examples/pathvalue/main.go",
+          "name": "pathValueHandler",
+          "score": 0.029850746,
+          "start_line": 19,
+          "end_line": 25
+        },
+        {
+          "file_path": "middleware/url_format.go",
+          "name": "URLFormat",
+          "score": 0.029571647,
+          "start_line": 17,
+          "end_line": 77
+        },
+        {
+          "file_path": "chi.go",
+          "name": "main",
+          "score": 0.015873017,
+          "start_line": 1,
+          "end_line": 58
+        },
+        {
+          "file_path": "context.go",
+          "name": "Add",
+          "score": 0.015625,
+          "start_line": 151,
+          "end_line": 155
+        },
+        {
+          "file_path": "middleware/url_format.go",
+          "score": 0.015151516,
+          "start_line": 1,
+          "end_line": 16
+        }
+      ]
+    },
+    {
+      "id": "compressor_constructor",
+      "type": "navigation",
+      "query": "Where is NewCompressor implemented to configure allowed content types and compression encoders?",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.033333335,
+      "embed_ms": 27,
+      "qdrant_ms": 3,
+      "total_ms": 37,
+      "top_results": [
+        {
+          "file_path": "middleware/compress.go",
+          "name": "NewCompressor",
+          "score": 0.033333335,
+          "start_line": 59,
+          "end_line": 130
+        },
+        {
+          "file_path": "middleware/compress.go",
+          "name": "Compressor",
+          "score": 0.032522473,
+          "start_line": 45,
+          "end_line": 57
+        },
+        {
+          "file_path": "middleware/compress.go",
+          "name": "Compress",
+          "score": 0.032522473,
+          "start_line": 29,
+          "end_line": 43
+        },
+        {
+          "file_path": "middleware/compress.go",
+          "name": "SetEncoder",
+          "score": 0.03125,
+          "start_line": 132,
+          "end_line": 183
+        },
+        {
+          "file_path": "middleware/compress.go",
+          "name": "Handler",
+          "score": 0.031024532,
+          "start_line": 185,
+          "end_line": 208
+        },
+        {
+          "file_path": "middleware/compress.go",
+          "name": "compressResponseWriter",
+          "score": 0.0305789,
+          "start_line": 261,
+          "end_line": 272
+        },
+        {
+          "file_path": "middleware/compress.go",
+          "name": "WriteHeader",
+          "score": 0.030090498,
+          "start_line": 290,
+          "end_line": 316
+        },
+        {
+          "file_path": "middleware/compress.go",
+          "name": "EncoderFunc",
+          "score": 0.029469121,
+          "start_line": 249,
+          "end_line": 253
+        },
+        {
+          "file_path": "middleware/content_type.go",
+          "name": "AllowContentType",
+          "score": 0.029437229,
+          "start_line": 18,
+          "end_line": 45
+        },
+        {
+          "file_path": "middleware/content_encoding.go",
+          "name": "AllowContentEncoding",
+          "score": 0.029418126,
+          "start_line": 8,
+          "end_line": 34
+        }
+      ]
+    },
+    {
+      "id": "response_writer_wrapper",
+      "type": "navigation",
+      "query": "Where is NewWrapResponseWriter implemented to preserve optional HTTP writer interfaces?",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.033333335,
+      "embed_ms": 21,
+      "qdrant_ms": 2,
+      "total_ms": 26,
+      "top_results": [
+        {
+          "file_path": "middleware/wrap_writer.go",
+          "name": "NewWrapResponseWriter",
+          "score": 0.033333335,
+          "start_line": 13,
+          "end_line": 44
+        },
+        {
+          "file_path": "middleware/wrap_writer.go",
+          "name": "basicWriter",
+          "score": 0.032002047,
+          "start_line": 71,
+          "end_line": 80
+        },
+        {
+          "file_path": "middleware/wrap_writer.go",
+          "name": "WrapResponseWriter",
+          "score": 0.030886196,
+          "start_line": 46,
+          "end_line": 69
+        },
+        {
+          "file_path": "middleware/wrap_writer.go",
+          "name": "Unwrap",
+          "score": 0.030834913,
+          "start_line": 134,
+          "end_line": 136
+        },
+        {
+          "file_path": "middleware/wrap_writer.go",
+          "name": "Push",
+          "score": 0.030158732,
+          "start_line": 205,
+          "end_line": 207
+        },
+        {
+          "file_path": "middleware/wrap_writer.go",
+          "name": "httpFancyWriter",
+          "score": 0.029709507,
+          "start_line": 186,
+          "end_line": 192
+        },
+        {
+          "file_path": "middleware/wrap_writer.go",
+          "name": "http2FancyWriter",
+          "score": 0.029273504,
+          "start_line": 227,
+          "end_line": 233
+        },
+        {
+          "file_path": "middleware/wrap_writer.go",
+          "name": "Hijack",
+          "score": 0.027031964,
+          "start_line": 200,
+          "end_line": 203
+        },
+        {
+          "file_path": "middleware/wrap_writer.go",
+          "name": "Flush",
+          "score": 0.026685644,
+          "start_line": 194,
+          "end_line": 198
+        },
+        {
+          "file_path": "middleware/wrap_writer.go",
+          "name": "Hijack",
+          "score": 0.026153848,
+          "start_line": 160,
+          "end_line": 163
+        }
+      ]
+    },
+    {
+      "id": "walk_router_definition",
+      "type": "navigation",
+      "query": "Where is Walk implemented for traversing routes and their middleware?",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.03306011,
+      "embed_ms": 22,
+      "qdrant_ms": 3,
+      "total_ms": 28,
+      "top_results": [
+        {
+          "file_path": "tree.go",
+          "name": "Walk",
+          "score": 0.03306011,
+          "start_line": 839,
+          "end_line": 842
+        },
+        {
+          "file_path": "chi.go",
+          "name": "Routes",
+          "score": 0.032522473,
+          "start_line": 116,
+          "end_line": 133
+        },
+        {
+          "file_path": "tree.go",
+          "name": "walk",
+          "score": 0.031498015,
+          "start_line": 844,
+          "end_line": 879
+        },
+        {
+          "file_path": "tree.go",
+          "name": "WalkFunc",
+          "score": 0.030834913,
+          "start_line": 836,
+          "end_line": 837
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Routes",
+          "score": 0.030555557,
+          "start_line": 342,
+          "end_line": 346
+        },
+        {
+          "file_path": "_examples/router-walk/main.go",
+          "name": "main",
+          "score": 0.03036577,
+          "start_line": 11,
+          "end_line": 37
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Use",
+          "score": 0.026320346,
+          "start_line": 94,
+          "end_line": 105
+        },
+        {
+          "file_path": "tree.go",
+          "name": "walk",
+          "score": 0.015625,
+          "start_line": 668,
+          "end_line": 683
+        },
+        {
+          "file_path": "tree.go",
+          "name": "Route",
+          "score": 0.015384615,
+          "start_line": 828,
+          "end_line": 834
+        },
+        {
+          "file_path": "middleware/get_head.go",
+          "name": "GetHead",
+          "score": 0.015384615,
+          "start_line": 9,
+          "end_line": 39
+        }
+      ]
+    },
+    {
+      "id": "routing_context_reuse",
+      "type": "concept",
+      "query": "How is routing context obtained from a pool, reset, attached to a request, and returned for reuse?",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.03306011,
+      "embed_ms": 19,
+      "qdrant_ms": 4,
+      "total_ms": 29,
+      "top_results": [
+        {
+          "file_path": "context.go",
+          "name": "Reset",
+          "score": 0.03306011,
+          "start_line": 81,
+          "end_line": 96
+        },
+        {
+          "file_path": "mux.go",
+          "name": "ServeHTTP",
+          "score": 0.032051284,
+          "start_line": 60,
+          "end_line": 92
+        },
+        {
+          "file_path": "context.go",
+          "name": "Context",
+          "score": 0.031778056,
+          "start_line": 42,
+          "end_line": 79
+        },
+        {
+          "file_path": "context.go",
+          "name": "RouteContext",
+          "score": 0.030330881,
+          "start_line": 25,
+          "end_line": 30
+        },
+        {
+          "file_path": "context.go",
+          "name": "RoutePattern",
+          "score": 0.029642545,
+          "start_line": 109,
+          "end_line": 134
+        },
+        {
+          "file_path": "tree.go",
+          "name": "FindRoute",
+          "score": 0.029116046,
+          "start_line": 372,
+          "end_line": 395
+        },
+        {
+          "file_path": "context.go",
+          "name": "NewRouteContext",
+          "score": 0.028860029,
+          "start_line": 32,
+          "end_line": 35
+        },
+        {
+          "file_path": "chi.go",
+          "name": "Routes",
+          "score": 0.02837022,
+          "start_line": 116,
+          "end_line": 133
+        },
+        {
+          "file_path": "context.go",
+          "name": "RouteParams",
+          "score": 0.027809743,
+          "start_line": 146,
+          "end_line": 149
+        },
+        {
+          "file_path": "middleware/get_head.go",
+          "name": "GetHead",
+          "score": 0.027619049,
+          "start_line": 9,
+          "end_line": 39
+        }
+      ]
+    },
+    {
+      "id": "middleware_execution_order",
+      "type": "concept",
+      "query": "How are router middleware combined so the first registered middleware runs around the later handlers?",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.03226646,
+      "embed_ms": 20,
+      "qdrant_ms": 5,
+      "total_ms": 28,
+      "top_results": [
+        {
+          "file_path": "mux.go",
+          "name": "updateRouteHandler",
+          "score": 0.03226646,
+          "start_line": 507,
+          "end_line": 513
+        },
+        {
+          "file_path": "middleware/route_headers.go",
+          "name": "RouteHeaders",
+          "score": 0.030365298,
+          "start_line": 8,
+          "end_line": 44
+        },
+        {
+          "file_path": "chi.go",
+          "name": "Middlewares",
+          "score": 0.029642545,
+          "start_line": 135,
+          "end_line": 137
+        },
+        {
+          "file_path": "middleware/route_headers.go",
+          "name": "Handler",
+          "score": 0.029437229,
+          "start_line": 77,
+          "end_line": 107
+        },
+        {
+          "file_path": "chain.go",
+          "name": "Chain",
+          "score": 0.026666667,
+          "start_line": 5,
+          "end_line": 8
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Mux",
+          "score": 0.016666668,
+          "start_line": 13,
+          "end_line": 48
+        },
+        {
+          "file_path": "chi.go",
+          "name": "Router",
+          "score": 0.016393442,
+          "start_line": 64,
+          "end_line": 114
+        },
+        {
+          "file_path": "tree.go",
+          "name": "RegisterMethod",
+          "score": 0.016129032,
+          "start_line": 58,
+          "end_line": 75
+        },
+        {
+          "file_path": "_examples/graceful/main.go",
+          "name": "service",
+          "score": 0.015873017,
+          "start_line": 58,
+          "end_line": 82
+        },
+        {
+          "file_path": "context.go",
+          "name": "replaceWildcards",
+          "score": 0.015625,
+          "start_line": 136,
+          "end_line": 144
+        }
+      ]
+    },
+    {
+      "id": "request_id_propagation",
+      "type": "concept",
+      "query": "How does request ID middleware reuse an incoming request ID or create one and store it in context?",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.032002047,
+      "embed_ms": 16,
+      "qdrant_ms": 2,
+      "total_ms": 21,
+      "top_results": [
+        {
+          "file_path": "middleware/request_id.go",
+          "name": "GetReqID",
+          "score": 0.032002047,
+          "start_line": 81,
+          "end_line": 91
+        },
+        {
+          "file_path": "middleware/request_id.go",
+          "name": "RequestID",
+          "score": 0.029324897,
+          "start_line": 62,
+          "end_line": 79
+        },
+        {
+          "file_path": "middleware/url_format.go",
+          "score": 0.029211087,
+          "start_line": 1,
+          "end_line": 16
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "score": 0.028594771,
+          "start_line": 1,
+          "end_line": 22
+        },
+        {
+          "file_path": "middleware/middleware.go",
+          "name": "New",
+          "score": 0.027692895,
+          "start_line": 5,
+          "end_line": 12
+        },
+        {
+          "file_path": "mux.go",
+          "name": "ServeHTTP",
+          "score": 0.016666668,
+          "start_line": 60,
+          "end_line": 92
+        },
+        {
+          "file_path": "_examples/todos-resource/users.go",
+          "name": "Routes",
+          "score": 0.016393442,
+          "start_line": 11,
+          "end_line": 28
+        },
+        {
+          "file_path": "middleware/request_id.go",
+          "name": "ctxKeyRequestID",
+          "score": 0.016393442,
+          "start_line": 17,
+          "end_line": 18
+        },
+        {
+          "file_path": "_examples/todos-resource/todos.go",
+          "name": "Routes",
+          "score": 0.016129032,
+          "start_line": 11,
+          "end_line": 29
+        },
+        {
+          "file_path": "middleware/request_id.go",
+          "name": "NextRequestID",
+          "score": 0.015873017,
+          "start_line": 93,
+          "end_line": 96
+        }
+      ]
+    },
+    {
+      "id": "nested_route_pattern",
+      "type": "concept",
+      "query": "How are nested routing patterns joined and wildcard separators removed for instrumentation?",
+      "hit_at_1": false,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 0.3333333333333333,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.03137255,
+      "embed_ms": 17,
+      "qdrant_ms": 3,
+      "total_ms": 23,
+      "top_results": [
+        {
+          "file_path": "middleware/route_headers.go",
+          "name": "Pattern",
+          "score": 0.03137255,
+          "start_line": 128,
+          "end_line": 132
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Mount",
+          "score": 0.031054404,
+          "start_line": 282,
+          "end_line": 340
+        },
+        {
+          "file_path": "context.go",
+          "name": "RoutePattern",
+          "score": 0.030751174,
+          "start_line": 109,
+          "end_line": 134
+        },
+        {
+          "file_path": "middleware/route_headers.go",
+          "name": "NewPattern",
+          "score": 0.030679155,
+          "start_line": 134,
+          "end_line": 138
+        },
+        {
+          "file_path": "middleware/route_headers.go",
+          "name": "RouteAny",
+          "score": 0.029273504,
+          "start_line": 58,
+          "end_line": 70
+        },
+        {
+          "file_path": "middleware/route_headers.go",
+          "name": "Match",
+          "score": 0.028219396,
+          "start_line": 140,
+          "end_line": 145
+        },
+        {
+          "file_path": "chi.go",
+          "name": "Routes",
+          "score": 0.027972028,
+          "start_line": 116,
+          "end_line": 133
+        },
+        {
+          "file_path": "chi.go",
+          "name": "Router",
+          "score": 0.027583601,
+          "start_line": 64,
+          "end_line": 114
+        },
+        {
+          "file_path": "tree.go",
+          "name": "patNextSegment",
+          "score": 0.02739726,
+          "start_line": 685,
+          "end_line": 753
+        },
+        {
+          "file_path": "mux.go",
+          "name": "handle",
+          "score": 0.026905019,
+          "start_line": 414,
+          "end_line": 437
+        }
+      ]
+    },
+    {
+      "id": "late_middleware_panics",
+      "type": "behavior",
+      "query": "What happens if middleware is added with Use after routes have already been registered?",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.03306011,
+      "embed_ms": 21,
+      "qdrant_ms": 4,
+      "total_ms": 28,
+      "top_results": [
+        {
+          "file_path": "mux.go",
+          "name": "updateRouteHandler",
+          "score": 0.03306011,
+          "start_line": 507,
+          "end_line": 513
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Use",
+          "score": 0.030751174,
+          "start_line": 94,
+          "end_line": 105
+        },
+        {
+          "file_path": "chi.go",
+          "name": "Routes",
+          "score": 0.03036577,
+          "start_line": 116,
+          "end_line": 133
+        },
+        {
+          "file_path": "_examples/todos-resource/todos.go",
+          "name": "Routes",
+          "score": 0.028219396,
+          "start_line": 11,
+          "end_line": 29
+        },
+        {
+          "file_path": "_examples/todos-resource/users.go",
+          "name": "Routes",
+          "score": 0.027984343,
+          "start_line": 11,
+          "end_line": 28
+        },
+        {
+          "file_path": "chi.go",
+          "name": "Router",
+          "score": 0.02631579,
+          "start_line": 64,
+          "end_line": 114
+        },
+        {
+          "file_path": "middleware/compress.go",
+          "name": "SetEncoder",
+          "score": 0.016393442,
+          "start_line": 132,
+          "end_line": 183
+        },
+        {
+          "file_path": "middleware/compress.go",
+          "name": "WriteHeader",
+          "score": 0.016129032,
+          "start_line": 290,
+          "end_line": 316
+        },
+        {
+          "file_path": "mux.go",
+          "name": "With",
+          "score": 0.016129032,
+          "start_line": 235,
+          "end_line": 257
+        },
+        {
+          "file_path": "mux.go",
+          "name": "ServeHTTP",
+          "score": 0.015873017,
+          "start_line": 60,
+          "end_line": 92
+        }
+      ]
+    },
+    {
+      "id": "head_get_fallback",
+      "type": "behavior",
+      "query": "How does an undefined HEAD request fall back to a GET route while preserving the original HTTP request method?",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.033333335,
+      "embed_ms": 18,
+      "qdrant_ms": 3,
+      "total_ms": 24,
+      "top_results": [
+        {
+          "file_path": "middleware/get_head.go",
+          "name": "GetHead",
+          "score": 0.033333335,
+          "start_line": 9,
+          "end_line": 39
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Head",
+          "score": 0.03175403,
+          "start_line": 159,
+          "end_line": 163
+        },
+        {
+          "file_path": "mux.go",
+          "name": "ServeHTTP",
+          "score": 0.031054404,
+          "start_line": 60,
+          "end_line": 92
+        },
+        {
+          "file_path": "middleware/route_headers.go",
+          "name": "RouteHeaders",
+          "score": 0.030886196,
+          "start_line": 8,
+          "end_line": 44
+        },
+        {
+          "file_path": "mux.go",
+          "name": "routeHTTP",
+          "score": 0.028219396,
+          "start_line": 439,
+          "end_line": 485
+        },
+        {
+          "file_path": "middleware/page_route.go",
+          "name": "PageRoute",
+          "score": 0.026742734,
+          "start_line": 8,
+          "end_line": 20
+        },
+        {
+          "file_path": "middleware/route_headers.go",
+          "name": "RouteDefault",
+          "score": 0.016393442,
+          "start_line": 72,
+          "end_line": 75
+        },
+        {
+          "file_path": "middleware/route_headers.go",
+          "name": "Handler",
+          "score": 0.015873017,
+          "start_line": 77,
+          "end_line": 107
+        },
+        {
+          "file_path": "tree.go",
+          "score": 0.015873017,
+          "start_line": 1,
+          "end_line": 15
+        },
+        {
+          "file_path": "middleware/route_headers.go",
+          "name": "RouteAny",
+          "score": 0.015625,
+          "start_line": 58,
+          "end_line": 70
+        }
+      ]
+    },
+    {
+      "id": "timeout_cooperation",
+      "type": "behavior",
+      "query": "Does the timeout middleware forcibly stop a handler, or must the handler observe context cancellation, and when is 504 written?",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.033333335,
+      "embed_ms": 19,
+      "qdrant_ms": 2,
+      "total_ms": 23,
+      "top_results": [
+        {
+          "file_path": "middleware/timeout.go",
+          "name": "Timeout",
+          "score": 0.033333335,
+          "start_line": 9,
+          "end_line": 48
+        },
+        {
+          "file_path": "_examples/limits/main.go",
+          "score": 0.031513646,
+          "start_line": 1,
+          "end_line": 20
+        },
+        {
+          "file_path": "middleware/throttle.go",
+          "score": 0.031498015,
+          "start_line": 1,
+          "end_line": 18
+        },
+        {
+          "file_path": "middleware/timeout.go",
+          "score": 0.031099323,
+          "start_line": 1,
+          "end_line": 8
+        },
+        {
+          "file_path": "middleware/throttle.go",
+          "score": 0.030213539,
+          "start_line": 78,
+          "end_line": 117
+        },
+        {
+          "file_path": "_examples/limits/main.go",
+          "name": "main",
+          "score": 0.030092072,
+          "start_line": 21,
+          "end_line": 92
+        },
+        {
+          "file_path": "middleware/throttle.go",
+          "name": "ThrottleWithOpts",
+          "score": 0.030076887,
+          "start_line": 43,
+          "end_line": 82
+        },
+        {
+          "file_path": "middleware/throttle.go",
+          "name": "ThrottleBacklog",
+          "score": 0.029040404,
+          "start_line": 36,
+          "end_line": 41
+        },
+        {
+          "file_path": "middleware/wrap_writer.go",
+          "name": "WrapResponseWriter",
+          "score": 0.026334027,
+          "start_line": 46,
+          "end_line": 69
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "Logger",
+          "score": 0.025478741,
+          "start_line": 23,
+          "end_line": 41
+        }
+      ]
+    },
+    {
+      "id": "abort_handler_panic",
+      "type": "behavior",
+      "query": "Does panic recovery swallow http.ErrAbortHandler or propagate it without logging the ordinary panic response?",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.033333335,
+      "embed_ms": 17,
+      "qdrant_ms": 3,
+      "total_ms": 22,
+      "top_results": [
+        {
+          "file_path": "middleware/recoverer.go",
+          "name": "Recoverer",
+          "score": 0.033333335,
+          "start_line": 17,
+          "end_line": 49
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "Panic",
+          "score": 0.029726775,
+          "start_line": 162,
+          "end_line": 164
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "LogEntry",
+          "score": 0.027587518,
+          "start_line": 67,
+          "end_line": 72
+        },
+        {
+          "file_path": "middleware/throttle.go",
+          "name": "ThrottleWithOpts",
+          "score": 0.02707152,
+          "start_line": 43,
+          "end_line": 82
+        },
+        {
+          "file_path": "_examples/versions/main.go",
+          "name": "randomErrorMiddleware",
+          "score": 0.026709402,
+          "start_line": 142,
+          "end_line": 154
+        },
+        {
+          "file_path": "_examples/router-walk/main.go",
+          "name": "main",
+          "score": 0.016393442,
+          "start_line": 11,
+          "end_line": 37
+        },
+        {
+          "file_path": "middleware/throttle.go",
+          "name": "setRetryAfterHeaderIfNeeded",
+          "score": 0.016129032,
+          "start_line": 145,
+          "end_line": 151
+        },
+        {
+          "file_path": "middleware/compress.go",
+          "name": "WriteHeader",
+          "score": 0.016129032,
+          "start_line": 290,
+          "end_line": 316
+        },
+        {
+          "file_path": "middleware/recoverer.go",
+          "score": 0.015873017,
+          "start_line": 50,
+          "end_line": 53
+        },
+        {
+          "file_path": "_examples/rest/main.go",
+          "name": "init",
+          "score": 0.015873017,
+          "start_line": 256,
+          "end_line": 279
+        }
+      ]
+    },
+    {
+      "id": "url_parameter_flow",
+      "type": "navigation",
+      "query": "Trace how matched URL parameter keys and values are recorded by the routing tree and then read by URLParam.",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.03306011,
+      "embed_ms": 22,
+      "qdrant_ms": 7,
+      "total_ms": 31,
+      "top_results": [
+        {
+          "file_path": "context.go",
+          "name": "URLParam",
+          "score": 0.03306011,
+          "start_line": 98,
+          "end_line": 107
+        },
+        {
+          "file_path": "context.go",
+          "name": "RouteParams",
+          "score": 0.03201844,
+          "start_line": 146,
+          "end_line": 149
+        },
+        {
+          "file_path": "context.go",
+          "name": "URLParam",
+          "score": 0.031280547,
+          "start_line": 9,
+          "end_line": 15
+        },
+        {
+          "file_path": "tree.go",
+          "name": "FindRoute",
+          "score": 0.030414745,
+          "start_line": 372,
+          "end_line": 395
+        },
+        {
+          "file_path": "context.go",
+          "name": "URLParamFromCtx",
+          "score": 0.030330881,
+          "start_line": 17,
+          "end_line": 23
+        },
+        {
+          "file_path": "context.go",
+          "name": "Context",
+          "score": 0.029877368,
+          "start_line": 42,
+          "end_line": 79
+        },
+        {
+          "file_path": "tree.go",
+          "name": "endpoint",
+          "score": 0.02965368,
+          "start_line": 117,
+          "end_line": 126
+        },
+        {
+          "file_path": "context.go",
+          "name": "Add",
+          "score": 0.029386532,
+          "start_line": 151,
+          "end_line": 155
+        },
+        {
+          "file_path": "middleware/url_format.go",
+          "name": "URLFormat",
+          "score": 0.02920635,
+          "start_line": 17,
+          "end_line": 77
+        },
+        {
+          "file_path": "context.go",
+          "name": "Reset",
+          "score": 0.028258707,
+          "start_line": 81,
+          "end_line": 96
+        }
+      ]
+    },
+    {
+      "id": "method_not_allowed_flow",
+      "type": "navigation",
+      "query": "Trace a path match with the wrong HTTP method through allowed-method collection to the 405 response and Allow header.",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 0.5,
+      "recall_at_10": 0.5,
+      "top_score": 0.033333335,
+      "embed_ms": 23,
+      "qdrant_ms": 5,
+      "total_ms": 31,
+      "top_results": [
+        {
+          "file_path": "mux.go",
+          "name": "methodNotAllowedHandler",
+          "score": 0.033333335,
+          "start_line": 515,
+          "end_line": 526
+        },
+        {
+          "file_path": "mux.go",
+          "name": "MethodNotAllowedHandler",
+          "score": 0.03175403,
+          "start_line": 405,
+          "end_line": 412
+        },
+        {
+          "file_path": "mux.go",
+          "name": "routeHTTP",
+          "score": 0.030213539,
+          "start_line": 439,
+          "end_line": 485
+        },
+        {
+          "file_path": "mux.go",
+          "name": "MethodNotAllowed",
+          "score": 0.030158732,
+          "start_line": 215,
+          "end_line": 233
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Trace",
+          "score": 0.028850146,
+          "start_line": 189,
+          "end_line": 193
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Match",
+          "score": 0.016393442,
+          "start_line": 353,
+          "end_line": 361
+        },
+        {
+          "file_path": "context.go",
+          "name": "Context",
+          "score": 0.016393442,
+          "start_line": 42,
+          "end_line": 79
+        },
+        {
+          "file_path": "path_value.go",
+          "score": 0.015873017,
+          "start_line": 1,
+          "end_line": 13
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Method",
+          "score": 0.015625,
+          "start_line": 125,
+          "end_line": 133
+        },
+        {
+          "file_path": "chi.go",
+          "name": "Router",
+          "score": 0.015384615,
+          "start_line": 64,
+          "end_line": 114
+        }
+      ]
+    },
+    {
+      "id": "custom_http_method_flow",
+      "type": "navigation",
+      "query": "How does registering a custom HTTP method make it usable when adding a method-specific route?",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.03159204,
+      "embed_ms": 32,
+      "qdrant_ms": 4,
+      "total_ms": 42,
+      "top_results": [
+        {
+          "file_path": "tree.go",
+          "name": "RegisterMethod",
+          "score": 0.03159204,
+          "start_line": 58,
+          "end_line": 75
+        },
+        {
+          "file_path": "_examples/custom-method/main.go",
+          "name": "init",
+          "score": 0.031498015,
+          "start_line": 10,
+          "end_line": 14
+        },
+        {
+          "file_path": "mux.go",
+          "name": "handle",
+          "score": 0.028404512,
+          "start_line": 414,
+          "end_line": 437
+        },
+        {
+          "file_path": "tree.go",
+          "name": "walk",
+          "score": 0.016666668,
+          "start_line": 844,
+          "end_line": 879
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Mux",
+          "score": 0.016393442,
+          "start_line": 13,
+          "end_line": 48
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Method",
+          "score": 0.016393442,
+          "start_line": 125,
+          "end_line": 133
+        },
+        {
+          "file_path": "_examples/custom-method/main.go",
+          "name": "main",
+          "score": 0.016129032,
+          "start_line": 16,
+          "end_line": 33
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Use",
+          "score": 0.016129032,
+          "start_line": 94,
+          "end_line": 105
+        },
+        {
+          "file_path": "mux.go",
+          "name": "MethodFunc",
+          "score": 0.015873017,
+          "start_line": 135,
+          "end_line": 139
+        },
+        {
+          "file_path": "_examples/rest/main.go",
+          "name": "ErrResponse",
+          "score": 0.015625,
+          "start_line": 396,
+          "end_line": 408
+        }
+      ]
+    },
+    {
+      "id": "panic_log_entry_flow",
+      "type": "navigation",
+      "query": "Trace how request logging puts a log entry into context and panic recovery retrieves it to record a panic.",
+      "hit_at_1": true,
+      "hit_at_3": true,
+      "hit_at_5": true,
+      "mrr_at_5": 1,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "top_score": 0.033333335,
+      "embed_ms": 31,
+      "qdrant_ms": 5,
+      "total_ms": 39,
+      "top_results": [
+        {
+          "file_path": "middleware/logger.go",
+          "name": "LogEntry",
+          "score": 0.033333335,
+          "start_line": 67,
+          "end_line": 72
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "GetLogEntry",
+          "score": 0.032002047,
+          "start_line": 74,
+          "end_line": 78
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "score": 0.031544957,
+          "start_line": 1,
+          "end_line": 22
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "Panic",
+          "score": 0.031544957,
+          "start_line": 162,
+          "end_line": 164
+        },
+        {
+          "file_path": "middleware/recoverer.go",
+          "name": "Recoverer",
+          "score": 0.03125,
+          "start_line": 17,
+          "end_line": 49
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "WithLogEntry",
+          "score": 0.031054404,
+          "start_line": 80,
+          "end_line": 84
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "LogFormatter",
+          "score": 0.030309988,
+          "start_line": 61,
+          "end_line": 65
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "Logger",
+          "score": 0.029571647,
+          "start_line": 23,
+          "end_line": 41
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "defaultLogEntry",
+          "score": 0.028991597,
+          "start_line": 127,
+          "end_line": 132
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "RequestLogger",
+          "score": 0.02857726,
+          "start_line": 43,
+          "end_line": 59
+        }
+      ]
+    },
+    {
+      "id": "oidc_jwks_negative",
+      "type": "negative",
+      "query": "Where does the router validate OpenID Connect JWT signatures using discovery and a rotating JWKS cache?",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_5": 0,
+      "recall_at_10": 0,
+      "top_score": 0.032051284,
+      "negative": {
+        "score_kind": "rrf",
+        "threshold": 0.02,
+        "pass": false
+      },
+      "embed_ms": 28,
+      "qdrant_ms": 4,
+      "total_ms": 36,
+      "top_results": [
+        {
+          "file_path": "chi.go",
+          "name": "Router",
+          "score": 0.032051284,
+          "start_line": 64,
+          "end_line": 114
+        },
+        {
+          "file_path": "mux.go",
+          "name": "updateRouteHandler",
+          "score": 0.0305789,
+          "start_line": 507,
+          "end_line": 513
+        },
+        {
+          "file_path": "context.go",
+          "name": "Context",
+          "score": 0.029910713,
+          "start_line": 42,
+          "end_line": 79
+        },
+        {
+          "file_path": "middleware/request_id.go",
+          "name": "RequestID",
+          "score": 0.029418126,
+          "start_line": 62,
+          "end_line": 79
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Mount",
+          "score": 0.028790388,
+          "start_line": 282,
+          "end_line": 340
+        },
+        {
+          "file_path": "middleware/nocache.go",
+          "name": "NoCache",
+          "score": 0.016666668,
+          "start_line": 31,
+          "end_line": 59
+        },
+        {
+          "file_path": "middleware/nocache.go",
+          "score": 0.016393442,
+          "start_line": 1,
+          "end_line": 30
+        },
+        {
+          "file_path": "chi.go",
+          "name": "Routes",
+          "score": 0.016393442,
+          "start_line": 116,
+          "end_line": 133
+        },
+        {
+          "file_path": "middleware/route_headers.go",
+          "name": "Pattern",
+          "score": 0.016129032,
+          "start_line": 128,
+          "end_line": 132
+        },
+        {
+          "file_path": "_examples/pathvalue/main.go",
+          "name": "main",
+          "score": 0.016129032,
+          "start_line": 10,
+          "end_line": 17
+        }
+      ]
+    },
+    {
+      "id": "sqlite_migrations_negative",
+      "type": "negative",
+      "query": "Where are SQLite schema migrations applied inside a database transaction before serving requests?",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_5": 0,
+      "recall_at_10": 0,
+      "top_score": 0.016666668,
+      "negative": {
+        "score_kind": "rrf",
+        "threshold": 0.02,
+        "pass": true
+      },
+      "embed_ms": 24,
+      "qdrant_ms": 4,
+      "total_ms": 32,
+      "top_results": [
+        {
+          "file_path": "middleware/get_head.go",
+          "name": "GetHead",
+          "score": 0.016666668,
+          "start_line": 9,
+          "end_line": 39
+        },
+        {
+          "file_path": "middleware/request_id.go",
+          "score": 0.016666668,
+          "start_line": 1,
+          "end_line": 16
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Use",
+          "score": 0.016393442,
+          "start_line": 94,
+          "end_line": 105
+        },
+        {
+          "file_path": "middleware/logger.go",
+          "name": "LogFormatter",
+          "score": 0.016393442,
+          "start_line": 61,
+          "end_line": 65
+        },
+        {
+          "file_path": "_examples/rest/main.go",
+          "name": "Render",
+          "score": 0.016129032,
+          "start_line": 372,
+          "end_line": 376
+        },
+        {
+          "file_path": "middleware/request_size.go",
+          "score": 0.016129032,
+          "start_line": 1,
+          "end_line": 6
+        },
+        {
+          "file_path": "_examples/versions/data/article.go",
+          "name": "Article",
+          "score": 0.015873017,
+          "start_line": 3,
+          "end_line": 9
+        },
+        {
+          "file_path": "middleware/throttle.go",
+          "name": "Throttle",
+          "score": 0.015873017,
+          "start_line": 28,
+          "end_line": 34
+        },
+        {
+          "file_path": "middleware/strip.go",
+          "name": "StripPrefix",
+          "score": 0.015625,
+          "start_line": 64,
+          "end_line": 70
+        },
+        {
+          "file_path": "middleware/content_charset.go",
+          "score": 0.015625,
+          "start_line": 1,
+          "end_line": 7
+        }
+      ]
+    },
+    {
+      "id": "kafka_offsets_negative",
+      "type": "negative",
+      "query": "How does the Kafka consumer commit offsets after processing a message and handle consumer group rebalancing?",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_5": 0,
+      "recall_at_10": 0,
+      "top_score": 0.030414745,
+      "negative": {
+        "score_kind": "rrf",
+        "threshold": 0.02,
+        "pass": false
+      },
+      "embed_ms": 18,
+      "qdrant_ms": 3,
+      "total_ms": 23,
+      "top_results": [
+        {
+          "file_path": "middleware/throttle.go",
+          "name": "throttler",
+          "score": 0.030414745,
+          "start_line": 136,
+          "end_line": 143
+        },
+        {
+          "file_path": "_examples/limits/main.go",
+          "score": 0.029513888,
+          "start_line": 1,
+          "end_line": 20
+        },
+        {
+          "file_path": "_examples/rest/main.go",
+          "name": "Render",
+          "score": 0.028850146,
+          "start_line": 372,
+          "end_line": 376
+        },
+        {
+          "file_path": "middleware/timeout.go",
+          "name": "Timeout",
+          "score": 0.026334027,
+          "start_line": 9,
+          "end_line": 48
+        },
+        {
+          "file_path": "_examples/limits/main.go",
+          "name": "main",
+          "score": 0.016666668,
+          "start_line": 21,
+          "end_line": 92
+        },
+        {
+          "file_path": "_examples/rest/main.go",
+          "name": "ArticleResponse",
+          "score": 0.016666668,
+          "start_line": 344,
+          "end_line": 358
+        },
+        {
+          "file_path": "_examples/rest/main.go",
+          "score": 0.016393442,
+          "start_line": 385,
+          "end_line": 395
+        },
+        {
+          "file_path": "_examples/rest/main.go",
+          "name": "init",
+          "score": 0.016393442,
+          "start_line": 256,
+          "end_line": 279
+        },
+        {
+          "file_path": "_examples/rest/main.go",
+          "name": "ErrResponse",
+          "score": 0.016129032,
+          "start_line": 396,
+          "end_line": 408
+        },
+        {
+          "file_path": "_examples/rest/main.go",
+          "name": "Bind",
+          "score": 0.015873017,
+          "start_line": 299,
+          "end_line": 303
+        }
+      ]
+    },
+    {
+      "id": "grpc_reflection_negative",
+      "type": "negative",
+      "query": "Where does the gRPC server register protobuf services and enable server reflection?",
+      "hit_at_1": false,
+      "hit_at_3": false,
+      "hit_at_5": false,
+      "mrr_at_5": 0,
+      "recall_at_5": 0,
+      "recall_at_10": 0,
+      "top_score": 0.028042844,
+      "negative": {
+        "score_kind": "rrf",
+        "threshold": 0.02,
+        "pass": false
+      },
+      "embed_ms": 19,
+      "qdrant_ms": 3,
+      "total_ms": 25,
+      "top_results": [
+        {
+          "file_path": "middleware/heartbeat.go",
+          "name": "Heartbeat",
+          "score": 0.028042844,
+          "start_line": 8,
+          "end_line": 26
+        },
+        {
+          "file_path": "middleware/throttle.go",
+          "score": 0.027242402,
+          "start_line": 1,
+          "end_line": 18
+        },
+        {
+          "file_path": "middleware/recoverer.go",
+          "name": "Recoverer",
+          "score": 0.027150981,
+          "start_line": 17,
+          "end_line": 49
+        },
+        {
+          "file_path": "middleware/profiler.go",
+          "name": "Profiler",
+          "score": 0.016666668,
+          "start_line": 14,
+          "end_line": 49
+        },
+        {
+          "file_path": "_examples/custom-method/main.go",
+          "name": "init",
+          "score": 0.016666668,
+          "start_line": 10,
+          "end_line": 14
+        },
+        {
+          "file_path": "tree.go",
+          "name": "RegisterMethod",
+          "score": 0.016393442,
+          "start_line": 58,
+          "end_line": 75
+        },
+        {
+          "file_path": "_examples/rest/main.go",
+          "name": "Render",
+          "score": 0.016393442,
+          "start_line": 372,
+          "end_line": 376
+        },
+        {
+          "file_path": "mux.go",
+          "name": "Mux",
+          "score": 0.016129032,
+          "start_line": 13,
+          "end_line": 48
+        },
+        {
+          "file_path": "middleware/profiler.go",
+          "score": 0.016129032,
+          "start_line": 1,
+          "end_line": 13
+        },
+        {
+          "file_path": "middleware/sunset.go",
+          "name": "Sunset",
+          "score": 0.015873017,
+          "start_line": 8,
+          "end_line": 25
+        }
+      ]
+    }
+  ]
+}
