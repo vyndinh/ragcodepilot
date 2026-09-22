@@ -39,8 +39,11 @@ records limitations. No runtime source or golden labels changed for this refresh
 The implementation includes identifier tokens, named Go type/interface chunks,
 and calibrated negative checks. v9 records one positive hit miss, two negative
 failures, and eleven positives with incomplete expected-file coverage at top 5.
-Historical reports are not controlled A/Bs against v9. External evaluation remains
-open; this self-corpus run does not establish broader quality.
+Historical reports are not controlled A/Bs against v9. The [external chi evaluation](../eval/external/chi-v5.2.3/README.md) is complete:
+20 queries, zero errors, file hit@5 16/16, negatives 1/4. Its index audit found
+382 generated chunks but only 371 retained points because chunk IDs collide.
+Required source ranges are complete at top 5 for only 9/16 full-run positives.
+This is evidence of a correctness gap, not broad quality acceptance.
 
 The old 0.55 cosine threshold cannot fail for two-list RRF with k=60 (maximum
 about 0.0333). Replaying v6's saved scores at 0.02 fails the same two negatives
@@ -55,13 +58,14 @@ See [evaluation guidance](../eval/README.md) for snapshot and comparison rules.
 
 The near-term queue has **three deliverables**: a fresh baseline plus one external
 repository, dense embedding reuse with reliable recovery, and actionable errors
-plus .gitignore handling. M0 precedes M3; M4 can proceed independently. Active milestone IDs retain
+plus .gitignore handling. M0 is complete; fix the discovered chunk-ID collisions
+before M3 cache work. M4 can proceed independently. Active milestone IDs retain
 their original meanings; gaps refer to retired proposals.
 
 | ID | Scope | Size | Exit criterion | Status |
 |---|---|---|---|---|
-| M0 | Fresh evidence on self + one external repo | S–M | Pinned inputs, saved reports, named failure inventory, manual comparison checklist | In progress: self complete; external open |
-| M3 | Dense reuse + retry/cleanup | M | Cache reuse and invalidation, interrupted-run replay, stale-ID cleanup, one writer per index | After M0 |
+| M0 | Fresh evidence on self + one external repo | S–M | Pinned inputs, saved reports, named failure inventory, manual comparison checklist | Complete as measurement; known failures retained |
+| M3 | Dense reuse + retry/cleanup | M | Cache reuse and invalidation, interrupted-run replay, stale-ID cleanup, one writer per index | Next: chunk-identity correctness first |
 | M4 | Existing-command errors + .gitignore | S–M | Actionable operation-specific failures; nested ignore/exclusion behavior verified | Independent |
 | M1 | Sources-first terminal output | S | Exact answer sources appear before warmup and generation | Optional small UX change |
 
@@ -71,10 +75,11 @@ their original meanings; gaps refer to retired proposals.
   set, config/filters, model artifact/preprocessing, representation version, and limits.
 - [x] Capture fresh full and structural self-corpus reports with current score
   semantics: [v9 evidence and failure inventory](../eval/runs/2026-09-22-self-fed7f22/README.md).
-- [ ] Evaluate **one representative external Go repository**, in its own collection,
+- [x] Evaluate **one representative external Go repository**, in its own collection,
   with a small carefully labeled query set (about 15–20 positive/negative cases).
-  Include required multi-file evidence; retain per-query failures and source revision.
-- [ ] Complete the failure inventory across self and external repos; the self-run
+  [chi v5.2.3 evidence](../eval/external/chi-v5.2.3/README.md): 20 frozen cases,
+  seven multi-file positives, four negatives, and a complete failure inventory.
+- [x] Complete the failure inventory across self and external repos; the self-run
   record already includes a manual regression checklist. Retain the checklist for
   changes to retrieval. Retain comparable control/candidate reports and inspect
   query errors, accepted hits/coverage, negatives, and latency.
@@ -86,6 +91,21 @@ it is not a dependency for the first indexing improvement. Automated retrieval C
 waits until this manual process is stable and worth automating.
 
 ## M3 — Dense reuse and reliable retry/cleanup [M]
+
+**First: chunk-identity correctness [S–M].** The external run confirmed seven
+same-file name collision groups, overwriting 11 generated chunks. Receiver and
+package-function identity must be distinct. This is an implementation defect within
+single-repository indexing, not a request for multi-repo support.
+
+- [ ] Fix receiver/declaration identity in deterministic IDs; cover same-name methods
+  on different receivers and a package function sharing a method name.
+- [ ] Bump the representation version and define cleanup/rebuild for affected points.
+- [ ] Reindex frozen self and chi corpora into fresh collections; require unique
+  generated IDs and no lost points, then repeat the unchanged evaluation labels.
+  Preserve accepted hits/coverage and known negative outcomes; retain both reports.
+
+Proceed to cache optimization only after the identity check passes. See the
+[external run's index audit](../eval/external/chi-v5.2.3/index-audit.json).
 
 Detailed contract: [local reliability](../improvement/production_readiness_and_features.md).
 

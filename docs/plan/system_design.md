@@ -20,7 +20,10 @@ the roadmap establishes planned work, never proof that a feature has shipped.
 This includes identifier tokens, named Go type/interface chunks, representation
 versioning, and calibrated negative checks. The
 [pinned v9 self baseline](../eval/runs/2026-09-22-self-fed7f22/README.md) records
-248 chunks and zero query errors; external quality is still unverified.
+248 chunks and zero query errors. The [external chi baseline](../eval/external/chi-v5.2.3/README.md)
+has zero query errors but confirms same-file chunk-ID collisions (382 generated,
+371 stored). M0 measurement is complete; general quality and index integrity are
+not certified.
 
 ---
 
@@ -272,7 +275,7 @@ Key decisions:
 | Sparse algorithm | BM25 `k1=0.5, b=0.75` + additive identifiers and Snowball stemming | Eval-driven: +15.8pp hit@1 vs TF-IDF with no hit@5 loss (`hybrid_search.md` §3) |
 | Test files | `*_test.go` excluded by default | They crowded top-K; excluding lifted hit@5 0.789→0.895 |
 | Batch size | 32 embed / upsert batch | Throughput vs memory |
-| Point ID | Hash of repo + file path + symbol + chunk index; unnamed chunks use start line | Named IDs can survive line shifts; changed shapes need stale-ID cleanup |
+| Point ID | Hash of repo + file path + symbol + chunk index; unnamed chunks use start line | Names omit receiver identity and collide within files; fix and version before cache work |
 | Change detection | SHA-256 file hash + combined tokenizer/chunker `index_version` | Detects tracked representation changes; model/enrichment fingerprinting remains planned |
 
 ### Search flow
@@ -319,8 +322,9 @@ User query -> Embed -> mode (dense | sparse | hybrid+RRF) + filters
 - ✅ **P2 — Hybrid search**: BM25 sparse + dense + server-side RRF, default mode.
 - ✅ **P5 v0 — `--answer` mode**: grounded answers via local Ollama, Tier B answer eval.
 - ✅ **Re-indexing + watch mode**: hash/version change detection, fsnotify watch.
-- **Next:** M0 fresh baseline plus one external repository, then M3 dense reuse
-  with retry/cleanup. M4 existing-command errors and .gitignore can proceed independently.
+- **M0 complete:** pinned self and external chi measurements, with named failures.
+- **Next:** fix receiver/function chunk-ID collisions and re-evaluate, then M3 dense
+  reuse with retry/cleanup. M4 errors and .gitignore can proceed independently.
 - **Optional:** M1 sources-first output before generation.
 - **Scope exclusions:** see the [roadmap](mvp_roadmap.md#out-of-current-scope).
   Additional retrieval components and product surfaces have no implementation plan.

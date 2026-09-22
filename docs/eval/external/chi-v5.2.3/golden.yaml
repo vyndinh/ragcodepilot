@@ -1,0 +1,192 @@
+# Frozen external chi v5.2.3 query set; labels authored before retrieval.
+# Source commit: 9b9fb55def404397748a9fc7e044efe9db1d618e
+# File-only positives: hit@5 means any expected file; recall measures the required file set.
+# top1_score_below is the dense cosine field; the unchanged hybrid runner uses RRF 0.02.
+queries:
+  - id: urlparam_definition
+    query: "Where is URLParam defined for reading a named URL parameter from an HTTP request?"
+    type: navigation
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - context.go
+  - id: compressor_constructor
+    query: "Where is NewCompressor implemented to configure allowed content types and compression encoders?"
+    type: navigation
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - middleware/compress.go
+  - id: response_writer_wrapper
+    query: "Where is NewWrapResponseWriter implemented to preserve optional HTTP writer interfaces?"
+    type: navigation
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - middleware/wrap_writer.go
+  - id: walk_router_definition
+    query: "Where is Walk implemented for traversing routes and their middleware?"
+    type: navigation
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - tree.go
+  - id: routing_context_reuse
+    query: "How is routing context obtained from a pool, reset, attached to a request, and returned for reuse?"
+    type: concept
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - mux.go
+        - context.go
+  - id: middleware_execution_order
+    query: "How are router middleware combined so the first registered middleware runs around the later handlers?"
+    type: concept
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - mux.go
+        - chain.go
+  - id: request_id_propagation
+    query: "How does request ID middleware reuse an incoming request ID or create one and store it in context?"
+    type: concept
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - middleware/request_id.go
+  - id: nested_route_pattern
+    query: "How are nested routing patterns joined and wildcard separators removed for instrumentation?"
+    type: concept
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - context.go
+  - id: late_middleware_panics
+    query: "What happens if middleware is added with Use after routes have already been registered?"
+    type: behavior
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - mux.go
+  - id: head_get_fallback
+    query: "How does an undefined HEAD request fall back to a GET route while preserving the original HTTP request method?"
+    type: behavior
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - middleware/get_head.go
+        - mux.go
+  - id: timeout_cooperation
+    query: "Does the timeout middleware forcibly stop a handler, or must the handler observe context cancellation, and when is 504 written?"
+    type: behavior
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - middleware/timeout.go
+  - id: abort_handler_panic
+    query: "Does panic recovery swallow http.ErrAbortHandler or propagate it without logging the ordinary panic response?"
+    type: behavior
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - middleware/recoverer.go
+  - id: url_parameter_flow
+    query: "Trace how matched URL parameter keys and values are recorded by the routing tree and then read by URLParam."
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - tree.go
+        - context.go
+  - id: method_not_allowed_flow
+    query: "Trace a path match with the wrong HTTP method through allowed-method collection to the 405 response and Allow header."
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - tree.go
+        - mux.go
+  - id: custom_http_method_flow
+    query: "How does registering a custom HTTP method make it usable when adding a method-specific route?"
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - tree.go
+        - mux.go
+  - id: panic_log_entry_flow
+    query: "Trace how request logging puts a log entry into context and panic recovery retrieves it to record a panic."
+    type: navigation
+    subtype: structural
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    expected:
+      files:
+        - middleware/logger.go
+        - middleware/recoverer.go
+  - id: oidc_jwks_negative
+    query: "Where does the router validate OpenID Connect JWT signatures using discovery and a rotating JWKS cache?"
+    type: negative
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    negative:
+      top1_score_below: 0.55
+  - id: sqlite_migrations_negative
+    query: "Where are SQLite schema migrations applied inside a database transaction before serving requests?"
+    type: negative
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    negative:
+      top1_score_below: 0.55
+  - id: kafka_offsets_negative
+    query: "How does the Kafka consumer commit offsets after processing a message and handle consumer group rebalancing?"
+    type: negative
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    negative:
+      top1_score_below: 0.55
+  - id: grpc_reflection_negative
+    query: "Where does the gRPC server register protobuf services and enable server reflection?"
+    type: negative
+    filters:
+      languages: ["go"]
+      repos: ["chi"]
+    negative:
+      top1_score_below: 0.55

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "method_not_allowed_flow",
+    "class": "incomplete_expected_file_coverage_at_5",
+    "missing_files_at_5": [
+      "tree.go"
+    ],
+    "recall_at_5": 0.5,
+    "recall_at_10": 0.5
+  },
+  {
+    "id": "oidc_jwks_negative",
+    "class": "negative_threshold_failure",
+    "score": 0.032051284,
+    "negative": {
+      "score_kind": "rrf",
+      "threshold": 0.02,
+      "pass": false
+    },
+    "top_result": {
+      "file_path": "chi.go",
+      "name": "Router",
+      "score": 0.032051284,
+      "start_line": 64,
+      "end_line": 114
+    }
+  },
+  {
+    "id": "kafka_offsets_negative",
+    "class": "negative_threshold_failure",
+    "score": 0.030834913,
+    "negative": {
+      "score_kind": "rrf",
+      "threshold": 0.02,
+      "pass": false
+    },
+    "top_result": {
+      "file_path": "middleware/throttle.go",
+      "name": "throttler",
+      "score": 0.030834913,
+      "start_line": 136,
+      "end_line": 143
+    }
+  },
+  {
+    "id": "grpc_reflection_negative",
+    "class": "negative_threshold_failure",
+    "score": 0.028205128,
+    "negative": {
+      "score_kind": "rrf",
+      "threshold": 0.02,
+      "pass": false
+    },
+    "top_result": {
+      "file_path": "middleware/heartbeat.go",
+      "name": "Heartbeat",
+      "score": 0.028205128,
+      "start_line": 8,
+      "end_line": 26
+    }
+  }
+]

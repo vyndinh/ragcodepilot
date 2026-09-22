@@ -1,0 +1,19 @@
+{
+  "frozen_at_utc": "2026-09-22T10:19:50.370105+00:00",
+  "queries": 20,
+  "positive": 16,
+  "negative": 4,
+  "structural_subset": 4,
+  "multi_file_positives": 7,
+  "by_type": {
+    "navigation": 8,
+    "concept": 4,
+    "behavior": 4,
+    "negative": 4
+  },
+  "sha256": {
+    "golden.yaml": "63320af970e20cb8784df1ea0cf8032e633ac3bd2a6f4e687f5fc19e1267d0e7",
+    "labels.json": "3d6aef7ce7cfdc09e6ebb2b30ebc0565ab650f99fb898cd1431d0da212a3acb4"
+  },
+  "negative_absence_check": "Source review plus no matches for kafka|sqlite|jwks|openid|acme|protobuf|grpc in non-test Go source before retrieval."
+}

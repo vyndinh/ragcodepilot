@@ -1,0 +1,18 @@
+Filtering to languages: go
+Found 57 source files in chi
+Change detection: 0 unchanged, 0 changed, 57 new, 0 stale, 0 index-version refresh
+Generated 382 chunks from 57 files
+Detected vector dimension: 768
+Indexed 32/382 chunks
+Indexed 64/382 chunks
+Indexed 96/382 chunks
+Indexed 128/382 chunks
+Indexed 160/382 chunks
+Indexed 192/382 chunks
+Indexed 224/382 chunks
+Indexed 256/382 chunks
+Indexed 288/382 chunks
+Indexed 320/382 chunks
+Indexed 352/382 chunks
+Indexed 382/382 chunks
+Successfully indexed 382 chunks into collection "m0_chi_9b9fb55_20260922_101950"

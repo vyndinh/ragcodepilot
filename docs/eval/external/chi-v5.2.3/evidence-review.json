@@ -1,0 +1,574 @@
+{
+  "method": "Compare predeclared required source ranges against returned chunk locations and stored payloads, ignoring blank-only lines. This is a conservative source-range coverage diagnostic, not an answer-quality metric; equivalent alternate implementations may still help a reader. Ranges and labels were frozen before retrieval.",
+  "positive_queries": [
+    {
+      "id": "urlparam_definition",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": false,
+      "all_predeclared_evidence_ranges_at_10": false,
+      "all_predeclared_evidence_ranges_in_index": false,
+      "evidence": [
+        {
+          "file": "context.go",
+          "start_line": 9,
+          "end_line": 15,
+          "purpose": "URLParam definition",
+          "missing_nonblank_lines_at_5": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "missing_nonblank_lines_at_10": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "missing_nonblank_lines_in_index": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ]
+        }
+      ]
+    },
+    {
+      "id": "compressor_constructor",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": true,
+      "all_predeclared_evidence_ranges_at_10": true,
+      "all_predeclared_evidence_ranges_in_index": true,
+      "evidence": [
+        {
+          "file": "middleware/compress.go",
+          "start_line": 63,
+          "end_line": 91,
+          "purpose": "NewCompressor configuration",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        }
+      ]
+    },
+    {
+      "id": "response_writer_wrapper",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": true,
+      "all_predeclared_evidence_ranges_at_10": true,
+      "all_predeclared_evidence_ranges_in_index": true,
+      "evidence": [
+        {
+          "file": "middleware/wrap_writer.go",
+          "start_line": 15,
+          "end_line": 43,
+          "purpose": "NewWrapResponseWriter interface selection",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        }
+      ]
+    },
+    {
+      "id": "walk_router_definition",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": true,
+      "all_predeclared_evidence_ranges_at_10": true,
+      "all_predeclared_evidence_ranges_in_index": true,
+      "evidence": [
+        {
+          "file": "tree.go",
+          "start_line": 839,
+          "end_line": 852,
+          "purpose": "Walk and recursive traversal entry",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        }
+      ]
+    },
+    {
+      "id": "routing_context_reuse",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": true,
+      "all_predeclared_evidence_ranges_at_10": true,
+      "all_predeclared_evidence_ranges_in_index": true,
+      "evidence": [
+        {
+          "file": "mux.go",
+          "start_line": 78,
+          "end_line": 90,
+          "purpose": "pool get, reset, attachment and return",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        },
+        {
+          "file": "context.go",
+          "start_line": 81,
+          "end_line": 96,
+          "purpose": "reset routing state",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        }
+      ]
+    },
+    {
+      "id": "middleware_execution_order",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": false,
+      "all_predeclared_evidence_ranges_at_10": false,
+      "all_predeclared_evidence_ranges_in_index": true,
+      "evidence": [
+        {
+          "file": "mux.go",
+          "start_line": 506,
+          "end_line": 513,
+          "purpose": "router delegates chain construction",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        },
+        {
+          "file": "chain.go",
+          "start_line": 34,
+          "end_line": 49,
+          "purpose": "reverse wrapper construction",
+          "missing_nonblank_lines_at_5": [
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            42,
+            43,
+            44,
+            45,
+            46,
+            48,
+            49
+          ],
+          "missing_nonblank_lines_at_10": [
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            42,
+            43,
+            44,
+            45,
+            46,
+            48,
+            49
+          ],
+          "missing_nonblank_lines_in_index": []
+        }
+      ]
+    },
+    {
+      "id": "request_id_propagation",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": true,
+      "all_predeclared_evidence_ranges_at_10": true,
+      "all_predeclared_evidence_ranges_in_index": true,
+      "evidence": [
+        {
+          "file": "middleware/request_id.go",
+          "start_line": 67,
+          "end_line": 79,
+          "purpose": "header fallback and context propagation",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        }
+      ]
+    },
+    {
+      "id": "nested_route_pattern",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": false,
+      "all_predeclared_evidence_ranges_at_10": false,
+      "all_predeclared_evidence_ranges_in_index": true,
+      "evidence": [
+        {
+          "file": "context.go",
+          "start_line": 123,
+          "end_line": 135,
+          "purpose": "join routing pattern stack",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        },
+        {
+          "file": "context.go",
+          "start_line": 139,
+          "end_line": 144,
+          "purpose": "remove wildcard separators",
+          "missing_nonblank_lines_at_5": [
+            139,
+            140,
+            141,
+            142,
+            143,
+            144
+          ],
+          "missing_nonblank_lines_at_10": [
+            139,
+            140,
+            141,
+            142,
+            143,
+            144
+          ],
+          "missing_nonblank_lines_in_index": []
+        }
+      ]
+    },
+    {
+      "id": "late_middleware_panics",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": true,
+      "all_predeclared_evidence_ranges_at_10": true,
+      "all_predeclared_evidence_ranges_in_index": true,
+      "evidence": [
+        {
+          "file": "mux.go",
+          "start_line": 100,
+          "end_line": 105,
+          "purpose": "late middleware guard",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        }
+      ]
+    },
+    {
+      "id": "head_get_fallback",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": true,
+      "all_predeclared_evidence_ranges_at_10": true,
+      "all_predeclared_evidence_ranges_in_index": true,
+      "evidence": [
+        {
+          "file": "middleware/get_head.go",
+          "start_line": 29,
+          "end_line": 35,
+          "purpose": "HEAD match failure selects GET override",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        },
+        {
+          "file": "mux.go",
+          "start_line": 459,
+          "end_line": 464,
+          "purpose": "routing uses the override",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        }
+      ]
+    },
+    {
+      "id": "timeout_cooperation",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": true,
+      "all_predeclared_evidence_ranges_at_10": true,
+      "all_predeclared_evidence_ranges_in_index": true,
+      "evidence": [
+        {
+          "file": "middleware/timeout.go",
+          "start_line": 9,
+          "end_line": 14,
+          "purpose": "cooperative cancellation contract",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        },
+        {
+          "file": "middleware/timeout.go",
+          "start_line": 32,
+          "end_line": 46,
+          "purpose": "context deadline and deferred response",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        }
+      ]
+    },
+    {
+      "id": "abort_handler_panic",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": true,
+      "all_predeclared_evidence_ranges_at_10": true,
+      "all_predeclared_evidence_ranges_in_index": true,
+      "evidence": [
+        {
+          "file": "middleware/recoverer.go",
+          "start_line": 22,
+          "end_line": 31,
+          "purpose": "ErrAbortHandler special case",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        }
+      ]
+    },
+    {
+      "id": "url_parameter_flow",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": false,
+      "all_predeclared_evidence_ranges_at_10": false,
+      "all_predeclared_evidence_ranges_in_index": false,
+      "evidence": [
+        {
+          "file": "tree.go",
+          "start_line": 372,
+          "end_line": 388,
+          "purpose": "transfer captured parameters",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        },
+        {
+          "file": "context.go",
+          "start_line": 9,
+          "end_line": 15,
+          "purpose": "request accessor",
+          "missing_nonblank_lines_at_5": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "missing_nonblank_lines_at_10": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "missing_nonblank_lines_in_index": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ]
+        },
+        {
+          "file": "context.go",
+          "start_line": 100,
+          "end_line": 107,
+          "purpose": "context parameter lookup",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        }
+      ],
+      "structural_run_all_predeclared_evidence_ranges_at_5": false
+    },
+    {
+      "id": "method_not_allowed_flow",
+      "hit_at_5": true,
+      "recall_at_5": 0.5,
+      "recall_at_10": 0.5,
+      "all_predeclared_evidence_ranges_at_5": false,
+      "all_predeclared_evidence_ranges_at_10": false,
+      "all_predeclared_evidence_ranges_in_index": true,
+      "evidence": [
+        {
+          "file": "tree.go",
+          "start_line": 471,
+          "end_line": 479,
+          "purpose": "collect methods and flag mismatch",
+          "missing_nonblank_lines_at_5": [
+            471,
+            472,
+            473,
+            474,
+            476,
+            477,
+            478,
+            479
+          ],
+          "missing_nonblank_lines_at_10": [
+            471,
+            472,
+            473,
+            474,
+            476,
+            477,
+            478,
+            479
+          ],
+          "missing_nonblank_lines_in_index": []
+        },
+        {
+          "file": "mux.go",
+          "start_line": 480,
+          "end_line": 484,
+          "purpose": "dispatch method mismatch",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        },
+        {
+          "file": "mux.go",
+          "start_line": 518,
+          "end_line": 526,
+          "purpose": "emit Allow and 405",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        }
+      ],
+      "structural_run_all_predeclared_evidence_ranges_at_5": false
+    },
+    {
+      "id": "custom_http_method_flow",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": false,
+      "all_predeclared_evidence_ranges_at_10": true,
+      "all_predeclared_evidence_ranges_in_index": true,
+      "evidence": [
+        {
+          "file": "tree.go",
+          "start_line": 60,
+          "end_line": 75,
+          "purpose": "register custom method",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        },
+        {
+          "file": "mux.go",
+          "start_line": 127,
+          "end_line": 133,
+          "purpose": "use registered method to add route",
+          "missing_nonblank_lines_at_5": [
+            127,
+            128,
+            129,
+            130,
+            131,
+            132,
+            133
+          ],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        }
+      ],
+      "structural_run_all_predeclared_evidence_ranges_at_5": true
+    },
+    {
+      "id": "panic_log_entry_flow",
+      "hit_at_5": true,
+      "recall_at_5": 1,
+      "recall_at_10": 1,
+      "all_predeclared_evidence_ranges_at_5": false,
+      "all_predeclared_evidence_ranges_at_10": true,
+      "all_predeclared_evidence_ranges_in_index": true,
+      "evidence": [
+        {
+          "file": "middleware/logger.go",
+          "start_line": 44,
+          "end_line": 56,
+          "purpose": "create and attach log entry",
+          "missing_nonblank_lines_at_5": [
+            44,
+            45,
+            46,
+            47,
+            48,
+            50,
+            51,
+            52,
+            53,
+            55,
+            56
+          ],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        },
+        {
+          "file": "middleware/logger.go",
+          "start_line": 74,
+          "end_line": 84,
+          "purpose": "context set/get helpers",
+          "missing_nonblank_lines_at_5": [
+            80,
+            81,
+            82,
+            83,
+            84
+          ],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        },
+        {
+          "file": "middleware/recoverer.go",
+          "start_line": 33,
+          "end_line": 39,
+          "purpose": "retrieve entry and log panic",
+          "missing_nonblank_lines_at_5": [],
+          "missing_nonblank_lines_at_10": [],
+          "missing_nonblank_lines_in_index": []
+        }
+      ],
+      "structural_run_all_predeclared_evidence_ranges_at_5": false
+    }
+  ],
+  "tie_observation": "custom_http_method_flow swaps equally scored Mux/Method chunks across rank 5; file metrics stay identical, but required Method lines are absent at top5 in the full run and present in the structural run."
+}

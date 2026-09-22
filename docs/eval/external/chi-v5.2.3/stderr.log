@@ -1,0 +1,8 @@
+[index]
+Using Ollama embedder (model: nomic-embed-text:latest, url: http://127.0.0.1:11434)
+[warmup]
+Using Ollama embedder (model: nomic-embed-text:latest, url: http://127.0.0.1:11434)
+[full]
+Using Ollama embedder (model: nomic-embed-text:latest, url: http://127.0.0.1:11434)
+[structural]
+Using Ollama embedder (model: nomic-embed-text:latest, url: http://127.0.0.1:11434)

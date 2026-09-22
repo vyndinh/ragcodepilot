@@ -95,7 +95,9 @@ See [`eval/README.md`](eval/README.md). Holds the golden query set and the
 The latest self-corpus evidence is [v9 full](eval/baseline_v9.json) plus
 [v9 structural](eval/baseline_v9_structural.json), run at merged revision `fed7f22`.
 The [run record](eval/runs/2026-09-22-self-fed7f22/README.md) includes pinned inputs,
-zero-error validation, and named misses. External M0 evaluation remains open.
+zero-error validation, and named misses. The [external chi run](eval/external/chi-v5.2.3/README.md)
+completes M0 measurements and records an indexing collision requiring a fix before
+cache optimization.
 Use the [comparison rules](eval/README.md#baselines-and-the-corpus-stability-assumption).
 Fresh same-input control/candidate runs are required for acceptance.
 

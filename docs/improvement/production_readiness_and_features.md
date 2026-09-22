@@ -26,6 +26,15 @@ embeddings depend on the exact enriched text, model artifact, and preprocessing.
 Reusing a dense vector is valid only when those inputs match. File content alone
 is insufficient: path/name headers, chunk boundaries, or model changes matter.
 
+### Correctness prerequisite discovered by M0
+
+The [external chi audit](../eval/external/chi-v5.2.3/index-audit.json) found seven
+same-file name collision groups: 382 generated chunks became 371 stored points.
+The current ID omits receiver identity, so methods and package functions can
+overwrite one another. Fix declaration identity, version the representation, and
+verify clean reindexing before adding dense reuse. This stays within single-repo
+indexing; it does not reopen workspace expansion.
+
 ### Proposed contract
 
 The first implementation is a content-addressed dense cache with the existing
@@ -99,6 +108,11 @@ same-named checkouts must not share a collection because point/deletion scopes
 can collide. Stable workspace identity remains a prerequisite to future expansion.
 
 ## 2. One external repository and manual regression checks [S–M]
+
+**Measurement complete:** [chi v5.2.3](../eval/external/chi-v5.2.3/README.md),
+20 pre-labeled queries, zero query errors. File hit@5 is 16/16, negatives 1/4;
+known chunk loss and source-range gaps prevent an index-integrity or broad-quality
+claim. The rules below describe the retained workflow for future comparisons.
 
 The old 0.895 hit@5 result came from 19 positives in a 23-query v6 report, not
 all 39 queries in the current golden set. The reconciled branch includes v8;
