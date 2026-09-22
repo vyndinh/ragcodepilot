@@ -8,9 +8,9 @@
 2. **Augment** — feed those code snippets into a prompt as context.
 3. **Generate** — have an LLM produce an answer grounded in the retrieved code.
 
-**Retrieval is fully implemented** — you can point the tool at a local repository, index it, and search with natural language queries like *"how does the chunking work?"*. **Answer generation (v0) is now available** via the opt-in `--answer` flag, which feeds the retrieved chunks to a local Ollama model (`qwen2.5-coder:7b`) and prints a synthesized answer above its sources. Support for additional LLM providers (OpenAI, Anthropic, etc.) is planned — see the [roadmap](docs/plan/mvp_roadmap.md).
+**Retrieval is fully implemented** — you can point the tool at a local repository, index it, and search with natural language queries like *"how does the chunking work?"*. **Answer generation (v0) is now available** via the opt-in `--answer` flag, which feeds the retrieved chunks to a local Ollama model (`qwen2.5-coder:7b`) and prints a synthesized answer above its sources. Additional providers remain deferred; the [roadmap](docs/plan/mvp_roadmap.md) prioritizes local indexing reliability and external-repository evaluation.
 
-Answer mode is **opt-in** — without it, the tool works as a pure code search engine. Both scripting (CLI one-liners) and interactive (REPL) usage are supported.
+Answer mode is **opt-in** — without it, the tool works as a pure code search engine. Usage is through one-shot CLI commands; an interactive REPL remains deferred.
 
 **How retrieval works:** The tool breaks source code into small chunks (functions, blocks of lines), converts each chunk into a numerical "fingerprint" (embedding) that captures its meaning, and stores everything in a local vector database ([Qdrant](https://qdrant.tech/)). It also builds a keyword index (BM25) alongside the embeddings and combines both signals for better results. When you search, your query is matched against the stored chunks to find the closest results.
 
@@ -23,12 +23,12 @@ Answer mode is **opt-in** — without it, the tool works as a pure code search e
 - Search with dense vector lookup and optional language and repo payload filtering.
 - **Answer mode (`--answer`)**: feeds retrieved chunks to a local Ollama generative model (`qwen2.5-coder:7b` by default) and prints a synthesized answer above its sources. Opt-in; the default `search` path is unchanged.
 - Embedding dimension auto-detection and validation (collection mismatch produces clear error with fix instructions).
-- Incremental re-indexing: only changed files are re-embedded; stale chunks from deleted/renamed files are cleaned up.
+- Re-indexing: unchanged hashes and index version allow a no-op. A change, addition, deletion, or version refresh currently re-chunks and re-embeds all remaining files in that repository/language scope; stale chunks are cleaned up. `--watch` uses the same pipeline. Dense reuse is planned, not implemented.
 - **Retrieval evaluation harness** (`ragcodepilot eval`) with golden dataset, `hit@k`, `MRR@5`, `recall@10`, and per-stage latency percentiles.
 - Collection list and delete commands.
 - `config.yaml` is auto-loaded during indexing when present; built-in defaults are used only when it is absent.
 
-Hybrid search is implemented: BM25 sparse vectors (`k1=0.5`, `b=0.75`) + dense vectors + Reciprocal Rank Fusion (`--mode dense|sparse|hybrid`, default `hybrid`), with additive Snowball stemming on the BM25 path. Current baseline (`baseline_v6`, 182 chunks, 23 golden queries): `hit@5 = 0.895`, `hit@1 = 0.579`, `MRR@5 = 0.673`, `recall@5 = 0.789`, `recall@10 = 0.921`. (Indexing excludes `*_test.go` by default — see [`config.yaml`](config.yaml) `skip_file_patterns`; this recovered `hit@5` from 0.789 to 0.895 by keeping test chunks out of the top-K.) Cross-encoder reranking, the Rust AST chunker, and UX polish are tracked on the roadmap — see [`docs/plan/mvp_roadmap.md`](docs/plan/mvp_roadmap.md).
+Hybrid search is implemented: BM25 sparse vectors (`k1=0.5`, `b=0.75`) + dense vectors + Reciprocal Rank Fusion (`--mode dense|sparse|hybrid`, default `hybrid`), with additive Snowball stemming on the BM25 path. Historical baseline (`baseline_v6`, 182 chunks, 23 golden queries): `hit@5 = 0.895`, `hit@1 = 0.579`, `MRR@5 = 0.673`, `recall@5 = 0.789`, `recall@10 = 0.921`. (Indexing excludes `*_test.go` by default — see [`config.yaml`](config.yaml) `skip_file_patterns`; this recovered `hit@5` from 0.789 to 0.895 by keeping test chunks out of the top-K.) Cross-encoder reranking and new chunkers remain conditional experiments. The [roadmap evidence snapshot](docs/plan/mvp_roadmap.md#evidence-snapshot-and-branch-boundary) distinguishes this branch from newer saved evidence on local main and explains the corrected negative-query scoring. MCP, an agent-first pivot, and multi-repo workspace commands are removed from active scope; existing search filters remain available.
 
 ## Architecture
 

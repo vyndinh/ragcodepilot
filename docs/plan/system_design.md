@@ -1,19 +1,27 @@
 # System Design: Semantic Code Search Application
 
-> Created: May 2026 | Last refreshed: 2026-07-06 (reflects shipped Phases 1–2 + 5 v0)
+> Created: May 2026 | Last refreshed: 2026-09-22 (branch-aware architecture snapshot)
 > Approach: top-down (use existing vector DB first, study internals later)
 
 ## Overall roadmap
 
-```
-Phase A: Build application on Qdrant     ← THIS DOCUMENT
-Phase B: Study vector DB internals       ← vector_db_core.md
-Phase C: Refactor Rust vector DB to Go   ← Deferred indefinitely (see mvp_roadmap.md)
+```text
+Phase A: Build application on Qdrant     <- THIS DOCUMENT
+Phase B: Study vector DB internals       <- vector_db_core.md
+Phase C: Refactor Rust vector DB to Go   <- Deferred indefinitely (see mvp_roadmap.md)
 ```
 
 Phase/feature sequencing is owned by [`mvp_roadmap.md`](mvp_roadmap.md) — this
 document describes the **current architecture as built**, plus the original
-requirements and scale framing. Where the two disagree, the roadmap wins.
+requirements and scale framing. The implementation establishes current behavior;
+the roadmap establishes planned work, never proof that a feature has shipped.
+
+**Branch boundary:** this document describes `docs_update` code at `d3775cf`.
+Reviewed local main at `a3ac8ff` additionally has additive identifier tokens,
+named Go type/interface chunks, a combined chunker/tokenizer representation
+version, and mode-calibrated negative evaluation. Those changes have not been
+merged into this branch by this documentation update. The roadmap records the
+latest saved main evidence and requires a fresh run after reconciliation.
 
 ---
 
@@ -76,28 +84,30 @@ direction).
 
 ### Scale estimate
 
-Original target framing (kept as the design envelope):
+The historical 200K-chunk target is an unvalidated scale envelope, not an
+acceptance claim or an active multi-repo product requirement.
 
+```text
+Dense vector lower bound:
+  200,000 chunks * 768 dimensions * 4 bytes = 614,400,000 bytes
+                                             (about 586 MiB)
+  Sparse vectors, indexes, payloads, replicas and runtime memory are additional.
+
+Illustrative serial embedding arithmetic:
+  200,000 chunks * 50 ms/chunk = 10,000 s (about 167 minutes)
+  A batch size of 32 alone does not establish parallelism or a 30-minute total.
+
+Saved retrieval evidence:
+  v6: small self-corpus; hybrid p95 137 ms
+  main v8: 199 Go chunks at capture; hybrid p95 151 ms
+  Neither result validates latency at 200K chunks or sustained throughput.
 ```
-Target: index 5-10 medium repos (~50K code files, ~200K chunks)
 
-Storage:
-  200K chunks × 768-dim × 4 bytes/float ≈ 600 MB dense vectors
-  + sparse vectors + payloads             ≈ 100–200 MB
-  Total Qdrant storage: <1 GB (fits on any laptop)
-
-Ingestion:
-  Embedding is the bottleneck (~50ms/chunk); batching (32) → ~30 min for 200K chunks
-
-Search:
-  Single user, <10 QPS; measured hybrid p95 ≈ 120–140 ms (baseline_v4/v6)
-```
-
-**Known gap vs this envelope:** the current corpus is ~182 chunks (this repo,
-tests excluded), and a re-index with *any* change re-embeds the full corpus
-because sparse IDF is corpus-wide. Diff-proportional re-embedding must land
-before the 200K-chunk envelope is real — see
-[`../improvement/production_readiness_and_features.md`](../improvement/production_readiness_and_features.md) §1.1.
+A changed index run currently re-embeds all chunks in its repository/language
+scope. Planned dense reuse reduces expensive embedding calls; hashing, chunking,
+BM25 statistics and sparse writes can remain proportional to scope size. Measure
+end-to-end cost, memory, and recovery separately before making capacity claims.
+See [local reliability](../improvement/production_readiness_and_features.md).
 
 ---
 
@@ -105,48 +115,35 @@ before the 200K-chunk envelope is real — see
 
 ### Architecture
 
-```
-┌───────────────────────────────────────────────────────────────────┐
-│                              CLI                                  │
-│  index [--watch]   search [--mode] [--answer]   collections   eval│
-└──────┬───────────────────────┬────────────────────────┬───────────┘
-       ▼                       ▼                        ▼
-┌───────────────┐   ┌────────────────────┐   ┌────────────────────┐
-│   Ingestion   │   │   Search Service   │   │   Eval Harness     │
-│   Pipeline    │   │                    │   │                    │
-│ walk → hash → │   │ embed query        │   │ golden.yaml →      │
-│ classify →    │   │ → dense/sparse/    │   │ run each query →   │
-│ chunk →       │   │   hybrid (RRF)     │   │ hit@k, MRR, recall,│
-│ enrich →      │   │ → filters          │   │ latency, neg pass  │
-│ embed →       │   │ → format results   │   │ (+ Tier B answer   │
-│ upsert        │   │ → [--answer] LLM   │   │    metrics)        │
-└──────┬────────┘   └─────┬──────────┬───┘   └─────────┬──────────┘
-       │                  │          │                 │
-       │        ┌─────────▼───┐  ┌───▼──────────┐      │
-       │        │  Embedder   │  │  Generator   │      │
-       ├───────►│ (Ollama     │  │ (Ollama      │      │
-       │        │  nomic-     │  │  qwen2.5-    │      │
-       │        │  embed-text │  │  coder:7b /  │      │
-       │        │  / Fake)    │  │  Fake)       │      │
-       │        └─────────────┘  └──────────────┘      │
-       ▼                                               ▼
-    ┌──────────────────────────────────────────────────────┐
-    │                  Qdrant (Docker)                     │
-    │  Collection: "code_chunks"                           │
-    │  ├── named dense vector  ("dense", auto-detected dim,│
-    │  │                        cosine)                    │
-    │  ├── named sparse vector ("sparse", BM25 weights)    │
-    │  └── payload: repo, file_path, language, chunk_type, │
-    │      name, content, start_line, end_line, indexed_at,│
-    │      file_hash, index_version                        │
-    └──────────────────────────────────────────────────────┘
+```text
+CLI: index [--watch] | search [--mode] [--answer] | eval | collections
+              |                |                   |
+              v                v                   v
+        Ingest pipeline   Search service <---- Eval harness
+        walk/hash/chunk   query encoding        frozen query set
+        enrich + BM25     mode + filters        metrics/report
+              |                |
+              +-------> Ollama embedder (dense/hybrid)
+              |                |
+              v                v
+          Qdrant <-------- vector query
+          named dense + sparse vectors; code + provenance payload
+                               |
+                               v
+                          ranked chunks
+                               |
+                          optional --answer
+                               |
+                               v
+                          Ollama generator
+                          answer + sources
 ```
 
 ### Components
 
 #### 1. CLI (`cmd/ragcodepilot`)
 
-```
+```text
 ragcodepilot index <repo-path> [--language go,rust] [--collection X] [--watch]
 ragcodepilot search "query" [--mode dense|sparse|hybrid] [--language ...] [--repo ...]
                             [--limit N] [--answer] [--answer-limit N]
@@ -159,18 +156,22 @@ ragcodepilot version
 
 All commands share `--qdrant-host/--qdrant-port`, `--embedder ollama|fake`,
 `--ollama-url`, `--ollama-model`. Index and search must use the same embedding
-model or vectors are incompatible (dimension validation catches mismatches).
+model artifact and preprocessing or vectors can be incompatible. Dimension
+validation catches only size mismatches. Same-size model changes are not detected,
+and the current index version does not fingerprint the embedding model. Use a
+new collection for model experiments; matching file hashes can otherwise skip a
+necessary rebuild.
 
 #### 2. Ingestion pipeline (`internal/ingest`)
 
-```
-repo path → walk → hash files → classify (unchanged / changed / new / stale /
-index-version refresh) → delete stale → chunk → enrich → compute corpus BM25
-stats → embed (dense) + build sparse → batch upsert → late-delete orphaned
+```text
+repo path -> walk -> hash files -> classify (unchanged / changed / new / stale /
+index-version refresh) -> delete stale -> chunk -> enrich -> compute corpus BM25
+stats -> embed (dense) + build sparse -> batch upsert -> late-delete orphaned
 chunks of changed files
 ```
 
-- **Walker**: skips hidden dirs, configured `skip_dirs`, and `skip_file_patterns`
+- **Walker**: skips hidden files/directories, configured `skip_dirs`, and `skip_file_patterns`
   (notably `*_test.go` — excluded by default after the Phase 5 dogfooding
   finding; see `retrieval_quality_decisions.md` §2.5).
 - **Change detection**: SHA-256 file hash + `index_version` payload per chunk —
@@ -181,43 +182,43 @@ chunks of changed files
   sent to the embedder (payload keeps raw code) — `chunk_enrichment.md`.
 - **Sparse vectors**: code-aware tokenizer (camelCase/snake_case splitting,
   stop-word + Go-keyword removal, additive Snowball stemming), BM25 with
-  `k1=0.5, b=0.75`, IDF computed corpus-wide per run — `hybrid_search.md`.
+  `k1=0.5, b=0.75`, statistics computed over the current repo/language scope — `hybrid_search.md`.
 - **Watch mode**: `index --watch` = fsnotify + 500 ms debounce, re-runs the
   pipeline on change — `architecture_decisions.md` §3.
 
 #### 3. Search service (`internal/search`)
 
-```
-query → embed → build Qdrant request per mode:
+```text
+query -> embed -> build Qdrant request per mode:
   dense  : named dense vector search
   sparse : named sparse vector search
-  hybrid : prefetch dense + sparse → server-side RRF (k=60)   ← default
-filters (language/repo) applied per prefetch stage → format results
+  hybrid : prefetch dense + sparse -> server-side RRF (k=60)   <- default
+filters (language/repo) applied per prefetch stage -> format results
 ```
 
 Per-stage timings (embed / qdrant / total) are captured for the eval harness.
 
 #### 4. Embedding service (`internal/embedding`)
 
-```
+```text
 interface Embedder:
-  Embed(texts[]) → vectors[][]
-  Dimension()    → int
+  Embed(texts[]) -> vectors[][]
+  Dimension()    -> int
 ```
 
 - **Ollama** (`nomic-embed-text`, 768d): dimension auto-detected from the first
-  batch and validated on every subsequent one (`validate.go`) — prevents silent
-  model/collection mismatches.
+  batch and validated on every subsequent one (`validate.go`) — detects size
+  mismatches, not same-dimensional model/preprocessing incompatibility.
 - **Fake**: deterministic pseudo-random vectors for tests.
 
 #### 5. Answer generation (`internal/answer`) — Phase 5 v0
 
-```
+```text
 interface Generator:
-  Generate(ctx, query, chunks[]) → answer text
+  Generate(ctx, query, chunks[]) -> answer text
 
 interface Warmer (optional):        # type-asserted; pulls model load out of the timed call
-  Warmup(ctx) → error
+  Warmup(ctx) -> error
 ```
 
 - **OllamaGenerator** (default model `qwen2.5-coder:7b`): frozen v0 system
@@ -234,7 +235,11 @@ with a 16-query `structural` subtype) → runs the real search path → reports
 per-stage latency percentiles, per-type breakdown. With `--answer`, adds
 reference-free Tier B answer metrics (citation validity, refusal-on-negative,
 well-formedness) — report-only, never gated. Baselines are committed under
-`docs/eval/`; `baseline_v6.json` is canonical. See
+`docs/eval/`. v6/v7 are historical reports on this branch; the latest saved
+baseline on reviewed main is `main:docs/eval/baseline_v8.json`. Its 0.50 negative
+pass rate uses the corrected RRF ceiling (0.02); this branch still applies the
+historical YAML threshold directly. Do not treat its hybrid 1.00 as evidence of
+negative-query safety or compare score families without calibration. See
 [`../eval/README.md`](../eval/README.md).
 
 #### 7. Qdrant (`internal/qdrant`)
@@ -249,10 +254,10 @@ modes), scroll for file states, targeted deletes for stale/orphaned chunks.
 
 ### Ingestion flow
 
-```
-Git repo → Walk → Hash → Classify → Chunk (AST | window) → Enrich
-        → BM25 corpus stats → Embed dense + build sparse → Batch upsert
-        → Late-delete orphaned chunks
+```text
+Git repo -> Walk -> Hash -> Classify -> Chunk (AST | window) -> Enrich
+        -> BM25 corpus stats -> Embed dense + build sparse -> Batch upsert
+        -> Late-delete orphaned chunks
 ```
 
 Key decisions:
@@ -262,19 +267,19 @@ Key decisions:
 | Chunk unit | Go: per-function (AST); others: sliding window ~40 lines / 10 overlap | Semantic boundaries beat arbitrary splits |
 | Embedding input | Enriched (path + language + type/name header) | Large lift on natural-language queries |
 | Embedding model | `nomic-embed-text` via Ollama (768d) | Local, free, adequate; code-specialized model is an open lever (`cheaper_levers.md`) |
-| Vector dimension | Auto-detected + validated | Prevents silent mismatch when switching models |
+| Vector dimension | Auto-detected + validated | Detects size mismatch; model/preprocessing provenance remains a gap |
 | Sparse algorithm | BM25 `k1=0.5, b=0.75` + Snowball stemming | Eval-driven: +15.8pp hit@1 vs TF-IDF with no hit@5 loss (`hybrid_search.md` §3) |
 | Test files | `*_test.go` excluded by default | They crowded top-K; excluding lifted hit@5 0.789→0.895 |
 | Batch size | 32 embed / upsert batch | Throughput vs memory |
-| Point ID | Deterministic hash of repo + file path + symbol name + chunk index | Stable across line shifts; re-index without duplicates |
+| Point ID | Hash of repo + file path + symbol + chunk index; unnamed chunks use start line | Named IDs can survive line shifts; changed shapes need stale-ID cleanup |
 | Change detection | SHA-256 file hash + `index_version` | mtime is unreliable; version catches tokenizer changes |
 
 ### Search flow
 
-```
-User query → Embed → mode (dense | sparse | hybrid+RRF) + filters
-→ ranked chunks → format
-→ [--answer] top --answer-limit chunks → warm generator → grounded answer + [N] citations + sources
+```text
+User query -> Embed -> mode (dense | sparse | hybrid+RRF) + filters
+-> ranked chunks -> format
+-> [--answer] top --answer-limit chunks -> warm generator -> grounded answer + [N] citations + sources
 ```
 
 ### Data model (Qdrant point)
@@ -297,7 +302,7 @@ User query → Embed → mode (dense | sparse | hybrid+RRF) + filters
     "end_line": 87,
     "indexed_at": "2026-07-06T00:00:00Z",
     "file_hash": "9f2c…",
-    "index_version": "sparse-v2"
+    "index_version": "sparse-bm25-snowball-v1"
   }
 }
 ```
@@ -313,11 +318,12 @@ User query → Embed → mode (dense | sparse | hybrid+RRF) + filters
 - ✅ **P2 — Hybrid search**: BM25 sparse + dense + server-side RRF, default mode.
 - ✅ **P5 v0 — `--answer` mode**: grounded answers via local Ollama, Tier B answer eval.
 - ✅ **Re-indexing + watch mode**: hash/version change detection, fsnotify watch.
-- ▶ **Next per the 2026-07-06 roadmap restructure**: milestone **M0** (decide
-  the navigation bet: GraphRAG prerequisites + symbol-table spike), then
-  M1 streaming answers → M2 agent integration (`--json`, MCP server) →
-  M3 real-repo trust → M4 hardening → M5 evidence-scoped retrieval levers.
-- ⏸ Reranking, Rust AST chunker, GraphRAG — gated inside M5; see roadmap.
+- **Next:** M0 refreshed evidence, then M3 indexing reliability/external eval;
+  M4 local diagnostics/hygiene can proceed alongside them.
+- **Optional:** M1 answer streaming, driven by CLI use and measured latency.
+- **Deferred:** M5 retrieval layers until current failures justify them.
+- **Removed from active scope:** M2 MCP/agent-first integration, multi-repo
+  workspace commands, and shared/team deployment.
 
 ---
 
@@ -326,35 +332,35 @@ User query → Embed → mode (dense | sparse | hybrid+RRF) + filters
 | Tradeoff | Decision | Why |
 |---|---|---|
 | API embedding vs local | Local Ollama | No API costs, offline, privacy; local-first is a product constraint |
-| Answer generation | Opt-in `--answer`, frozen prompt, greedy | Default path stays deterministic and fast; answers reproducible |
+| Answer generation | Opt-in `--answer`, frozen prompt, greedy | Default retrieval unchanged; generation repeatability depends on fixed model/runtime |
 | Tree-sitter vs regex vs AST | Go AST now; regex fallback; tree-sitter deferred | Best chunks where it matters most, least complexity |
 | CLI vs daemon | Thin CLI; Qdrant+Ollama are the daemons | See `architecture_decisions.md` — daemon solves problems we don't have |
-| Single collection vs per-repo | Single collection, repo payload filter | Cross-repo search works naturally |
-| Eval gating | Report-only, manual judgment | Determinism first; CI gating is a known gap (production_readiness doc §1.4) |
+| Collection scope | Existing repo filters; separate collections for distinct evaluation/worktree scopes | Basename repo IDs can collide; independently indexed scopes have different BM25 statistics |
+| Eval gating | Current reports require manual judgment; score-aware CI planned in M3 | Frozen paired evidence and named failures precede automated quality gates |
 
 ---
 
 ## Go project structure
 
-```
+```text
 ragcodepilot/
-├── cmd/ragcodepilot/            # CLI entry point (index, search, eval, collections, version)
-├── internal/
-│   ├── ingest/                  # walker, hasher, chunker (+ Go AST), enrichment, pipeline, watcher
-│   ├── search/                  # query embedding + mode selection + Qdrant search + timings
-│   ├── embedding/               # Embedder iface, ollama, fake, validate, sparse (BM25 tokenizer/stats)
-│   ├── answer/                  # Generator iface, ollama, fake, prompt (frozen v0), metrics, results
-│   ├── eval/                    # dataset loader, runner, metrics, report formatting
-│   ├── qdrant/                  # gRPC client wrapper (schema, upsert, search, scroll, deletes)
-│   ├── config/                  # YAML config: languages, skip_dirs, skip_file_patterns
-│   └── model/                   # CodeChunk, FileIndexState, SearchResult
-├── docs/
-│   ├── plan/                    # design docs + roadmap (this file)
-│   ├── knowledge/               # decision docs + learning notes
-│   ├── eval/                    # golden set, baselines, compare.py
-│   ├── improvement/             # re-indexing, incremental roadmap, production readiness
-│   └── review_feedback/         # review logs
-├── config.yaml
-├── docker-compose.yml           # Qdrant service
-└── go.mod / go.sum
++-- cmd/ragcodepilot/            # CLI entry point (index, search, eval, collections, version)
++-- internal/
+|   +-- ingest/                  # walker, hasher, chunker (+ Go AST), enrichment, pipeline, watcher
+|   +-- search/                  # query embedding + mode selection + Qdrant search + timings
+|   +-- embedding/               # Embedder iface, ollama, fake, validate, sparse (BM25 tokenizer/stats)
+|   +-- answer/                  # Generator iface, ollama, fake, prompt (frozen v0), metrics, results
+|   +-- eval/                    # dataset loader, runner, metrics, report formatting
+|   +-- qdrant/                  # gRPC client wrapper (schema, upsert, search, scroll, deletes)
+|   +-- config/                  # YAML config: languages, skip_dirs, skip_file_patterns
+|   `-- model/                   # CodeChunk, FileIndexState, SearchResult
++-- docs/
+|   +-- plan/                    # design docs + roadmap (this file)
+|   +-- knowledge/               # decision docs + learning notes
+|   +-- eval/                    # golden set, baselines, compare.py
+|   +-- improvement/             # re-indexing, incremental roadmap, production readiness
+|   `-- review_feedback/         # review logs
++-- config.yaml
++-- docker-compose.yml           # Qdrant service
+`-- go.mod / go.sum
 ```

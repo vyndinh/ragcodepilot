@@ -1,194 +1,81 @@
-# GraphRAG — Structural Retrieval Layer (Design Doc)
+# GraphRAG — Structural Retrieval Layer (Deferred Design)
 
-**Status:** Draft. Not started. **Promoted ahead of Phase 3 reranking on
-2026-05-28** — see "Why this before reranking" below. Still gated on extending
-the golden eval with multi-hop / structural queries before A/B begins.
+**Status: deferred, not started. Updated 2026-09-22.** This design is an M5
+candidate under the [roadmap](mvp_roadmap.md), not the next committed build.
+M0/M3 refresh evidence first. Existing implementation sketches below remain
+proposals and require validation against the selected code/runtime versions.
 
-> **Roadmap update 2026-07-06:** sequencing restructured — this build is now
-> gated on **milestone M0** in [`mvp_roadmap.md`](mvp_roadmap.md) (the two
-> prerequisites below plus a symbol-fast-path spike decide build / rescope /
-> shelve), and if justified it enters as **M5 rung 4** after the cheaper
-> levers. This doc remains the unchanged build spec for when that decision
-> says build.
-
-This document proposes adding a **graph layer** over the existing hybrid
-retrieval, so that structural relationships between code entities (calls,
-defines, implements, imports) become a first-class retrieval signal. It is the
-canonical design for what `mvp_roadmap.md` calls "Explore Mode (call graph +
-clustering + drill-down)," promoted from a UX feature into a retrieval-quality
-feature.
-
-GraphRAG is **additive**: a `--graph` flag layered onto the hybrid retrieve
-path, with a fallback to today's flat results. The default `search` and
-`--answer` behavior is unchanged until the eval proves it helps.
-
-**Framing — the real goal.** The user-visible objective is **"the right chunk
-is in the top-5 sent to the LLM."** That is what `--answer` mode depends on,
-and it is what the eval should measure. Anything that does not move top-5
-inclusion on the queries that matter is not worth doing right now.
-
----
+The proposed graph adds `defines`, concrete `calls`, and `imports` relationships
+to hybrid candidates. Default retrieval and answer behavior stay unchanged until
+fresh paired evidence justifies promotion. A local graph is not required for
+ordinary definition lookup, and navigation questions are not all graph problems.
 
 ## Why now (and why not yet)
 
-**Signal from the v6 baseline** (`docs/eval/baseline_v6.json`, 23 queries,
-collection re-indexed with `*_test.go` excluded):
+The May v6 baseline motivated a GraphRAG-first hypothesis: navigation hit@5 was
+6/8. That priority is superseded. Reviewed main already contains identifier-token
+and type/interface improvements; its saved v8 navigation hit@5 is 23/24. Those
+snapshots differ in source/query sets, so the change is not a controlled A/B.
+Use the roadmap's branch/evidence boundary and refresh the residual failure list.
 
-| Type | count | hit@5 | MRR@5 |
-|---|---|---|---|
-| behavior | 4 | 1.00 | 1.00 |
-| concept | 7 | 1.00 | 0.71 |
-| **navigation** | **8** | **0.75** | **0.47** |
-| negative | 4 | n/a | n/a |
+Historical `baseline_v7_structural.json` contains 16 queries, of which 14 already
+pass hit@5. All seven queries with recall@10 greater than recall@5 also pass hit@5.
+These queries lack additional evidence, not every relevant result. The old gate
+requiring binary hit@5 improvement on 60% of all structural queries was impossible.
 
-Navigation is the only query type below 1.0 on hit@5 and the lowest on MRR@5.
-Navigation queries ("where is X defined", "what calls Y", "trace from A to B")
-are **structural questions**, not semantic-similarity questions. Pure vector +
-BM25 hybrid is the wrong instrument for them — the answer is in the *edges*
-between chunks, not in the chunks themselves. A graph layer attacks this
-directly.
-
-### Why this before reranking (2026-05-28)
-
-Phase 3 reranking was the originally-planned next lever. It is now
-**deprioritized below GraphRAG**, on the following reasoning:
-
-1. **Reranking only reorders within the top-50; it cannot add a signal that
-   is not in the embedding/BM25 space.** Navigation answers are structural —
-   "what calls X" is a *graph* question, not a similarity question. If the
-   correct chunk's text does not lexically/semantically resemble the query
-   (e.g. the caller does not mention the callee's purpose), reranking will
-   not lift it.
-2. **The product goal is top-5 inclusion for LLM context, not MRR
-   refinement.** Phase 3's success metric is `MRR@5` improvement — useful,
-   but the binding constraint for `--answer` mode is whether the correct
-   chunk *appears* in top-5 at all. GraphRAG attacks this directly by
-   pulling in neighbors of seed nodes.
-3. **Cost asymmetry.** A cross-encoder reranker adds ≤200ms warm latency,
-   model-load complexity, and a deferred decision (Ollama? sidecar?
-   pure-Go?) for a precision-only lift. The graph store adds local SQLite
-   and a per-language extractor — comparable cost, but adds *new* signal
-   instead of refining the existing one.
-4. **Eval-set risk.** Reranking is hard to evaluate honestly with the
-   current golden set, because the ambiguous-query subset Phase 3 needed
-   was never tagged. GraphRAG forces the eval to grow in the direction that
-   matters anyway (structural / multi-hop queries).
-
-### Honest caveats to this argument
-
-- **The v6 recall-gap data triggered the reranker rule.** `baseline_v6` shows
-  `recall@10 − recall@5 = 0.132` — above the standing 0.10 "reranker has
-  headroom" threshold in `retrieval_quality_decisions.md` §2.5. This pivot is
-  therefore **not** *"reranker can't help"* — it is a deliberate bet:
-  *"structural signal pays more on navigation than reordering pays on the
-  recall gap."* Recording the framing this way so future-us doesn't refight
-  the decision under different evidence.
-- **GraphRAG also depends on hybrid for the seeds.** Expansion only finds the
-  right chunk if it is connected by ≤N hops to *something* in the top-50.
-  The v6 navigation misses split unevenly: `run_eval_navigation` (r@5=0,
-  r@10=1) is already retrieved but ranked 6–10 — **reranker-shaped**, not
-  graph-shaped. `chunkfile_navigation` (r@10=0) is invisible to hybrid and
-  therefore invisible to GraphRAG too, unless `ChunkFile` happens to be
-  connected by `defines` / `called_by` to a hybrid seed. **The eval must
-  report the v6→v6+graph delta on `chunkfile_navigation` explicitly** — it is
-  the case GraphRAG is most exposed on. This caveat is promoted into a hard
-  prerequisite: the **reachability dry-run** (see "Prerequisites before Step 1"
-  below) must run before any code is written.
-
-- **Cheaper lever evaluated — `--answer-limit`.** The hypothesis (raise
-  `--answer-limit` 5 → 8 to put rank-6–10 chunks into the answer prompt "for
-  free") did **not** validate: shape metrics flat, p50 generation latency up
-  ~55%, content benefit invisible to Tier B. **Canonical A/B data lives in
-  `retrieval_quality_decisions.md` §2.5 (`--answer-limit 8` A/B, 2026-05-28)**
-  — do not restate the numbers here. Implications for this doc: (a) GraphRAG's
-  scope does *not* automatically narrow; (b) a true retrieval-side fix
-  (reranker or graph) would land Bucket B chunks in top-5 *without* the latency
-  penalty, which strengthens the case for Phase 6. The dogfooding follow-up is
-  a prerequisite (see below).
-
-Reranking is **parked, not cancelled.** Revisit it if GraphRAG ships and
-top-5 inclusion on `concept` queries (currently MRR@5 = 0.71) remains the
-binding constraint, or if reranking can be drop-in via a model already in
-Ollama for trivial cost. **Note the framing here is "what to build first," not
-"graph instead of reranker"** — see "Composition with reranking" below, which
-treats them as complements (graph for recall, reranker for precision) and is
-the intended end-state architecture.
-
-**But not yet, because:**
-
-1. **The current golden set under-measures graph value.** Of 8 navigation
-   queries, most are single-hop "where is X defined." Multi-hop ("what would
-   break if I change the `Embedder` interface") is barely represented. Without
-   those queries, this work cannot be evaluated honestly.
-2. **Avoid stacking unproven layers.** Extend golden set → build graph →
-   A/B against the v6 hybrid baseline.
-
-**Gating criteria to start:**
-
-- Golden set extended with **≥15** multi-hop / structural queries tagged
-  `structural` (sub-type of navigation), committed to `golden.yaml`. ✅ Done
-  — 16 queries landed; current count 39. Comparison files
-  `baseline_v7.json` (full) and `baseline_v7_structural.json` (16-query
-  subset).
-- v7 baseline (`baseline_v7_structural.json`) is the comparison point.
-- Decision recorded in `mvp_roadmap.md` that Phase 3 stays parked.
-- **`--answer-limit 8` evaluated** (2026-05-28) — the "free win" did not
-  validate on automated metrics (canonical A/B in
-  `retrieval_quality_decisions.md` §2.5). This leaves a residual judgment that
-  is now folded into the prerequisites below, not a standing gate here.
+A graph may recover a missing candidate reachable from hybrid seeds. A reranker
+may promote evidence already in the candidate pool. Neither is proven useful by
+the old recall gap alone. See [cheaper levers](cheaper_levers.md) for controlled
+experiments. No graph-first or mandatory graph-plus-reranker sequence is accepted.
 
 ### Prerequisites before Step 1 (do these first)
 
-The L-sized build (steps 1–7) is **blocked** on two <1-day tasks. Neither
-needs any graph code; both can change or cancel the scope. Schedule both
-before opening step 1.
+These studies are S-sized and only enter the queue when M0/M3 expose persistent
+structural failures. Completing them does not imply a build decision.
 
-1. **Reachability dry-run (paper, ~half a day).** For each of the 16 structural
-   queries, determine by hand from the AST: is the missing chunk reachable via
-   v0 edges (`defines` / `calls` / `imports`, *concrete-dispatch only* — see
-   the interface caveat under Edge types) from a chunk in the current hybrid
-   top-50? This establishes the **ceiling** on how many queries GraphRAG can
-   possibly move. If the ceiling is low (e.g. 3-of-16), the build is mis-scoped
-   and must be re-shaped (different edges, or shelve) before step 1.
-2. **Dogfooding AL=5 vs AL=8 (~1 hour).** Read 3–5 multi-chunk concept/behavior
-   answers side-by-side at AL=5 and AL=8 and judge whether content is more
-   complete at AL=8.
-   - If AL=8 materially helps → raise the default and re-evaluate GraphRAG's
-     narrowed scope (Bucket B may be subsumed).
-   - If it doesn't (or is mixed) → leave the default at 5; GraphRAG keeps its
-     full scope.
-
-The biggest risk to this plan is a meticulously-specified L sitting behind two
-un-run short tasks indefinitely. Run them first; together they tell you whether
-to build, rescope, or shelve for ~a day of total effort.
-
----
+1. **Freeze current baselines.** Retain full, structural, and external reports
+   with identical source/query/config/model manifests for later A/Bs. The existing
+   16 structural labels are a starting point, not proof they cover current misses.
+2. **Define required evidence.** For each targeted query, label required files,
+   symbols, or concrete relationships and what constitutes complete top-5 context.
+   Use file recall as the automated proxy; inspect chunk/relationship coverage
+   separately because a file hit need not contain the required evidence.
+3. **Reachability dry-run.** For each named incomplete query, determine whether
+   supported v0 edges can reach the missing evidence from a fixed hybrid top-50
+   pool. Record unreachable/interface-dispatch cases explicitly. Establish a
+   numerical minimum of improved target queries justified by that ceiling before
+   implementation; defer if achievable benefit is too small for an L-sized build.
+4. **Answer-context review, when relevant.** Compare AL=5 versus AL=8 content
+   on representative multi-chunk questions. The historical A/B only measured shape
+   and additional latency; it did not prove a content benefit. Do not raise the
+   default without quality and latency evidence. This does not block indexing work.
+5. **Record build/rescope/defer.** Include cheaper alternatives, the fixed target
+   list, coverage definitions, acceptance count, and performance budget in the roadmap.
 
 ## Goal
 
-Add a graph store of code entities and relationships, populated during
-ingestion. Use it at query time to expand and re-score hybrid results so that
-structural queries return connected subgraphs instead of disjoint chunks.
+Expand and order candidates so required structural evidence fits within the
+bounded context sent to answer generation or shown to the user.
 
-**Exit criterion (top-5 framing, evidence-honest):**
+**Authoritative acceptance contract:**
 
-- Structural subset has **≥15** multi-hop / structural queries (see "Gating
-  criteria to start"). Aggregate-percentage gates on a smaller subset are
-  noise-dominated on this corpus.
-- `ragcodepilot search --graph "..."` lifts **`hit@5` on ≥60%** of the
-  structural queries (per-query gating, named list in `golden.yaml`), so a
-  single flaky case cannot flip the verdict. **This per-query gate is the
-  single authoritative pass criterion** — the Verification section and
-  `mvp_roadmap.md`'s exit-criterion cell defer to it; there is deliberately no
-  aggregate-percentage gate, since 10pp ≈ 1.6 queries on this 16-query subset
-  and would be noise-dominated.
-- The v6 → v6+graph delta is **reported explicitly for `chunkfile_navigation`**
-  — the case GraphRAG is most exposed on (see "Honest caveats" above).
-- No regression >2pp on any `behavior` / `concept` / non-structural
-  `navigation` query (per-query, not aggregate).
-- **`negative_pass_rate` stays at 1.00.**
-- `MRR@5` reported as a secondary diagnostic; **not** a gate. Movement *into*
-  top-5 is what matters for `--answer` grounding.
+- Before building, freeze target query IDs and a concrete minimum improvement
+  count based on the reachability study. That count is currently undecided, so
+  implementation remains gated. A post-hoc choice cannot turn a failed run into a win.
+- Improve required-evidence coverage in top-5 on at least that many named targets;
+  report file recall@5 and manually verified symbol/relationship coverage. Preserve
+  all previously accepted hit@5 cases and required coverage on full/external sets.
+- Compare fresh on/off runs against one fixed candidate/seed configuration and
+  frozen source. Historical v6/v7 reports are context only. Report named historic
+  misses such as `chunkfile_navigation` if still relevant, without assuming they fail.
+- Preserve passing negatives under a predeclared score-aware policy; investigate
+  existing failures separately. Keep raw retrieval and graph scores distinct.
+  Graph blend scores cannot use cosine or RRF thresholds unchanged. Confidence
+  filtering is a hypothesis, not a guarantee of perfect negative pass.
+- Report MRR@5, per-query regressions, extraction coverage, cold/warm latency, and
+  storage/ingest cost. Meet the performance budgets chosen before the experiment.
+- Preserve the default path. If acceptance fails, retain the result and keep the
+  experiment disabled or shelved; do not widen scope automatically.
 
 ---
 
@@ -264,23 +151,23 @@ Each edge type maps to a query pattern users actually ask:
 
 ## Architecture
 
-```
+```text
 ingest pipeline (existing)
-  walk → chunk → enrich → embed → upsert
+  walk -> chunk -> enrich -> embed -> upsert
                    |
-                   └── NEW: extract_edges(chunk, ast) → []Edge
+                    +-- NEW: extract_edges(chunk, ast) -> []Edge
                                                   |
-                                                  ↓
+                                                  v
                                           graph store (NEW)
 
 search path
-  query → embed → hybrid retrieve top-50 (existing)
+  query -> embed -> hybrid retrieve top-50 (existing)
                          |
-                         ├── (default) → rerank → top-10  [flat results]
+                          +-- (default) -> existing hybrid results
                          |
-                         └── (--graph) → graph expansion → connected subgraph
+                          +-- (--graph) -> graph expansion -> connected subgraph
                                                                  |
-                                                                 ↓
+                                                                 v
                                                        formatter (new shape)
 ```
 
@@ -339,12 +226,13 @@ We handle this by treating the graph as a rebuildable cache:
 - The graph is **rebuilt whenever the collection is rebuilt** (full re-index).
   It is never the source of truth for chunk content — Qdrant is.
 - `graph_meta.collection_build_id` records the identity of the Qdrant
-  collection snapshot the graph was built against (e.g. collection
-  creation timestamp / point-count fingerprint).
+  collection snapshot the graph was built against (e.g. completed
+  indexing generation and source/representation manifest; creation time or point
+  count alone cannot detect same-count edits).
 - At query time, `--graph` **fails closed**: if `collection_build_id` does not
   match the live collection's identity, the search silently falls back to flat
-  hybrid rather than serving stale edges. This makes staleness a degraded mode,
-  never a wrong-answer mode.
+  hybrid rather than serving stale edges. This fallback requires a trustworthy completion marker. It does not prove
+  that the underlying hybrid index matches the live working tree.
 
 **Unresolved edges are kept.** A call to `someExternalPkg.DoThing` whose
 target we cannot resolve to an indexed symbol still records the edge with
@@ -357,8 +245,8 @@ target we cannot resolve to an indexed symbol still records the edge with
 
 Pseudocode for the new stage, slotted after chunking and before embedding:
 
-```
-function ExtractEdges(chunk, ast, packageContext) → []Edge:
+```text
+function ExtractEdges(chunk, ast, packageContext) -> []Edge:
     edges = []
     for each declaration D in ast:
         if D is FunctionDecl or MethodDecl or TypeDecl:
@@ -431,13 +319,13 @@ extractor and continue to work in hybrid-only mode. The Rust AST chunker
 
 ## Search-time expansion
 
-```
+```text
 function GraphSearch(query, k):
     seeds = HybridSearch(query, k=50)                # existing path
     seedSymbols = symbolsDefinedIn(seeds.chunks)
 
     candidates = seeds.chunks
-    relations = {}                                   # chunk_id → []Relation
+    relations = {}                                   # chunk_id -> []Relation
 
     for s in seedSymbols:
         for edge in edgesTouching(s, types={calls, called_by, defines}):   # implements is v1
@@ -457,11 +345,12 @@ function GraphSearch(query, k):
 must be on the **same scale first**. Qdrant's server-side RRF score is
 `Σ 1/(k+rank)` (k=60) — roughly 0.01–0.05 for top hits — so a raw additive
 `α·log(1+edges)` term (0.1–0.5 at α=0.15) would swamp it and turn ordering into
-"most-connected wins," risking the ≤2pp regression gate on behavior/concept.
+"most-connected wins," risking the accepted-hit and required-coverage gates
+on behavior/concept.
 v0 therefore **normalizes the hybrid score into [0,1] across the candidate set
 before blending**:
 
-```
+```text
 norm_hybrid(c) = (hybrid_score(c) − min_hybrid) / (max_hybrid − min_hybrid)
 
 final_score(c) = norm_hybrid(c)                                      -- in [0,1]
@@ -503,67 +392,28 @@ exceeded, narrow expansion to top-20 seeds.
 
 ## Composition with reranking (graph for recall, reranker for precision)
 
-The "Why this before reranking" section above frames graph expansion and
-reranking as competing next-levers. That framing is right for *what to build
-first*, but wrong as a long-term architecture: **they are complements, not
-alternatives**, and the additive `α/β` blend above is an interim ordering
-mechanism, not the end state. This section records the intended composition so
-that parking the reranker (Phase 3) does not lock us into the weaker design.
+Graph expansion and reranking can compose if each has independently earned its
+cost. A graph adds candidates; a reranker orders a fixed candidate set. A
+cross-encoder is not assumed to outperform a measured blend without an A/B.
+Neither is a mandatory final architecture.
 
-The mature pattern in code-retrieval systems separates the two concerns (for
-how this maps to prior art — Aider's PageRank repo-map, Sourcegraph SCIP —
-see [`../knowledge/code_graph_retrieval_landscape.md`](../knowledge/code_graph_retrieval_landscape.md)):
-
-- **Graph expansion solves *recall*** — it injects candidate chunks that hybrid
-  never retrieved (the Bucket A case: chunk absent from top-50, reachable only
-  through `calls` / `defines` edges from a seed). No reranker can recover a
-  chunk that was never in the candidate set.
-- **A cross-encoder reranker solves *precision*** — it orders a merged
-  candidate set far better than a hand-tuned linear blend of incomparable
-  scores (RRF magnitude vs. edge-count log). This is exactly the scale problem
-  the `α/β` normalization works around rather than solves.
-
-So the target pipeline is **expand → merge → rerank**, with the graph feeding
-candidates and the reranker deciding order:
-
-```
-function GraphRerankSearch(query, k):
-    seeds      = HybridSearch(query, k=50)               # recall stage 1 (existing)
-    neighbors  = GraphExpand(seeds, hops, edgeTypes)     # recall stage 2 (this doc)
-    candidates = dedupe(seeds.chunks + neighbors)        # union, not a blended score
-
-    if rerankerAvailable:
-        ordered = CrossEncoderRerank(query, candidates)  # precision (Phase 3)
+```text
+function GraphRerankSearch(query, output_limit):
+    seeds = hybrid_search(query, fixed_candidate_limit)
+    neighbors = graph_expand(seeds, bounded_hops, supported_edges)
+    candidates = deduplicate(seeds + neighbors)
+    if validated_reranker_enabled:
+        ordered = rerank(query, candidates)
     else:
-        ordered = LinearBlend(candidates, α, β)          # v0 interim ordering (above)
-
-    return ordered.topK(k), relationsOf(candidates)
+        ordered = graph_blend(candidates, fixed_parameters)
+    return top(ordered, output_limit), relations_of(candidates)
 ```
 
-**Why this matters for the v0 design as written:**
-
-- The `α/β` linear blend is explicitly the `rerankerAvailable = false` branch —
-  a serviceable interim, not the destination. Keeping graph expansion as a
-  *candidate-generation* stage (it appends `neighbors`, it does not have to win
-  a score fight against seeds) means the eventual reranker drops in cleanly
-  without re-plumbing expansion.
-- This **reframes the parked Phase 3.** Once GraphRAG ships and the per-query
-  gate is met, the next lever is not "reranker *instead of* graph" but
-  "reranker *on top of* graph," which should capture the Bucket B (rank-6–10)
-  queries the graph alone may not reorder — at no extra recall risk.
-- It also defuses the strongest objection in "Why this before reranking": the
-  recall-gap data that trips the reranker rule is a *precision* signal, and the
-  graph is a *recall* mechanism. Building graph first and reranker second
-  addresses both gaps in the right order, rather than betting one beats the
-  other.
-
-**Implications for implementation order.** No change to v0 (steps 1–7) — the
-linear blend ships as the interim ordering. But step 5 (expansion + rescoring)
-should keep the *candidate-generation* and *ordering* concerns in separate
-functions (`GraphExpand` returns candidates; a distinct `order(...)` ranks
-them), so the reranker is a substitution at one call site, not a rewrite. The
-reranker itself remains Phase 3, parked, and reopens as the natural follow-on
-to a shipped GraphRAG rather than its competitor.
+Keep candidate generation and ordering separate. Record raw retrieval scores,
+graph scores, and optional reranker scores with their kinds. Compare against the
+same candidate-depth controls described in `cheaper_levers.md`; added candidates
+and a new ordering function are separate treatment effects. Reopen either layer
+only for named residual failures, not because the other has shipped.
 
 ---
 
@@ -668,7 +518,7 @@ Flags (all default to off / hybrid):
 | 4 | Extend extractor to `calls` (same-package, then cross-package). `implements` is v1. | M |
 | 5 | Graph expansion + rescoring in `internal/search/`; `--graph` flag in CLI | M |
 | 6 | Output formatter for relations + `--trace` shortest-path | S |
-| 7 | Eval: add `structural` query subtype, write ≥15 multi-hop queries (see Gating), A/B harness | S |
+| 7 | Eval: refresh existing structural labels, implement required-evidence scoring and frozen-input A/B harness | S |
 | 8 | Incremental-reindex fixup: delete + cross-file edge re-resolution on file change (see "Incremental re-index" below). **Also removes the `--watch` graph-extraction gate** (steps 1–7 keep it off under `--watch`). | M |
 | 9 | (Optional) `--graph --answer` prompt-builder integration — extend `ChunkContext` with `Relations`; update prompt golden tests | M |
 
@@ -690,8 +540,8 @@ gates on Phase 5 v1 (the unfrozen prompt).
 - `internal/graph/extract_go_test.go` — fixture-based extraction tests.
 - `internal/graph/expand.go` — query-time expansion + rescoring.
 - `internal/graph/expand_test.go` — fixture graph + golden expansion.
-- `docs/eval/golden_structural.yaml` — additive query set, or new `type:
-  structural` entries appended to `golden.yaml`.
+- `docs/eval/golden.yaml` — refresh the existing navigation queries with
+  `subtype: structural`; retain versioned required-evidence labels for the experiment.
 
 **Touch:**
 
@@ -700,8 +550,8 @@ gates on Phase 5 v1 (the unfrozen prompt).
   `graph.Expand(...)`.
 - `internal/model/result.go` — add `Relations []Relation`.
 - `cmd/ragcodepilot/main.go` — `--graph`, `--hops`, `--trace` flags.
-- `docs/plan/mvp_roadmap.md` — promote "Explore Mode" from deferred to a
-  numbered phase that references this doc.
+- `docs/plan/mvp_roadmap.md` — record the M5 build/rescope/defer decision and
+  the predeclared coverage target before implementation.
 - `README.md` — Configuration / Architecture sections describe graph store
   location and the new flag.
 - `config.yaml` — optional `graph.enabled: true/false` to disable extraction
@@ -734,18 +584,16 @@ gates on Phase 5 v1 (the unfrozen prompt).
 
 **Eval gate (the one that matters):**
 
-- Run `ragcodepilot eval --dataset docs/eval/golden.yaml` twice: once with
-  `--graph=false` (hybrid baseline = `baseline_v6.json`), once with
-  `--graph=true`. Compare on the `structural` subset.
-- **Pass criteria (top-5 framing):** the per-query gate from the Goal section
-  — **`hit@5` lifts on ≥60% of the named `structural` queries** — with no
-  regression >2pp on any `behavior` / `concept` / non-structural `navigation`
-  query, and `negative_pass_rate` unchanged at 1.0. `MRR@5` reported as a
-  secondary diagnostic; not a gate. (There is intentionally no aggregate-pp
-  gate — see the Goal section for why.)
-- **Fail handling:** if the lift is below the gate, keep the code behind the
-  flag, document the negative result in `docs/eval/`, and revisit only if
-  the eval set grows or reranking changes the landscape.
+- Capture fresh graph-off/on reports on the same frozen full, structural, and
+  external sets. Pin candidate/seed depths and output limits. Proposed graph
+  flags must first be wired through eval; historical v6 is not the control arm.
+- Apply the Goal section's frozen target list and minimum required-evidence
+  improvement count, preserving accepted hits/coverage and passing negatives.
+  Include a full set with negatives; the structural-only set has none.
+- Compare final graph scores only under their own fixed calibration. Report the
+  unchanged raw retrieval diagnostic separately and inspect changed false matches.
+- Record every failed gate and keep the feature disabled/shelved if it fails.
+  No current graph result or acceptance count has been established.
 
 ---
 
@@ -766,21 +614,20 @@ gates on Phase 5 v1 (the unfrozen prompt).
   edge extractor). Worth it if eval shows the lift; otherwise it's
   ceremony.
 - **Confidence inflation in `--answer`.** Connected context makes LLM
-  answers *sound* more authoritative even when wrong. Citation validation
-  (deferred in `phase5_v0_answer_mode.md`) becomes more important, not less,
-  once GraphRAG feeds answer mode.
+  answers *sound* more authoritative even when wrong. Existing Tier B citation validity only checks references. Human content
+  review (and later Tier C) must assess whether connected evidence supports claims.
 
 ---
 
 ## Dependencies
 
-- Golden eval extended with ≥6 structural multi-hop queries (the binding
-  prerequisite — without these the eval gate is meaningless).
-- v6 baseline (`docs/eval/baseline_v6.json`) is the comparison point.
-- Decision on SQLite driver: `modernc.org/sqlite` (pure Go, no CGo) is the
-  preferred choice — keeps the cross-compile story simple.
-- **Not a dependency:** Phase 3 reranking. Deprioritized per the
-  "Why this before reranking" section.
+- M0/M3 evidence and the prerequisite studies above, including a frozen target
+  coverage count and supported-edge ceiling.
+- Fresh paired full/structural/external baselines and score-aware negative rules.
+- Validate the proposed SQLite driver and persistence/recovery behavior before
+  the experiment; a design preference is not a tested runtime choice.
+- Reranking is optional; assess simpler remedies first when they address the same
+  observed miss. No mandatory graph-first order remains.
 
 ---
 
@@ -797,10 +644,10 @@ gates on Phase 5 v1 (the unfrozen prompt).
 
 ---
 
-## Decisions (locked before implementation)
+## Proposed contracts to confirm before implementation
 
-These were promoted from "open questions" once the scope and CLI contract
-became binding:
+These inherited draft choices need confirmation against the coverage gate and
+selected experiment scope. They do not authorize implementation:
 
 - **`--limit` counts seeds, not final chunks.** Under `--graph` the connected
   subgraph (5 seeds + 1-hop neighbors) easily reaches 12–15 chunks. The
@@ -812,23 +659,18 @@ became binding:
   extraction work) and the dominant navigation questions ("where is X
   defined / what calls X") do not need it. Add `implements` when the eval
   shows interface queries are the binding constraint.
-- **Low-confidence seed sets skip graph expansion.** `negative_pass_rate =
-  1.00` is a blocking exit criterion, so the negative-query interaction cannot
-  be left to "decide once we have data." Expanding a weak seed neighborhood is
-  precisely how a false positive gets pulled into range on a negative ("where
-  is the OAuth middleware") query. Decision: **when the hybrid seed set's top-1
-  score is below a confidence floor, `--graph` performs no expansion and
-  returns flat hybrid results.** This makes the negative-pass gate satisfiable
-  by construction rather than by luck. The floor is a hidden flag so it can be
-  swept; the eval still reports `negative_pass_rate` to confirm no regression.
+- **Low-confidence expansion policy requires calibration.** Skipping expansion
+  below a seed-score floor may limit false matches, but cannot guarantee negative
+  pass: known negative queries can have high RRF agreement. Freeze the policy on
+  a calibration split, preserve raw scores, and evaluate graph-score negatives
+  independently. Tuning on held-out queries to reach 1.00 is not allowed.
 
 ## Open questions
 
 1. **Do we keep symbol-level scoring inside Qdrant or in SQLite?** Current
    plan: hybrid scoring stays in Qdrant (today's path); graph rescoring
    happens in Go after the SQLite lookups. Revisit if latency suffers.
-2. **How tight must the negative floor be?** The locked decision above (skip
-   expansion below a top-1 confidence floor) guarantees `pass_rate ≥ 1.00` by
-   construction. The remaining open question is purely tuning: what floor value
-   balances "never expand a negative" against "don't suppress expansion on
-   legitimate weak-but-positive structural queries." Decide from the eval sweep.
+2. **Does a seed-score floor help?** Compare it with no expansion on labeled
+   positive/negative calibration cases, then verify the fixed policy on held-out
+   queries. It must not suppress legitimate weak structural seeds or hide the
+   existing false matches.
