@@ -266,7 +266,7 @@ Key decisions:
 |---|---|---|
 | Chunk unit | Go: functions/methods and named types/interfaces (AST); others: sliding window ~40 lines / 10 overlap | Semantic boundaries beat arbitrary splits |
 | Embedding input | Enriched (path + language + type/name header) | Large lift on natural-language queries |
-| Embedding model | `nomic-embed-text` via Ollama (768d) | Local, free, adequate; code-specialized model is an open lever (`cheaper_levers.md`) |
+| Embedding model | `nomic-embed-text` via Ollama (768d) | Current local default; model changes require compatible index/query encoding and fresh evidence |
 | Vector dimension | Auto-detected + validated | Detects size mismatch; model/preprocessing provenance remains a gap |
 | Sparse algorithm | BM25 `k1=0.5, b=0.75` + additive identifiers and Snowball stemming | Eval-driven: +15.8pp hit@1 vs TF-IDF with no hit@5 loss (`hybrid_search.md` §3) |
 | Test files | `*_test.go` excluded by default | They crowded top-K; excluding lifted hit@5 0.789→0.895 |
@@ -321,10 +321,8 @@ User query -> Embed -> mode (dense | sparse | hybrid+RRF) + filters
 - **Next:** M0 fresh baseline plus one external repository, then M3 dense reuse
   with retry/cleanup. M4 existing-command errors and .gitignore can proceed independently.
 - **Optional:** M1 sources-first output before generation.
-- **Deferred:** streaming, standalone doctor, automated retrieval CI, scanners,
-  and M5 retrieval layers/prototypes until repeated failures justify them.
-- **Removed from active scope:** M2 MCP/agent-first integration, multi-repo
-  workspace commands, and shared/team deployment.
+- **Scope exclusions:** see the [roadmap](mvp_roadmap.md#out-of-current-scope).
+  Additional retrieval components and product surfaces have no implementation plan.
 
 ---
 

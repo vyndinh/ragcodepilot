@@ -24,9 +24,6 @@ page to find the right entry point.
 | Doc | Purpose |
 |---|---|
 | [`mvp_roadmap.md`](plan/mvp_roadmap.md) | **Canonical next-up tasks**: fresh evidence on one external repo, dense reuse/recovery, and local errors/.gitignore. Start here. |
-| [`graphrag.md`](plan/graphrag.md) | Deferred GraphRAG proposal with reachability and required-evidence gates. |
-| [`cheaper_levers.md`](plan/cheaper_levers.md) | Conditional model/reranker experiments; fresh paired evidence required before M5. |
-| [`mcp_server_mode.md`](plan/mcp_server_mode.md) | Deferred decision only; removed from active scope, no implementation checklist. |
 | [`phase5_v0_answer_mode.md`](plan/phase5_v0_answer_mode.md) | Phase 5 v0 — `--answer` mode (minimal RAG seam). |
 | [`hybrid_search.md`](plan/hybrid_search.md) | Phase 2 — hybrid search (BM25 + dense + RRF) implementation + eval history. |
 | [`phase3_rust_chunker.md`](plan/phase3_rust_chunker.md) | Phase 3 — Rust AST chunker plan (deferred). |
@@ -40,13 +37,13 @@ page to find the right entry point.
 
 ## knowledge/ — reference & trade-offs
 
-**Decision docs** (revisit before making the next call):
+**Reference docs** (current work is defined by the roadmap):
 
 | Doc | Purpose |
 |---|---|
-| [`retrieval_quality_decisions.md`](knowledge/retrieval_quality_decisions.md) | Quality trade-offs (reranking, metrics, §2.5 = canonical baselines + AL=8 A/B). |
+| [`retrieval_quality_decisions.md`](knowledge/retrieval_quality_decisions.md) | Retrieval concepts and historical evaluation findings, including the AL=8 A/B. |
 | [`architecture_decisions.md`](knowledge/architecture_decisions.md) | Process-shape trade-offs (CLI vs daemon, watch mode, cold start). |
-| [`code_graph_retrieval_landscape.md`](knowledge/code_graph_retrieval_landscape.md) | Industry landscape & prior art for Phase 6 (GraphRAG). |
+| [`code_graph_retrieval_landscape.md`](knowledge/code_graph_retrieval_landscape.md) | Code-graph concepts and historical prior-art references; no implementation plan. |
 
 **Learning material:**
 
@@ -67,7 +64,7 @@ page to find the right entry point.
 | Doc | Purpose |
 |---|---|
 | [`system_vision_review.md`](review_feedback/system_vision_review.md) | Source of the phase numbering and overall strategy. |
-| [`codemaps_review.md`](review_feedback/codemaps_review.md) | Why Explore Mode was deferred (now superseded by GraphRAG). |
+| [`codemaps_review.md`](review_feedback/codemaps_review.md) | Historical review of Explore Mode; not an active delivery plan. |
 | [`hybrid_search_review.md`](review_feedback/hybrid_search_review.md) | Hybrid search review history. |
 | [`reindexing_review.md`](review_feedback/reindexing_review.md) | Re-indexing pipeline review history. |
 | [`system_design_with_feedback.md`](review_feedback/system_design_with_feedback.md) | System design with inline feedback. |

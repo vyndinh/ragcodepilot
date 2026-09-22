@@ -51,8 +51,8 @@ See [evaluation guidance](../eval/README.md) for snapshot and comparison rules.
 
 The near-term queue has **three deliverables**: a fresh baseline plus one external
 repository, dense embedding reuse with reliable recovery, and actionable errors
-plus .gitignore handling. M0 precedes M3; M4 can proceed independently. IDs from
-the July proposal remain so historical references do not change meaning.
+plus .gitignore handling. M0 precedes M3; M4 can proceed independently. Active milestone IDs retain
+their original meanings; gaps refer to retired proposals.
 
 | ID | Scope | Size | Exit criterion | Status |
 |---|---|---|---|---|
@@ -60,8 +60,6 @@ the July proposal remain so historical references do not change meaning.
 | M3 | Dense reuse + retry/cleanup | M | Cache reuse and invalidation, interrupted-run replay, stale-ID cleanup, one writer per index | After M0 |
 | M4 | Existing-command errors + .gitignore | S–M | Actionable operation-specific failures; nested ignore/exclusion behavior verified | Independent |
 | M1 | Sources-first terminal output | S | Exact answer sources appear before warmup and generation | Optional small UX change |
-| M2 | Agent integration | — | Removed from active scope | Retired |
-| M5 | Retrieval layers and dedicated prototypes | S–L if reopened | Repeated named failures establish a concrete need | Deferred; no scheduled research/build |
 
 ## M0 — Fresh baseline and one external repository [S–M]
 
@@ -127,24 +125,6 @@ Streaming, partial-stream handling, TTFT targets, model routing, and refusal-heu
 changes remain deferred until sustained `--answer` usage warrants them. Keep current
 answer defaults and report-only refusal diagnostics; review questionable answers manually.
 
-## M5 — Deferred retrieval work
-
-No dedicated graph study, symbol database, embedding sweep, reranker prototype, or
-non-Go chunker build is in the near-term queue. Record actual misses during normal
-use and M0. Reopen only the smallest experiment addressing a repeated failure:
-
-| Candidate | Revisit condition |
-|---|---|
-| Exact-symbol lookup | Repeated definition misses after existing identifier/type support; try current name payload first |
-| Alternative embeddings | Required evidence repeatedly absent from candidates |
-| Reranker | Required evidence repeatedly retrieved but below the useful context window |
-| GraphRAG | Missing evidence requires supported structural relationships and simpler fixes have not helped |
-| Non-Go AST chunking | Active use of that language exposes concrete chunk-boundary failures |
-
-[Cheaper levers](cheaper_levers.md) and [GraphRAG](graphrag.md) retain conditional
-design notes only. If reopened, use fresh paired evidence and required-evidence
-coverage; historical structural hit@5 already passes 14/16 queries.
-
 ## Completed work and history
 
 P1 evaluation foundation, P2 hybrid retrieval, P5 v0 answer mode, file-hash/index-
@@ -162,30 +142,23 @@ all dense vectors in the current scope when a run detects changes.
 - **2026-09-22:** keep the local CLI scope, retire M2, prioritize evidence and
   indexing reliability, and correct the acceptance gates before further builds.
   Further scope reduction limits the active queue to M0/M3/M4; broader experiments
-  and product surfaces stay deferred.
+  and product surfaces stay outside the plan. Detailed deferred proposals were
+  removed; evaluation lessons and historical reports remain available.
 
-## Deferred decisions
+## Out of current scope
 
-| Item | Decision | Revisit only when |
-|---|---|---|
-| MCP / agent-first pivot | Removed from active scope | Repeated real coding tasks need external indexed retrieval and a controlled comparison shows task-level benefit |
-| Multi-repo workspace commands | Removed from active scope | Repeated cross-repo workflows justify stable repo/worktree identity, completed-index freshness, and conflict handling |
-| Shared/team deployment | Out of scope | Explicit demand includes access control, isolation, lifecycle, and operational ownership |
-| Additional external benchmark repos | Deferred expansion | Needed before generalization claims or broader retrieval promotion |
-| Nightly/on-demand retrieval CI | Deferred automation | Manual pinned-input evaluation is stable and recurring checks justify automation |
-| Standalone doctor command | Deferred | Existing-command error guidance proves insufficient |
-| Token streaming / TTFT targets | Deferred | Sustained answer-mode use makes sources-first output insufficient |
-| Secret scanning/redaction | Deferred | Included-content exposure and a tested policy justify false-positive/invalidation costs |
-| Refusal-heuristic changes | Deferred | Labeled recurring mistakes justify changing the report-only diagnostic |
-| Sparse-only updates / atomic index publication | Deferred | Measured sparse-write cost or a real atomic-read requirement justifies added complexity |
-| CLI --json / --context-lines | Deferred standalone UX | A concrete scripting or source-reading workflow needs it; no MCP dependency |
-| REPL / TUI / IDE plugin / HTTP daemon | Deferred | Existing CLI workflow is a demonstrated limit |
-| Multi-provider answers / model routing | Deferred | Local answer-mode usage establishes a quality or latency need |
-| Tier C answer-content evaluation | Deferred tooling | Manual answer review needs automation; Tier B remains a shape diagnostic |
-| Custom vector DB / multi-modal embeddings | Deferred | Explicit learning objective or measured capability gap justifies the investment |
+These items have no current delivery commitment or scheduled milestone. Removed proposals
+remain in Git history. Reopen only when the stated need is demonstrated:
 
-The former [MCP design](mcp_server_mode.md) is retained only as a short deferred
-record. It carries no implementation checklist or committed release scope.
+| Area | Why excluded / revisit condition |
+|---|---|
+| MCP, agent-first integration, multi-repo workspaces, shared deployment | No validated demand for the added identity, lifecycle, and operational work; revisit for repeated workflows with demonstrated benefit. |
+| GraphRAG, rerankers, model sweeps, symbol databases, non-Go AST builds | No fresh evidence yet justifies another retrieval component; revisit the smallest change supported by repeated named misses. |
+| Streaming, model routing, new CLI/UI surfaces, standalone doctor | Keep existing commands useful first; revisit when sustained usage exposes a concrete limitation. |
+| Broader benchmark collections, retrieval CI, automated answer judging | Start with one external repo and manual comparisons; expand before generalization claims or when repeated checks warrant automation. |
+| Secret scanners and new refusal heuristics | Preserve exclusions and manual review; revisit for demonstrated failures and a tested policy. |
+| Sparse-only writes and atomic index publication | Keep recoverable in-place updates; revisit for measured write costs or a real atomic-read requirement. |
+| Custom vector database and multimodal retrieval | Outside the local code-search goal; requires a separate explicit objective. |
 
 ## Related docs
 

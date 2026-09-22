@@ -166,38 +166,5 @@ and inspect questionable answers manually. A cited refusal can be valid; a quote
 phrase can trigger a false positive. New rules require repeated labeled failures,
 not a scheduled heuristic-improvement feature.
 
-## 5. Deferred symbol lookup and CLI output
-
-No symbol prototype is scheduled. Only revisit exact-symbol lookup if fresh results
-still show definition misses. First test the existing name payload and richer naming
-before introducing SQLite plus a second index lifecycle. The AST chunker does not
-retain every declaration (for example package variables/constants).
-
-```text
-if query expresses an unambiguous definition lookup:
-    matches = lookup with exact case and repo/package/receiver scope
-    if exactly one valid match:
-        merge that match with hybrid results and deduplicate
-    else:
-        return disambiguated candidates or fall back to hybrid
-else:
-    return hybrid results
-```
-
-Go names are case-sensitive and receiver/package context matters. Never pin an
-arbitrary case-normalized match. Verify the ordinary positive/negative sets before
-promotion. [Cheaper levers](../plan/cheaper_levers.md) covers other experiments.
-
-`search --json` and `--context-lines` remain deferred standalone conveniences.
-Reopen for a concrete scripting/source-reading need; neither is required for the
-current reliability work. A future JSON shape needs a versioned schema/provenance;
-context expansion must distinguish live file contents from the indexed snapshot.
-
-## Deferred product expansion
-
-The agent-first claim, MCP tools, `repos add/list/refresh`, automatic staleness UX,
-shared services, and index-at-ref product commands have no active milestone.
-[MCP's short decision record](../plan/mcp_server_mode.md) preserves its revisit
-conditions. Pinned clean checkouts can support evaluation without building a new
-index-at-ref command. Future workspace support needs stable repository/worktree IDs
-and dirty/partial-index provenance; a HEAD SHA or latest timestamp alone is insufficient.
+Scope exclusions and revisit conditions are recorded once in the
+[roadmap](../plan/mvp_roadmap.md#out-of-current-scope).
