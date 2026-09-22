@@ -26,10 +26,12 @@ failures justify investigation. Start with one external repository and manual
 comparisons; automated retrieval CI, broader benchmark collections, and extra
 product surfaces are deferred.
 
-The branch is reconciled with fetched main `a3ac8ff` and includes its v8 hybrid report (39 queries/35 positives,
-hit@5 34/35, navigation 23/24, negative pass 2/4 at RRF 0.02). The identifier/type/calibration changes are now present. v8 remains saved
-evidence, not a fresh benchmark of the reconciled tree. M0 refreshes the baseline
-and tests one external repository; [evaluation guidance](../eval/README.md) defines comparability.
+The [fresh v9 self baseline](../eval/runs/2026-09-22-self-fed7f22/README.md) pins
+merged revision `fed7f22`, 248 chunks, source/query hashes, runtime, and model digest.
+It reports hit@5 34/35, structural hit@5 15/16, and negatives 2/4 at RRF 0.02,
+with zero query errors. Eleven positives still lack complete expected-file coverage
+at top 5. The external portion of M0 remains open. v8 is historical context,
+not a controlled comparison against v9.
 
 Historical v6/v7 hybrid 1.00 negative pass used an ineffective 0.55 cosine cutoff.
 It is not a faithfulness floor. Preserve passing negatives under valid fixed

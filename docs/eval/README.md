@@ -58,7 +58,7 @@ By type:
 For machine-readable output:
 
 ```bash
-go run ./cmd/ragcodepilot eval --output json > docs/eval/baseline_v1.json
+go run ./cmd/ragcodepilot eval --output json > /tmp/ragcodepilot-eval.json
 ```
 
 ---
@@ -277,12 +277,15 @@ model, and score-calibration snapshots; they are not evergreen acceptance target
 | `baseline_v6.json` | 23 queries, 19 positives; historical 182-chunk corpus | Historical retrieval; hybrid 1.00 negatives used ineffective 0.55 cutoff |
 | `baseline_v7.json` | 39 queries, 35 positives | Historical full set after structural additions |
 | `baseline_v7_structural.json` | 16 positives, zero negatives | Historical completeness diagnostic; 14/16 already pass hit@5 |
-| `baseline_v8.json` | Saved main report: 39 queries, 35 positives, 199 Go chunks at capture | Latest saved hybrid baseline on reviewed main; hit@5 34/35, negative pass 2/4 at RRF 0.02 |
+| `baseline_v8.json` | Historical main report: 39 queries, 35 positives, 199 Go chunks at capture | Predates later chunker changes; hit@5 34/35, negative pass 2/4 at RRF 0.02 |
+| `baseline_v9.json` | Fresh pinned self run at `fed7f22`: 39 queries, 35 positives, 248 Go chunks | hit@5 34/35, recall@5 0.8162, negative pass 2/4; zero query errors |
+| `baseline_v9_structural.json` | Same pinned index: 16 positives, zero negatives | hit@5 15/16, recall@5 0.6917; zero query errors |
 
-The branch is reconciled with fetched main `a3ac8ff` and includes the v8 report
-and score-calibration code. That saved report predates later chunker work.
-M0 must record the tested revision and capture a fresh baseline. Do not relabel
-old reports or infer an isolated algorithm win by comparing these different snapshots.
+The [v9 run record](runs/2026-09-22-self-fed7f22/README.md) includes the manifest,
+source/query/config hashes, model digest, chunk IDs, exact commands, and named
+failure inventory. This completes only M0's self-repository refresh; the external
+repository remains open. Do not infer an isolated algorithm win by comparing v9
+with older reports whose corpus and runtime manifests differ or are missing.
 
 **Negative semantics:** the reconciled runner uses score-family calibration
 (RRF 0.02). The historical hybrid 0.55 cosine cutoff exceeded the RRF maximum
@@ -366,7 +369,7 @@ These are measurement limitations. The [roadmap](../plan/mvp_roadmap.md) owns de
 
 The implemented hybrid and answer-mode reports remain historical evidence.
 Current evaluation work is M0 in the [roadmap](../plan/mvp_roadmap.md): a fresh
-self-corpus baseline, one external repository, and a named failure inventory.
+self-corpus baseline (v9 complete), one external repository (open), and a named failure inventory.
 This guide defines comparison practice; it does not schedule retrieval features.
 
 Do not silently delete or rewrite existing queries during a refactor. Add new

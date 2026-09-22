@@ -92,11 +92,11 @@ page to find the right entry point.
 
 See [`eval/README.md`](eval/README.md). Holds the golden query set and the
 `baseline_v*.json` files. v6/v7 on this branch are historical snapshots.
-After reconciliation with main, the latest saved hybrid baseline here is
-[`baseline_v8.json`](eval/baseline_v8.json). It was not rerun for this
-documentation update and predates some later chunker changes. Its negative-score calibration differs from
-v6/v7. See the [roadmap evidence snapshot](plan/mvp_roadmap.md#evidence-snapshot-and-branch-boundary)
-and [comparison rules](eval/README.md#baselines-and-the-corpus-stability-assumption).
+The latest self-corpus evidence is [v9 full](eval/baseline_v9.json) plus
+[v9 structural](eval/baseline_v9_structural.json), run at merged revision `fed7f22`.
+The [run record](eval/runs/2026-09-22-self-fed7f22/README.md) includes pinned inputs,
+zero-error validation, and named misses. External M0 evaluation remains open.
+Use the [comparison rules](eval/README.md#baselines-and-the-corpus-stability-assumption).
 Fresh same-input control/candidate runs are required for acceptance.
 
 ## task_tracker/ — task tracking

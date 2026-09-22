@@ -1,0 +1,23 @@
+{
+  "status": "pass",
+  "artifact_hashes_checked": 10,
+  "unchanged_snapshot_files": 147,
+  "indexed_files": 28,
+  "indexed_chunks": 248,
+  "query_metrics_independently_recomputed": 55,
+  "query_errors": 0,
+  "structural_metrics_match_full": true,
+  "equal_score_result_variations": [
+    "chunkfile_callers_structural",
+    "change_impact_generator_generate_structural"
+  ],
+  "checks": [
+    "Saved artifact SHA256 values match manifest",
+    "Frozen source files remain unchanged",
+    "All returned chunk locations exist in isolated indexed payloads",
+    "Per-query hit/MRR/recall and calibrated negative outcomes recomputed from pinned labels",
+    "Aggregate and per-type quality metrics match query outcomes",
+    "Full and structural query sets exactly match pinned dataset selection",
+    "Model digest unchanged before and after live runs; no prior collection reused"
+  ]
+}

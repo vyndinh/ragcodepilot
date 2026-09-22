@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "status": "completed_self_baseline_only",
+  "source": {
+    "source_revision": "fed7f22fd016311078d2112c4681e1aafb59bd3a",
+    "source_tree": "ed474514be644af3ab3b460509d381733e1f1e94",
+    "archive_sha256": "0cd5c7ba02b308db4d9801e21b7d24e89e16fe3f4ac7cf8a732232610efe3e84",
+    "snapshot_path": "/tmp/rag-m0-fed7f22-n8f39bab/ragsearch",
+    "work_path": "/tmp/rag-m0-fed7f22-n8f39bab",
+    "created_at_utc": "2026-09-22T09:40:04.807261+00:00"
+  },
+  "build": {
+    "go_version": "go version go1.26.3 darwin/arm64",
+    "command": "go build -trimpath -o ../ragcodepilot ./cmd/ragcodepilot",
+    "binary_sha256": "7cf632bf46f0264d46e3f93e47860d9d0adf877244780ec4ed110886357895f8",
+    "go_mod_sha256": "05a31c4bb0938f118f63df3cbcda0363b966ce7cfa4343485e028c415d4b65af",
+    "go_sum_sha256": "98f74cd3922ad0af52a185e59ee3a03ee8ece474d4ff83eb0ee81a2766c36227",
+    "build_info": "build-info.txt",
+    "source_origin": "clean git archive; no untracked working-tree files",
+    "build_info_normalization": "Executable path replaced with ragcodepilot; trailing whitespace stripped."
+  },
+  "runtime": {
+    "hardware": {
+      "cpu": "Apple M1",
+      "memory_bytes": 17179869184,
+      "logical_cpus": 8,
+      "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83"
+    },
+    "ollama": {
+      "version": "0.33.3"
+    },
+    "qdrant": {
+      "title": "qdrant - vector search engine",
+      "version": "1.19.1",
+      "commit": "6ab21cac18ebb6f4ae29102c7f8f5cc11affd5de"
+    },
+    "qdrant_image": {
+      "Id": "sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10",
+      "RepoDigests": [
+        "qdrant/qdrant@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10"
+      ],
+      "Architecture": "arm64",
+      "Os": "linux"
+    }
+  },
+  "representation": {
+    "index_version": "sparse-bm25-snowball-ident-v2+go-types-v1",
+    "dimensions": 768,
+    "dense_distance": "Cosine",
+    "sparse": "BM25 k1=0.5 b=0.75; identifier tokens plus Snowball stemming; statistics over all 248 enriched chunks",
+    "document_preprocessing": "File path, language, chunk type/name header plus raw chunk content; SHA256 for each exact input in chunks.json",
+    "query_preprocessing": "Raw query string sent to Ollama; no task prefix; sparse query tokenized by the pinned implementation",
+    "api_request": "POST /api/embed with model and input only; truncate/options/keep_alive left to pinned Ollama/model defaults",
+    "client_vector_conversion": "JSON float64 to float32; dimension validation; Qdrant cosine collection",
+    "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+    "model_metadata": "model.json",
+    "configured_num_ctx": 8192,
+    "reported_loaded_context_length": 2048,
+    "truncation_observability": "The current wrapper does not retain prompt token counts or truncation events; no no-truncation claim."
+  },
+  "corpus": {
+    "repo_identity": "ragsearch",
+    "language_scope": [
+      "go"
+    ],
+    "file_count": 28,
+    "chunk_count": 248,
+    "chunk_types": {
+      "function": 158,
+      "type": 42,
+      "block": 42,
+      "interface": 6
+    },
+    "config_file": "config.yaml at source_revision",
+    "excluded": "Default hidden/config directory rules and *_test.go; Go files only",
+    "files_manifest": "inputs.json",
+    "chunk_manifest": "chunks.json"
+  },
+  "collection": {
+    "name": "m0_self_fed7f22_20260922_094004",
+    "absent_before_index": true,
+    "isolation": "Fresh dedicated collection; existing working collections unchanged",
+    "after_index": {
+      "status": "green",
+      "optimizer_status": "ok",
+      "indexed_vectors_count": 248,
+      "points_count": 248,
+      "segments_count": 4,
+      "config": {
+        "params": {
+          "vectors": {
+            "dense": {
+              "size": 768,
+              "distance": "Cosine"
+            }
+          },
+          "shard_number": 1,
+          "replication_factor": 1,
+          "write_consistency_factor": 1,
+          "on_disk_payload": true,
+          "sparse_vectors": {
+            "sparse": {}
+          }
+        },
+        "hnsw_config": {
+          "m": 16,
+          "ef_construct": 100,
+          "full_scan_threshold": 10000,
+          "max_indexing_threads": 0,
+          "on_disk": false
+        },
+        "optimizer_config": {
+          "deleted_threshold": 0.2,
+          "vacuum_min_vector_number": 1000,
+          "default_segment_number": 0,
+          "max_segment_size": null,
+          "memmap_threshold": null,
+          "indexing_threshold": 10000,
+          "flush_interval_sec": 5,
+          "max_optimization_threads": null,
+          "prevent_unoptimized": null
+        },
+        "wal_config": {
+          "wal_capacity_mb": 32,
+          "wal_segments_ahead": 0,
+          "wal_retain_closed": 1
+        },
+        "quantization_config": null
+      },
+      "payload_schema": {
+        "repo": {
+          "data_type": "keyword",
+          "points": 248
+        },
+        "file_path": {
+          "data_type": "keyword",
+          "points": 248
+        },
+        "language": {
+          "data_type": "keyword",
+          "points": 248
+        }
+      },
+      "update_queue": {
+        "length": 0
+      }
+    },
+    "after_eval": {
+      "status": "green",
+      "optimizer_status": "ok",
+      "indexed_vectors_count": 248,
+      "points_count": 248,
+      "segments_count": 4,
+      "config": {
+        "params": {
+          "vectors": {
+            "dense": {
+              "size": 768,
+              "distance": "Cosine"
+            }
+          },
+          "shard_number": 1,
+          "replication_factor": 1,
+          "write_consistency_factor": 1,
+          "on_disk_payload": true,
+          "sparse_vectors": {
+            "sparse": {}
+          }
+        },
+        "hnsw_config": {
+          "m": 16,
+          "ef_construct": 100,
+          "full_scan_threshold": 10000,
+          "max_indexing_threads": 0,
+          "on_disk": false
+        },
+        "optimizer_config": {
+          "deleted_threshold": 0.2,
+          "vacuum_min_vector_number": 1000,
+          "default_segment_number": 0,
+          "max_segment_size": null,
+          "memmap_threshold": null,
+          "indexing_threshold": 10000,
+          "flush_interval_sec": 5,
+          "max_optimization_threads": null,
+          "prevent_unoptimized": null
+        },
+        "wal_config": {
+          "wal_capacity_mb": 32,
+          "wal_segments_ahead": 0,
+          "wal_retain_closed": 1
+        },
+        "quantization_config": null
+      },
+      "payload_schema": {
+        "repo": {
+          "data_type": "keyword",
+          "points": 248
+        },
+        "file_path": {
+          "data_type": "keyword",
+          "points": 248
+        },
+        "language": {
+          "data_type": "keyword",
+          "points": 248
+        }
+      },
+      "update_queue": {
+        "length": 0
+      }
+    }
+  },
+  "evaluation": {
+    "mode": "hybrid",
+    "limit": 10,
+    "prefetch_limit_per_dense_sparse_branch": 20,
+    "rrf_k": 60,
+    "negative_score_kind": "rrf",
+    "negative_ceiling": 0.02,
+    "answer_generation": false,
+    "query_filters": "Pinned dataset languages=[go], no repo filter; fresh collection contains only ragsearch",
+    "warm_state": "No model loaded before indexing; indexing loads model; one unmeasured hybrid search before full eval; structural follows full; each CLI command opens fresh connections. No cold-search measurement.",
+    "ordering": "Dataset order, full then structural",
+    "reports": [
+      "../../baseline_v9.json",
+      "../../baseline_v9_structural.json"
+    ],
+    "all_command_exit_codes_zero": true,
+    "stderr_empty": false,
+    "execution_log": "execution.json"
+  },
+  "limitations": [
+    "Self-corpus only; external M0 evaluation remains open.",
+    "One full and one structural observation; latency is descriptive, not a capacity or stability gate.",
+    "Historical v8 lacks a matching pinned corpus/model manifest; differences are not a controlled improvement/regression claim.",
+    "File-or-symbol relevance can mask missing callers; use failures.json and manual source review.",
+    "Two equal-score result-order/boundary differences between full and structural runs; per-query metrics agree.",
+    "Reports measure retrieval, not generated-answer correctness."
+  ],
+  "artifact_sha256": {
+    "build-info.txt": "f7ef36a136ed5bcaefc7acc0a05f6afc1101d361ec25b314e3f0c6f2fbc157f6",
+    "chunks.json": "a7081f0e47d0806ab23d8b46006a01c8f38c3a4411b18bd404a937aeaecf7982",
+    "execution.json": "533295f91672e602822b1d0584f741441930e94141916a33e4023191b98a117b",
+    "failures.json": "8cfeb9cced5b563c8aeea2489f040af4c9fc557075292c3e1456d7ff4da8b983",
+    "index.log": "cc1ea9fc697c4da9352d88909a5de0ca07a0754e50f3759e19e244917c02929a",
+    "inputs.json": "42c2e61d3c9d5fd913ff87414fadf677a557cd671237d18bbe1b71dbf336532c",
+    "model.json": "535e9013f10ca2e6814813602c63c1e70e767686f1fdcc6487e6ca2323af83b0",
+    "../../baseline_v9.json": "81ce8511a42a59e70347913161f27169e21fc6aa2a990d4d243840f88a18eca7",
+    "../../baseline_v9_structural.json": "4a0fb58655d4b7d529bd17ff1089d98f5ddb4217d04fef462299686a81b46286",
+    "README.md": "4a801e958511b8da1912ccb9427fde7885efc0f2a533ef57adf0c93c35dc54bf"
+  }
+}
