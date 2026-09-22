@@ -87,7 +87,8 @@ func chunkGeneric(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *
 }
 
 // generateChunkID creates a deterministic ID from repo, file path, chunk name,
-// and an index to distinguish sub-chunks of the same symbol.
+// and an index to distinguish sub-chunks of the same symbol. Go AST chunks that
+// need declaration identity use generateChunkIDWithIdentity below.
 //
 // For named chunks (functions, methods): "repo:file:FuncName:0"
 // For unnamed blocks: "repo:file::startLine"
@@ -125,13 +126,20 @@ func extractName(content, language string) string {
 }
 
 func generateChunkID(repo, filePath, name string, index int) string {
+	return generateChunkIDWithIdentity(repo, filePath, name, index)
+}
+
+// generateChunkIDWithIdentity creates a deterministic ID using a stable
+// declaration identity. The display name remains separate from the identity so
+// search results can keep the user-facing symbol name while methods with the
+// same name, or a package function and method with the same name, remain unique.
+func generateChunkIDWithIdentity(repo, filePath, identity string, index int) string {
 	var input string
-	if name != "" {
-		input = fmt.Sprintf("%s:%s:%s:%d", repo, filePath, name, index)
+	if identity != "" {
+		input = fmt.Sprintf("%s:%s:%s:%d", repo, filePath, identity, index)
 	} else {
 		// Unnamed blocks use the index (which is start_line) as the fallback.
 		input = fmt.Sprintf("%s:%s::%d", repo, filePath, index)
 	}
 	return uuid.NewSHA1(namespaceUUID, []byte(input)).String()
 }
-

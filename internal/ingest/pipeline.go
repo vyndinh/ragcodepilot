@@ -76,7 +76,7 @@ func NewPipeline(cfg *config.Config, embedder embedding.Embedder, store vectorSt
 // chunkerVersion is bumped when AST/chunk shape changes (e.g. extracting
 // named type chunks) so unchanged files are re-indexed. Stored with the
 // sparse tokenizer version in IndexVersion.
-const chunkerVersion = "go-types-v1"
+const chunkerVersion = "go-types-v2-identity"
 
 func representationVersion() string {
 	return embedding.SparseIndexVersion + "+" + chunkerVersion
@@ -126,9 +126,10 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 
 	// Step 5: Classify files.
 	// Convert absolute paths to relative paths for comparison with Qdrant payloads.
-	var filesToIndex []string // new or changed files (absolute paths)
-	var staleFiles []string   // exist in Qdrant but not on disk (relative paths)
-	var changedFiles []string // exist in Qdrant with different hash (relative paths)
+	var filesToIndex []string        // new or changed files (absolute paths)
+	var staleFiles []string          // exist in Qdrant but not on disk (relative paths)
+	var changedFiles []string        // exist in Qdrant with different hash (relative paths)
+	var versionRefreshFiles []string // same content, but old representation IDs/payloads
 	versionRefreshes := 0
 	newFiles := 0
 	skipped := 0
@@ -162,6 +163,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 		} else {
 			// File content is unchanged, but tokenizer/chunker representation changed.
 			versionRefreshes++
+			versionRefreshFiles = append(versionRefreshFiles, rel)
 		}
 		// New, changed, or stale-index-version files are re-indexed.
 		filesToIndex = append(filesToIndex, absFile)
@@ -186,6 +188,16 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 			return fmt.Errorf("deleting stale points: %w", err)
 		}
 		fmt.Printf("Deleted points for %d stale files\n", len(staleFiles))
+	}
+
+	// A representation refresh can keep the same file hash while changing
+	// deterministic chunk IDs. Delete the old file points first; the normal
+	// stale-hash cleanup cannot remove them because their file hash is current.
+	if len(versionRefreshFiles) > 0 {
+		if err := p.store.DeleteByFilePaths(ctx, p.collection, repoName, versionRefreshFiles); err != nil {
+			return fmt.Errorf("deleting points for representation refresh: %w", err)
+		}
+		fmt.Printf("Deleted points for %d representation-refresh files\n", len(versionRefreshFiles))
 	}
 
 	if len(filesToIndex) == 0 && len(staleFiles) == 0 {

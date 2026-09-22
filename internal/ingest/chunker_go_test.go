@@ -81,6 +81,51 @@ func (s *Server) Stop() {
 	}
 }
 
+func TestChunkGoFile_MethodReceiverIdentityPreventsCollisions(t *testing.T) {
+	t.Parallel()
+
+	src := `package example
+
+type Server struct{}
+type Client struct{}
+
+func (s *Server) Close() {}
+func (c *Client) Close() {}
+`
+	chunks := filterByType(chunkGoSource(t, src), "function")
+	if len(chunks) != 2 {
+		t.Fatalf("expected 2 method chunks, got %d", len(chunks))
+	}
+	if chunks[0].Name != "Close" || chunks[1].Name != "Close" {
+		t.Fatalf("method names = %q, %q; want both Close", chunks[0].Name, chunks[1].Name)
+	}
+	if chunks[0].ID == chunks[1].ID {
+		t.Fatalf("same-name methods collided on ID %q", chunks[0].ID)
+	}
+}
+
+func TestChunkGoFile_PackageFunctionAndMethodIdentityPreventCollisions(t *testing.T) {
+	t.Parallel()
+
+	src := `package example
+
+type Server struct{}
+
+func Close() {}
+func (s *Server) Close() {}
+`
+	chunks := filterByType(chunkGoSource(t, src), "function")
+	if len(chunks) != 2 {
+		t.Fatalf("expected 2 function chunks, got %d", len(chunks))
+	}
+	if chunks[0].Name != "Close" || chunks[1].Name != "Close" {
+		t.Fatalf("function names = %q, %q; want both Close", chunks[0].Name, chunks[1].Name)
+	}
+	if chunks[0].ID == chunks[1].ID {
+		t.Fatalf("package function and method collided on ID %q", chunks[0].ID)
+	}
+}
+
 func TestChunkGoFile_BlockChunks(t *testing.T) {
 	t.Parallel()
 
