@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"strings"
@@ -356,6 +357,9 @@ func runIndex(repoPath, collection string, languages []string, qdrantHost string
 	pipeline := ingest.NewPipeline(cfg, embedder, client, collection,
 		ingest.WithLanguages(languages),
 		ingest.WithRunStateDir(stateDir),
+		ingest.WithMetricsSink(func(metrics ingest.IndexMetrics) {
+			log.Printf("Index metrics: %s", metrics.String())
+		}),
 	)
 
 	if len(languages) > 0 {

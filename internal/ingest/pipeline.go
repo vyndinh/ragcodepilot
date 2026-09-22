@@ -33,6 +33,33 @@ type Pipeline struct {
 	chunkOverlap int
 	languages    map[string]struct{}
 	runStateDir  string
+	metricsSink  func(IndexMetrics)
+}
+
+// IndexMetrics describes one indexing attempt. Durations are milliseconds;
+// counts distinguish dense embedding work from sparse refresh work.
+type IndexMetrics struct {
+	Status               string `json:"status"`
+	Error                string `json:"error,omitempty"`
+	Collection           string `json:"collection"`
+	FilesScanned         int    `json:"files_scanned"`
+	ChunksGenerated      int    `json:"chunks_generated"`
+	DenseCalls           int    `json:"dense_calls"`
+	DenseInputs          int    `json:"dense_inputs"`
+	DenseCacheHits       int    `json:"dense_cache_hits"`
+	DenseCacheMisses     int    `json:"dense_cache_misses"`
+	SparseVectorsBuilt   int    `json:"sparse_vectors_built"`
+	UpsertBatches        int    `json:"upsert_batches"`
+	ChunkMS              int64  `json:"chunk_ms"`
+	SparseStatsMS        int64  `json:"sparse_stats_ms"`
+	DenseMS              int64  `json:"dense_ms"`
+	UpsertMS             int64  `json:"upsert_ms"`
+	SourceVerificationMS int64  `json:"source_verification_ms"`
+	TotalMS              int64  `json:"total_ms"`
+}
+
+func (m IndexMetrics) String() string {
+	return fmt.Sprintf("status=%s files=%d chunks=%d dense_calls=%d dense_inputs=%d cache_hits=%d cache_misses=%d sparse_vectors=%d upsert_batches=%d chunk_ms=%d sparse_stats_ms=%d dense_ms=%d upsert_ms=%d source_verify_ms=%d total_ms=%d", m.Status, m.FilesScanned, m.ChunksGenerated, m.DenseCalls, m.DenseInputs, m.DenseCacheHits, m.DenseCacheMisses, m.SparseVectorsBuilt, m.UpsertBatches, m.ChunkMS, m.SparseStatsMS, m.DenseMS, m.UpsertMS, m.SourceVerificationMS, m.TotalMS)
 }
 
 // Option configures a Pipeline.
@@ -66,6 +93,11 @@ func WithLanguages(languages []string) Option {
 // supplies DefaultRunStateDir for real indexing.
 func WithRunStateDir(dir string) Option {
 	return func(p *Pipeline) { p.runStateDir = dir }
+}
+
+// WithMetricsSink receives one metrics record after each indexing attempt.
+func WithMetricsSink(sink func(IndexMetrics)) Option {
+	return func(p *Pipeline) { p.metricsSink = sink }
 }
 
 // NewPipeline creates a new ingestion pipeline.
@@ -126,6 +158,24 @@ func embedderCacheIdentity(ctx context.Context, embedder embedding.Embedder) (st
 // IDF is recomputed globally and all current chunks are re-upserted so sparse
 // weights stay consistent across the collection.
 func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
+	metrics := IndexMetrics{Collection: p.collection, Status: "failed"}
+	startedAt := time.Now()
+	var denseCacheStore *denseCache
+	defer func() {
+		metrics.TotalMS = time.Since(startedAt).Milliseconds()
+		if runErr == nil {
+			metrics.Status = "completed"
+		} else {
+			metrics.Error = runErr.Error()
+		}
+		if denseCacheStore != nil {
+			metrics.DenseCacheHits = denseCacheStore.hits
+			metrics.DenseCacheMisses = denseCacheStore.misses
+		}
+		if p.metricsSink != nil {
+			p.metricsSink(metrics)
+		}
+	}()
 	absPath, err := filepath.Abs(repoPath)
 	if err != nil {
 		return fmt.Errorf("resolving path: %w", err)
@@ -155,6 +205,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 		return fmt.Errorf("walking files in %s: %w", repoName, err)
 	}
 	files = p.filterFilesByLanguage(files)
+	metrics.FilesScanned = len(files)
 	fmt.Printf("Found %d source files in %s\n", len(files), repoName)
 
 	// Step 2: Hash all source files on disk.
@@ -278,6 +329,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 	// Step 7: Chunk all current files. Sparse IDF is corpus-wide, so any
 	// collection-changing run must refresh unchanged files with the same IDF map.
 	indexedAt := time.Now().UTC().Format(time.RFC3339)
+	chunkStarted := time.Now()
 	allChunks := make([]model.CodeChunk, 0, len(files)*2)
 	for _, file := range files {
 		chunks, err := ChunkFile(file, absPath, repoName, p.chunkSize, p.chunkOverlap, p.cfg)
@@ -294,6 +346,8 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 		}
 		allChunks = append(allChunks, chunks...)
 	}
+	metrics.ChunkMS = time.Since(chunkStarted).Milliseconds()
+	metrics.ChunksGenerated = len(allChunks)
 	fmt.Printf("Generated %d chunks from %d files\n", len(allChunks), len(files))
 
 	if len(allChunks) == 0 {
@@ -303,6 +357,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 	if err != nil {
 		return err
 	}
+	denseCacheStore = denseCache
 
 	// Step 7.5: Build enriched texts once and compute global IDF over the full
 	// chunk corpus for this indexing run.
@@ -321,7 +376,9 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 	for i, chunk := range allChunks {
 		allTexts[i] = enrichForEmbedding(chunk)
 	}
+	statsStarted := time.Now()
 	corpusStats := embedding.ComputeCorpusStats(allTexts)
+	metrics.SparseStatsMS = time.Since(statsStarted).Milliseconds()
 
 	// Step 8: Embed and upsert in batches (dense + sparse).
 	const batchSize = 32
@@ -357,7 +414,11 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 		}
 
 		if len(missingTexts) > 0 {
+			metrics.DenseCalls++
+			metrics.DenseInputs += len(missingTexts)
+			denseStarted := time.Now()
 			embeddings, err := p.embedder.Embed(ctx, missingTexts)
+			metrics.DenseMS += time.Since(denseStarted).Milliseconds()
 			if err != nil {
 				return fmt.Errorf("embedding batch %d-%d: %w", start, end, err)
 			}
@@ -384,6 +445,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 		// Build sparse vectors from the same enriched texts using BM25 over
 		// the global corpus stats (IDF + average document length).
 		sparseVectors := embedding.BuildSparseVectors(texts, corpusStats)
+		metrics.SparseVectorsBuilt += len(sparseVectors)
 		if len(sparseVectors) != len(batch) {
 			return fmt.Errorf("building sparse vectors for batch %d-%d: expected %d vectors, got %d", start, end, len(batch), len(sparseVectors))
 		}
@@ -399,9 +461,13 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 		}
 
 		// Upsert to Qdrant.
+		upsertStarted := time.Now()
 		if err := p.store.Upsert(ctx, p.collection, batch, vectors, sparseVectors); err != nil {
+			metrics.UpsertMS += time.Since(upsertStarted).Milliseconds()
 			return fmt.Errorf("upserting batch %d-%d: %w", start, end, err)
 		}
+		metrics.UpsertMS += time.Since(upsertStarted).Milliseconds()
+		metrics.UpsertBatches++
 
 		fmt.Printf("Indexed %d/%d chunks\n", end, len(allChunks))
 	}
@@ -419,9 +485,12 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 	if len(changedFiles) > 0 {
 		fmt.Printf("Cleaned up stale chunks for %d changed files\n", len(changedFiles))
 	}
+	verifyStarted := time.Now()
 	if err := p.verifySourceSnapshot(absPath, relHashes); err != nil {
+		metrics.SourceVerificationMS += time.Since(verifyStarted).Milliseconds()
 		return err
 	}
+	metrics.SourceVerificationMS += time.Since(verifyStarted).Milliseconds()
 
 	fmt.Printf("Successfully indexed %d chunks into collection %q\n", len(allChunks), p.collection)
 	fmt.Println(denseCache.summary())

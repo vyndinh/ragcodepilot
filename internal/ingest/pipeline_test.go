@@ -764,6 +764,24 @@ func TestPipeline_RunCanRetryAfterUpsertFailure(t *testing.T) {
 	}
 }
 
+func TestPipeline_RunEmitsMeasurementMetrics(t *testing.T) {
+	t.Parallel()
+
+	repoPath := writeTestRepo(t, 1)
+	store := &recordingStore{}
+	var got IndexMetrics
+	p := NewPipeline(config.Default(), &fakeEmbedder{dim: 4}, store, "metrics-test", WithMetricsSink(func(metrics IndexMetrics) {
+		got = metrics
+	}))
+
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+	if got.Status != "completed" || got.FilesScanned != 1 || got.ChunksGenerated == 0 || got.DenseCalls != 1 || got.DenseInputs != got.ChunksGenerated || got.SparseVectorsBuilt != got.ChunksGenerated || got.UpsertBatches != 1 || got.TotalMS < 0 {
+		t.Fatalf("metrics = %+v, want completed measured run", got)
+	}
+}
+
 func (e *mutatingEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
 	if !e.mutated {
 		e.mutated = true

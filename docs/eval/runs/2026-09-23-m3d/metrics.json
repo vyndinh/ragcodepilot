@@ -1,0 +1,38 @@
+{
+  "date": "2026-09-23",
+  "collection": "m3d_probe_20260922_235501",
+  "model": "nomic-embed-text:latest",
+  "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+  "clean": {
+    "files": 1,
+    "chunks": 2,
+    "dense_calls": 1,
+    "dense_inputs": 2,
+    "cache_hits": 0,
+    "cache_misses": 2,
+    "sparse_vectors": 2,
+    "upsert_batches": 1,
+    "chunk_ms": 0,
+    "sparse_stats_ms": 0,
+    "dense_ms": 906,
+    "upsert_ms": 36,
+    "source_verify_ms": 2,
+    "total_ms": 1544
+  },
+  "warm_after_one_file_addition": {
+    "files": 2,
+    "chunks": 4,
+    "dense_calls": 1,
+    "dense_inputs": 2,
+    "cache_hits": 2,
+    "cache_misses": 2,
+    "sparse_vectors": 4,
+    "upsert_batches": 1,
+    "chunk_ms": 0,
+    "sparse_stats_ms": 0,
+    "dense_ms": 49,
+    "upsert_ms": 5,
+    "source_verify_ms": 0,
+    "total_ms": 157
+  }
+}
