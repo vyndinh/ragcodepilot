@@ -855,6 +855,35 @@ func TestClient_ScrollFileStatesIncludesIndexVersion(t *testing.T) {
 	}
 }
 
+func TestClient_ScrollFileStatesMarksMixedHashOrVersion(t *testing.T) {
+	t.Parallel()
+
+	sdk := &fakeSDKClient{
+		exists: true,
+		scrollResult: []*pb.RetrievedPoint{
+			{Payload: map[string]*pb.Value{
+				"file_path":     {Kind: &pb.Value_StringValue{StringValue: "main.go"}},
+				"file_hash":     {Kind: &pb.Value_StringValue{StringValue: "same"}},
+				"index_version": {Kind: &pb.Value_StringValue{StringValue: "v2"}},
+			}},
+			{Payload: map[string]*pb.Value{
+				"file_path":     {Kind: &pb.Value_StringValue{StringValue: "main.go"}},
+				"file_hash":     {Kind: &pb.Value_StringValue{StringValue: "same"}},
+				"index_version": {Kind: &pb.Value_StringValue{StringValue: "v1"}},
+			}},
+		},
+	}
+	client := &Client{conn: sdk}
+
+	states, err := client.ScrollFileStates(context.Background(), "code_chunks", "repo", nil)
+	if err != nil {
+		t.Fatalf("ScrollFileStates() unexpected error: %v", err)
+	}
+	if !states["main.go"].MixedState {
+		t.Fatal("expected mixed representation versions to mark file state")
+	}
+}
+
 // --- DeleteByFilePaths tests ---
 
 func TestClient_DeleteStaleChunksByFilePath(t *testing.T) {

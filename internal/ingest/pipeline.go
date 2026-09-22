@@ -149,7 +149,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 		rel := absToRel[absFile]
 		existingState, exists := existingStates[rel]
 		hashMatches := exists && existingState.FileHash == hash
-		versionMatches := exists && existingState.IndexVersion == representationVersion()
+		versionMatches := exists && !existingState.MixedState && existingState.IndexVersion == representationVersion()
 		if hashMatches && versionMatches {
 			// File unchanged and already indexed with the current representation.
 			skipped++

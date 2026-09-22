@@ -371,6 +371,40 @@ func TestPipeline_RunRefreshesFileWhenIndexVersionChanges(t *testing.T) {
 	}
 }
 
+func TestPipeline_RunRefreshesMixedFileState(t *testing.T) {
+	t.Parallel()
+
+	repoPath := t.TempDir()
+	filePath := filepath.Join(repoPath, "app.py")
+	if err := os.WriteFile(filePath, []byte("# stable content\nprint('same')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hash, err := HashFile(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &recordingStore{
+		existingStates: map[string]model.FileIndexState{
+			"app.py": {
+				FileHash:     hash,
+				IndexVersion: representationVersion(),
+				MixedState:   true,
+			},
+		},
+	}
+	p := NewPipeline(config.Default(), &fakeEmbedder{dim: 4}, store, "code_chunks")
+
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+	if !reflect.DeepEqual(store.deleteFilePaths, []string{"app.py"}) {
+		t.Fatalf("deleted file paths = %v, want [app.py]", store.deleteFilePaths)
+	}
+	if store.upsertCalls != 1 {
+		t.Fatalf("Upsert calls = %d, want 1", store.upsertCalls)
+	}
+}
+
 type scriptedEmbedder struct {
 	batches [][][]float32
 	calls   int
@@ -578,6 +612,35 @@ func TestPipeline_RunDeletesChangedFilesAfterUpsert(t *testing.T) {
 	if deleteIdx < upsertIdx {
 		t.Errorf("changed-file delete (op %d) happened before upsert (op %d); want delete after upsert\nops: %v",
 			deleteIdx, upsertIdx, store.ops)
+	}
+}
+
+func TestPipeline_RunDeletesOldPointsBeforeSameHashVersionRefresh(t *testing.T) {
+	t.Parallel()
+
+	repoPath := t.TempDir()
+	filePath := filepath.Join(repoPath, "app.py")
+	if err := os.WriteFile(filePath, []byte("# stable content\nprint('same')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hash, err := HashFile(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The file content is unchanged, but its stored representation is old.
+	// The old points must be removed before new IDs are written.
+	store := &orderingStore{
+		existingHashes: map[string]string{"app.py": hash},
+	}
+	p := NewPipeline(config.Default(), &fakeEmbedder{dim: 4}, store, "test_collection")
+
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+
+	if got, want := store.ops, []string{"delete:app.py", "upsert"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("operation order = %v, want %v", got, want)
 	}
 }
 

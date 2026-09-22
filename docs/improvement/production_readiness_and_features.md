@@ -72,6 +72,11 @@ A source change during a run or a failed write must leave the run incomplete.
 Retry can replay the entire affected scope, reusing valid cached dense inputs.
 This is a single recoverable in-place index, not multiple publication generations.
 
+Existing indexes can also contain mixed file hashes or representation versions
+after an interrupted refresh. The scroll state marks a file as mixed whenever its
+points disagree; the next run refreshes and replaces the whole file so stale IDs
+cannot be accepted from an arbitrary point's metadata.
+
 Prevent overlapping CLI/watch writers with a collection-level lock. In-place writes
 can be visible while incomplete; acceptance covers recovery after successful retry,
 not atomic snapshot reads. Defer staging/reader gating unless a real requirement

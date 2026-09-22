@@ -523,10 +523,19 @@ func (c *Client) ScrollFileStates(ctx context.Context, collection, repo string, 
 			filePath := getStringValue(point.Payload, "file_path")
 			fileHash := getStringValue(point.Payload, "file_hash")
 			if filePath != "" {
-				result[filePath] = model.FileIndexState{
-					FileHash:     fileHash,
-					IndexVersion: getStringValue(point.Payload, "index_version"),
+				indexVersion := getStringValue(point.Payload, "index_version")
+				state, exists := result[filePath]
+				if !exists {
+					result[filePath] = model.FileIndexState{
+						FileHash:     fileHash,
+						IndexVersion: indexVersion,
+					}
+					continue
 				}
+				if state.FileHash != fileHash || state.IndexVersion != indexVersion {
+					state.MixedState = true
+				}
+				result[filePath] = state
 			}
 		}
 

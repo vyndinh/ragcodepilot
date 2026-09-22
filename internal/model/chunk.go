@@ -49,6 +49,7 @@ type CodeChunk struct {
 type FileIndexState struct {
 	FileHash     string
 	IndexVersion string
+	MixedState   bool // true when chunks for this file disagree on hash or representation version
 }
 
 // SearchResult represents a single result returned from a search query.

@@ -43,11 +43,12 @@ version) with the stored values to classify every file.
 │       │ Stale          │ in Qdrant, not on disk              │  │
 │       └────────────────┴─────────────────────────────────────┘  │
 │  5. Delete stale files (no replacement coming)                  │
-│  6. If nothing to index AND no stale deletions → stop early      │
-│  7. Chunk ALL current files (IDF must be corpus-wide)            │
-│  8. Embed + upsert in batches (dense + sparse)                  │
-│  9. Delete orphaned chunks for changed files (late deletion)     │
-│ 10. Print summary                                               │
+│  6. Delete same-hash files with an old representation version   │
+│  7. If nothing to index AND no stale deletions → stop early      │
+│  8. Chunk ALL current files (IDF must be corpus-wide)            │
+│  9. Embed + upsert in batches (dense + sparse)                  │
+│ 10. Delete orphaned chunks for changed files (late deletion)     │
+│ 11. Print summary                                               │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -79,6 +80,19 @@ Walk → Hash → Scroll (populated map) → Classify
 → Stop early: "Everything up to date — nothing to index"
 ```
 
+**Representation migration** (source content unchanged, stored version old):
+
+```
+Walk → Hash → Scroll → Classify as "Version refresh"
+→ Delete all points for those files before writing replacement IDs
+→ Chunk → Embed + Upsert with the current representation version
+```
+
+Deleting the file points before the replacement prevents old deterministic IDs
+from surviving when a chunker or tokenizer version changes. If embedding fails
+after deletion, the file remains incomplete and the next index run rebuilds it;
+the current pipeline does not claim atomic visibility during this interval.
+
 ## Implementation Details
 
 ### File hashing (`hasher.go`)
@@ -101,16 +115,17 @@ This field is not payload-indexed (not in `ensurePayloadIndexes`) — it's only 
 ### Scrolling existing file states (`ScrollFileStates`)
 
 ```
-ScrollFileStates(collection, repo, languages[]) → { file_path → {file_hash, index_version} }
+ScrollFileStates(collection, repo, languages[]) → { file_path → {file_hash, index_version, mixed_state} }
 
   if collection does not exist → return empty map
   scroll all points WHERE repo = repoName (AND language IN languages, if provided)
     requesting only file_path, file_hash, index_version fields
-  deduplicate by file_path (multiple chunks share the same hash/version)
-  return { file_path → {file_hash, index_version} }
+  deduplicate by file_path (multiple chunks should share the same hash/version)
+  mark mixed_state when any chunk disagrees on hash or index_version
+  return { file_path → {file_hash, index_version, mixed_state} }
 ```
 
-The `languages` parameter is critical: without it, a `--language go` re-index would see Python points, classify them as stale, and delete them.
+The `languages` parameter is critical: without it, a `--language go` re-index would see Python points, classify them as stale, and delete them. `mixed_state` is also critical: an interrupted refresh can leave old and new points for one file; the next run must refresh that file instead of trusting one arbitrary point's metadata.
 
 ### File classification in `Pipeline.Run()`
 
@@ -180,7 +195,8 @@ Cleaned up stale chunks for 3 changed files
 Successfully indexed 300 chunks into collection "code_chunks"
 ```
 
-Note: even though only 8 files changed, all 50 are re-chunked and re-embedded because IDF must be corpus-wide.
+Note: even though only 8 files changed, all 50 are re-chunked and re-embedded because IDF must be corpus-wide. A representation refresh also reindexes
+the files whose stored `index_version` is old, even when their file hashes match.
 
 > ⚠️ **Known limitation — re-index cost is not proportional to the diff.**
 > Because BM25 IDF is corpus-wide, *any* change currently triggers a full
