@@ -115,16 +115,17 @@ This field is not payload-indexed (not in `ensurePayloadIndexes`) — it's only 
 ### Scrolling existing file states (`ScrollFileStates`)
 
 ```
-ScrollFileStates(collection, repo, languages[]) → { file_path → {file_hash, index_version} }
+ScrollFileStates(collection, repo, languages[]) → { file_path → {file_hash, index_version, mixed_state} }
 
   if collection does not exist → return empty map
   scroll all points WHERE repo = repoName (AND language IN languages, if provided)
     requesting only file_path, file_hash, index_version fields
-  deduplicate by file_path (multiple chunks share the same hash/version)
-  return { file_path → {file_hash, index_version} }
+  deduplicate by file_path (multiple chunks should share the same hash/version)
+  mark mixed_state when any chunk disagrees on hash or index_version
+  return { file_path → {file_hash, index_version, mixed_state} }
 ```
 
-The `languages` parameter is critical: without it, a `--language go` re-index would see Python points, classify them as stale, and delete them.
+The `languages` parameter is critical: without it, a `--language go` re-index would see Python points, classify them as stale, and delete them. `mixed_state` is also critical: an interrupted refresh can leave old and new points for one file; the next run must refresh that file instead of trusting one arbitrary point's metadata.
 
 ### File classification in `Pipeline.Run()`
 

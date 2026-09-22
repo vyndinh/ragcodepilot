@@ -371,6 +371,40 @@ func TestPipeline_RunRefreshesFileWhenIndexVersionChanges(t *testing.T) {
 	}
 }
 
+func TestPipeline_RunRefreshesMixedFileState(t *testing.T) {
+	t.Parallel()
+
+	repoPath := t.TempDir()
+	filePath := filepath.Join(repoPath, "app.py")
+	if err := os.WriteFile(filePath, []byte("# stable content\nprint('same')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hash, err := HashFile(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &recordingStore{
+		existingStates: map[string]model.FileIndexState{
+			"app.py": {
+				FileHash:     hash,
+				IndexVersion: representationVersion(),
+				MixedState:   true,
+			},
+		},
+	}
+	p := NewPipeline(config.Default(), &fakeEmbedder{dim: 4}, store, "code_chunks")
+
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+	if !reflect.DeepEqual(store.deleteFilePaths, []string{"app.py"}) {
+		t.Fatalf("deleted file paths = %v, want [app.py]", store.deleteFilePaths)
+	}
+	if store.upsertCalls != 1 {
+		t.Fatalf("Upsert calls = %d, want 1", store.upsertCalls)
+	}
+}
+
 type scriptedEmbedder struct {
 	batches [][][]float32
 	calls   int
