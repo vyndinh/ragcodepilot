@@ -66,7 +66,7 @@ their original meanings; gaps refer to retired proposals.
 | ID | Scope | Size | Exit criterion | Status |
 |---|---|---|---|---|
 | M0 | Fresh evidence on self + one external repo | S–M | Pinned inputs, saved reports, named failure inventory, manual comparison checklist | Complete as measurement; known failures retained |
-| M3 | Dense reuse + retry/cleanup | M | Cache reuse and invalidation, interrupted-run replay, stale-ID cleanup, one writer per index | Next: recovery/cache implementation |
+| M3 | Dense reuse + retry/cleanup | M | Cache reuse and invalidation, interrupted-run replay, stale-ID cleanup, one writer per index | Cache complete; recovery/cleanup next |
 | M4 | Existing-command errors + .gitignore | S–M | Actionable operation-specific failures; nested ignore/exclusion behavior verified | Independent |
 | M1 | Sources-first terminal output | S | Exact answer sources appear before warmup and generation | Optional small UX change |
 
@@ -122,9 +122,9 @@ collection. See the [run-state contract](../improvement/production_readiness_and
 
 ### M3-B: Dense cache and reliable retry (next)
 
-- [ ] Cache dense vectors by model artifact, preprocessing, and exact enriched
+- [x] Cache dense vectors by model artifact, preprocessing, and exact enriched
   input. Reuse unchanged inputs; correctly invalidate model/enrichment/chunker changes.
-- [ ] Retain the existing full sparse refresh and complete-point upsert path.
+- [x] Retain the existing full sparse refresh and complete-point upsert path.
   Do not add sparse-only updates, staged collections, or atomic index swapping.
 - [ ] Verify deletions, renames, obsolete chunk cleanup, interrupted-run retries,
   and source changes during indexing.

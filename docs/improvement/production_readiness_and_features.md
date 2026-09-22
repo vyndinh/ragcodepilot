@@ -57,13 +57,26 @@ The lock is released after the marker is completed or failed. This prevents
 overlapping CLI/watch writers while keeping in-place updates and their recovery
 limits explicit.
 
-### M3-B — Dense cache contract (proposed)
+### M3-B — Dense cache [core complete; recovery/cleanup open]
 
-The first implementation is a content-addressed dense cache with the existing
+The implementation is a content-addressed dense cache with the existing
 full sparse refresh and complete-point upserts. Sparse-only vector updates, staged
 collections, and atomic swaps are deferred. The M3-A run-state and writer contract
 above handles interrupted ownership; the cache alone does not make a failed run
 safe to resume.
+
+The implementation stores one JSON vector entry per key under
+`<user-cache>/ragcodepilot/index-state/dense-cache/<collection-hash>/`. Each key
+includes the exact enriched text, representation version, and embedder identity.
+The Ollama identity includes the model artifact digest returned by `/api/tags`;
+other embedders fall back to their concrete type and dimension until they expose
+a stronger identity. Cache entries are written through a temporary file and rename,
+and corrupt or dimension-mismatched entries are treated as misses.
+
+The existing sparse-statistics and complete-point upsert path is unchanged. A run
+reports dense cache hits and misses; cache misses call the embedder only for the
+missing texts in each batch. Cache writes occur only after vector validation, so a
+failed embedding cannot publish a partial vector entry.
 
 ```text
 on index(scope):
