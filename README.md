@@ -8,7 +8,7 @@
 2. **Augment** — feed those code snippets into a prompt as context.
 3. **Generate** — have an LLM produce an answer grounded in the retrieved code.
 
-**Retrieval is fully implemented** — you can point the tool at a local repository, index it, and search with natural language queries like *"how does the chunking work?"*. **Answer generation (v0) is now available** via the opt-in `--answer` flag, which feeds the retrieved chunks to a local Ollama model (`qwen2.5-coder:7b`) and prints a synthesized answer above its sources. Additional providers remain deferred; the [roadmap](docs/plan/mvp_roadmap.md) prioritizes local indexing reliability and external-repository evaluation.
+**Retrieval is fully implemented** — you can point the tool at a local repository, index it, and search with natural language queries like *"how does the chunking work?"*. **Answer generation (v0) is now available** via the opt-in `--answer` flag, which feeds the retrieved chunks to a local Ollama model (`qwen2.5-coder:7b`) and prints a synthesized answer above its sources. Additional providers remain deferred; the [roadmap](docs/plan/mvp_roadmap.md) prioritizes a fresh baseline plus one external repository, dense embedding reuse with recovery, and actionable errors/.gitignore support.
 
 Answer mode is **opt-in** — without it, the tool works as a pure code search engine. Usage is through one-shot CLI commands; an interactive REPL remains deferred.
 
@@ -18,7 +18,7 @@ Answer mode is **opt-in** — without it, the tool works as a pure code search e
 
 - Go CLI with Qdrant as the vector database backend.
 - Local Ollama embedder using `nomic-embed-text` (768-dimensional vectors, auto-detected).
-- Go files are chunked at the function level using `go/parser` AST; other languages use a 40-line sliding window.
+- Go functions/methods and named types/interfaces are chunked using `go/parser` AST; other languages use a 40-line sliding window.
 - Chunk enrichment prepends file/language/function metadata to embedding input for improved search relevance.
 - Search with dense vector lookup and optional language and repo payload filtering.
 - **Answer mode (`--answer`)**: feeds retrieved chunks to a local Ollama generative model (`qwen2.5-coder:7b` by default) and prints a synthesized answer above its sources. Opt-in; the default `search` path is unchanged.
@@ -28,7 +28,7 @@ Answer mode is **opt-in** — without it, the tool works as a pure code search e
 - Collection list and delete commands.
 - `config.yaml` is auto-loaded during indexing when present; built-in defaults are used only when it is absent.
 
-Hybrid search is implemented: BM25 sparse vectors (`k1=0.5`, `b=0.75`) + dense vectors + Reciprocal Rank Fusion (`--mode dense|sparse|hybrid`, default `hybrid`), with additive Snowball stemming on the BM25 path. Historical baseline (`baseline_v6`, 182 chunks, 23 golden queries): `hit@5 = 0.895`, `hit@1 = 0.579`, `MRR@5 = 0.673`, `recall@5 = 0.789`, `recall@10 = 0.921`. (Indexing excludes `*_test.go` by default — see [`config.yaml`](config.yaml) `skip_file_patterns`; this recovered `hit@5` from 0.789 to 0.895 by keeping test chunks out of the top-K.) Cross-encoder reranking and new chunkers remain conditional experiments. The [roadmap evidence snapshot](docs/plan/mvp_roadmap.md#evidence-snapshot-and-branch-boundary) distinguishes this branch from newer saved evidence on local main and explains the corrected negative-query scoring. MCP, an agent-first pivot, and multi-repo workspace commands are removed from active scope; existing search filters remain available.
+Hybrid search is implemented: BM25 sparse vectors (`k1=0.5`, `b=0.75`) + dense vectors + Reciprocal Rank Fusion (`--mode dense|sparse|hybrid`, default `hybrid`), with additive identifier tokens and Snowball stemming on the BM25 path. Historical baseline (`baseline_v6`, 182 chunks, 23 golden queries): `hit@5 = 0.895`, `hit@1 = 0.579`, `MRR@5 = 0.673`, `recall@5 = 0.789`, `recall@10 = 0.921`. (Indexing excludes `*_test.go` by default — see [`config.yaml`](config.yaml) `skip_file_patterns`; this recovered `hit@5` from 0.789 to 0.895 by keeping test chunks out of the top-K.) Cross-encoder reranking and new chunkers remain conditional experiments. The [roadmap evidence snapshot](docs/plan/mvp_roadmap.md#evidence-snapshot-and-branch-boundary) records the reconciled implementation and saved v8 evidence, explains corrected negative-query scoring, and identifies the fresh baseline still needed. MCP, an agent-first pivot, and multi-repo workspace commands are removed from active scope; existing search filters remain available.
 
 ## Architecture
 
@@ -118,13 +118,14 @@ Index this repository (Go files only):
 go run ./cmd/ragcodepilot index --language go .
 ```
 
-Index once, then stay running and re-index on file changes (incremental):
+Index once, then stay running and re-index on file changes:
 
 ```bash
 go run ./cmd/ragcodepilot index --language go --watch .
-# Edits are detected via fsnotify; debounced and re-indexed via the same
-# pipeline. Press Ctrl-C to exit. Respects skip_dirs and skip_file_patterns
-# in config.yaml, just like a one-shot index.
+# Edits are detected via fsnotify, debounced, and run through the same
+# pipeline as a one-shot index (full re-embed when anything changed).
+# Press Ctrl-C to exit. Respects skip_dirs and skip_file_patterns
+# in config.yaml.
 ```
 
 Search indexed code:
@@ -226,7 +227,7 @@ docker compose down
 | `-embedder` | `ollama` | Embedder to use: `ollama`, `fake` |
 | `-ollama-url` | `http://localhost:11434` | Ollama server URL |
 | `-ollama-model` | `nomic-embed-text` | Ollama embedding model |
-| `-watch` | `false` | After the initial index, watch repo for changes and re-index incrementally (blocks until Ctrl-C) |
+| `-watch` | `false` | After the initial index, watch the repo and re-run the index pipeline on changes (blocks until Ctrl-C). Same cost as a one-shot re-index when anything changed. |
 | `-qdrant-host` | `localhost` | Qdrant host |
 | `-qdrant-port` | `6334` | Qdrant gRPC port |
 
@@ -362,7 +363,8 @@ go run ./cmd/ragcodepilot index --language go .
 ## Known limitations
 
 - Function-level chunking is Go-only (AST-based). Other languages use a sliding window.
-- Sparse vectors use BM25 with a softened `k1=0.5` (Elasticsearch's default `k1=1.2` is calibrated for long, mixed-length documents; code chunks are short and uniform, so milder TF saturation gave a much cleaner result on the May 2026 eval — hit@1 +21pp vs TF-IDF). The original plural/singular token-mismatch regression on the `hasher_concept` query was resolved on 2026-05-15 by additive Snowball stemming (`baseline_v4`). See [`docs/plan/hybrid_search.md`](docs/plan/hybrid_search.md) §3 for the full history and eval matrix.
+- Re-index is not proportional to the diff. Because BM25 IDF is corpus-wide, any file change re-embeds **all** current files through Ollama. Change detection only skips work when the corpus is byte-identical. Fine at ~200 chunks; painful at tens of thousands. See [`docs/improvement/reindexing.md`](docs/improvement/reindexing.md).
+- Sparse vectors use BM25 with a softened `k1=0.5` (Elasticsearch's default `k1=1.2` is calibrated for long, mixed-length documents; code chunks are short and uniform, so milder TF saturation gave a much cleaner result on the May 2026 eval — hit@1 +21pp vs TF-IDF). The original plural/singular token-mismatch regression on the `hasher_concept` query was resolved on 2026-05-15 by additive Snowball stemming (`baseline_v4`). CamelCase/snake_case identifiers also keep a joined token (`ChunkFile` → `chunkfile` + `chunk` + `file`) so exact-symbol queries are not reduced to generic parts. See [`docs/plan/hybrid_search.md`](docs/plan/hybrid_search.md) §3 for the full history and eval matrix.
 - Embedding dimension is auto-detected; switching models requires collection delete + re-index.
 
 ## Further docs

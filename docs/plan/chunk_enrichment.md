@@ -88,9 +88,11 @@ enrichForEmbedding(chunk) → enriched_text:
 
 
 chunkTypeLabel(type) → label:
-  "function" → "Function"
-  "block"    → "Block"
-  otherwise  → "Chunk"
+  "function"  → "Function"
+  "block"     → "Block"
+  "type"      → "Type"
+  "interface" → "Interface"
+  otherwise   → "Chunk"
 ```
 
 Design decisions:

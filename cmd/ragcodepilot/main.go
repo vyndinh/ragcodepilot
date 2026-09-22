@@ -39,7 +39,7 @@ func main() {
 		embedderType := fs.String("embedder", "ollama", "Embedder to use: ollama, fake")
 		ollamaURL := fs.String("ollama-url", "http://localhost:11434", "Ollama server URL")
 		ollamaModel := fs.String("ollama-model", "nomic-embed-text", "Ollama embedding model")
-		watch := fs.Bool("watch", false, "After the initial index, watch for file changes and incrementally re-index (blocks until Ctrl-C)")
+		watch := fs.Bool("watch", false, "After the initial index, watch for file changes and re-run the index pipeline (blocks until Ctrl-C)")
 		_ = fs.Parse(os.Args[2:])
 
 		if fs.NArg() < 1 {
@@ -239,7 +239,7 @@ Index flags:
   -embedder string       Embedder to use: ollama, fake (default "ollama")
   -ollama-url string     Ollama server URL (default "http://localhost:11434")
   -ollama-model string   Ollama embedding model (default "nomic-embed-text")
-  -watch                 After initial index, watch repo for changes and re-index (blocks until Ctrl-C)
+  -watch                 After initial index, watch repo and re-run the index pipeline on changes (blocks until Ctrl-C)
   -qdrant-host string    Qdrant host (default "localhost")
   -qdrant-port int       Qdrant gRPC port (default 6334)
 

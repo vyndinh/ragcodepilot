@@ -313,7 +313,7 @@ func TestPipeline_RunSkipsWhenHashAndIndexVersionMatch(t *testing.T) {
 		existingStates: map[string]model.FileIndexState{
 			"app.py": {
 				FileHash:     hash,
-				IndexVersion: embedding.SparseIndexVersion,
+				IndexVersion: representationVersion(),
 			},
 		},
 	}
@@ -363,8 +363,8 @@ func TestPipeline_RunRefreshesFileWhenIndexVersionChanges(t *testing.T) {
 	if len(store.upsertedChunks) != 1 {
 		t.Fatalf("upserted chunks = %d, want 1", len(store.upsertedChunks))
 	}
-	if got := store.upsertedChunks[0].IndexVersion; got != embedding.SparseIndexVersion {
-		t.Fatalf("upserted index version = %q, want %q", got, embedding.SparseIndexVersion)
+	if got := store.upsertedChunks[0].IndexVersion; got != representationVersion() {
+		t.Fatalf("upserted index version = %q, want %q", got, representationVersion())
 	}
 }
 
@@ -443,7 +443,7 @@ func (s *recordingStore) ScrollFileStates(_ context.Context, _, _ string, _ []st
 		for filePath, hash := range s.existingHashes {
 			states[filePath] = model.FileIndexState{
 				FileHash:     hash,
-				IndexVersion: embedding.SparseIndexVersion,
+				IndexVersion: representationVersion(),
 			}
 		}
 		return states, nil

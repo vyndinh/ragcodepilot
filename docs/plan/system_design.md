@@ -16,12 +16,11 @@ document describes the **current architecture as built**, plus the original
 requirements and scale framing. The implementation establishes current behavior;
 the roadmap establishes planned work, never proof that a feature has shipped.
 
-**Branch boundary:** this document describes `docs_update` code at `d3775cf`.
-Reviewed local main at `a3ac8ff` additionally has additive identifier tokens,
-named Go type/interface chunks, a combined chunker/tokenizer representation
-version, and mode-calibrated negative evaluation. Those changes have not been
-merged into this branch by this documentation update. The roadmap records the
-latest saved main evidence and requires a fresh run after reconciliation.
+**Implementation snapshot:** reconciled with fetched `origin/main` at `a3ac8ff`
+on 2026-09-22. This includes additive identifier tokens, named Go type/interface
+chunks, combined chunker/tokenizer representation versioning, and mode-calibrated
+negative evaluation. This PR changes documentation relative to that base. Saved
+v8 evidence predates some chunker changes, so a fresh baseline remains M0 work.
 
 ---
 
@@ -63,7 +62,7 @@ direction).
 | # | Requirement | Status |
 |---|---|---|
 | F1 | Ingest code from local Git repositories | ✅ |
-| F2 | Parse and chunk code into meaningful units | ✅ Go: AST function-level; other languages: sliding window + regex naming |
+| F2 | Parse and chunk code into meaningful units | ✅ Go: AST functions/methods and named types/interfaces; other languages: sliding window + regex naming |
 | F3 | Generate vector embeddings for each code chunk | ✅ dense (Ollama) + sparse (BM25), enriched input |
 | F4 | Semantic search: natural language query → relevant code | ✅ |
 | F5 | Filtered search: by language, repo | ✅ payload-indexed filters |
@@ -176,12 +175,13 @@ chunks of changed files
   finding; see `retrieval_quality_decisions.md` §2.5).
 - **Change detection**: SHA-256 file hash + `index_version` payload per chunk —
   see [`../improvement/reindexing.md`](../improvement/reindexing.md).
-- **Chunkers**: Go → AST function-level (`chunker_go.go`); other languages →
+- **Chunkers**: Go → AST functions/methods and named types/interfaces
+  (`chunker_go.go`); other languages →
   sliding window (~40 lines, 10-line overlap) with regex name extraction.
 - **Enrichment**: prepends file path / language / chunk type+name to the text
   sent to the embedder (payload keeps raw code) — `chunk_enrichment.md`.
 - **Sparse vectors**: code-aware tokenizer (camelCase/snake_case splitting,
-  stop-word + Go-keyword removal, additive Snowball stemming), BM25 with
+  stop-word + Go-keyword removal, additive identifier tokens and Snowball stemming), BM25 with
   `k1=0.5, b=0.75`, statistics computed over the current repo/language scope — `hybrid_search.md`.
 - **Watch mode**: `index --watch` = fsnotify + 500 ms debounce, re-runs the
   pipeline on change — `architecture_decisions.md` §3.
@@ -236,10 +236,10 @@ per-stage latency percentiles, per-type breakdown. With `--answer`, adds
 reference-free Tier B answer metrics (citation validity, refusal-on-negative,
 well-formedness) — report-only, never gated. Baselines are committed under
 `docs/eval/`. v6/v7 are historical reports on this branch; the latest saved
-baseline on reviewed main is `main:docs/eval/baseline_v8.json`. Its 0.50 negative
-pass rate uses the corrected RRF ceiling (0.02); this branch still applies the
-historical YAML threshold directly. Do not treat its hybrid 1.00 as evidence of
-negative-query safety or compare score families without calibration. See
+baseline is `baseline_v8.json`. Its 0.50 negative pass rate uses the corrected
+RRF ceiling (0.02), now also in this branch. The historical v6/v7 1.00 rates
+used an ineffective cosine threshold. They do not establish negative-query
+safety; score families require separate calibration. See
 [`../eval/README.md`](../eval/README.md).
 
 #### 7. Qdrant (`internal/qdrant`)
@@ -264,15 +264,15 @@ Key decisions:
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Chunk unit | Go: per-function (AST); others: sliding window ~40 lines / 10 overlap | Semantic boundaries beat arbitrary splits |
+| Chunk unit | Go: functions/methods and named types/interfaces (AST); others: sliding window ~40 lines / 10 overlap | Semantic boundaries beat arbitrary splits |
 | Embedding input | Enriched (path + language + type/name header) | Large lift on natural-language queries |
 | Embedding model | `nomic-embed-text` via Ollama (768d) | Local, free, adequate; code-specialized model is an open lever (`cheaper_levers.md`) |
 | Vector dimension | Auto-detected + validated | Detects size mismatch; model/preprocessing provenance remains a gap |
-| Sparse algorithm | BM25 `k1=0.5, b=0.75` + Snowball stemming | Eval-driven: +15.8pp hit@1 vs TF-IDF with no hit@5 loss (`hybrid_search.md` §3) |
+| Sparse algorithm | BM25 `k1=0.5, b=0.75` + additive identifiers and Snowball stemming | Eval-driven: +15.8pp hit@1 vs TF-IDF with no hit@5 loss (`hybrid_search.md` §3) |
 | Test files | `*_test.go` excluded by default | They crowded top-K; excluding lifted hit@5 0.789→0.895 |
 | Batch size | 32 embed / upsert batch | Throughput vs memory |
 | Point ID | Hash of repo + file path + symbol + chunk index; unnamed chunks use start line | Named IDs can survive line shifts; changed shapes need stale-ID cleanup |
-| Change detection | SHA-256 file hash + `index_version` | mtime is unreliable; version catches tokenizer changes |
+| Change detection | SHA-256 file hash + combined tokenizer/chunker `index_version` | Detects tracked representation changes; model/enrichment fingerprinting remains planned |
 
 ### Search flow
 
@@ -302,7 +302,7 @@ User query -> Embed -> mode (dense | sparse | hybrid+RRF) + filters
     "end_line": 87,
     "indexed_at": "2026-07-06T00:00:00Z",
     "file_hash": "9f2c…",
-    "index_version": "sparse-bm25-snowball-v1"
+    "index_version": "sparse-bm25-snowball-ident-v2+go-types-v1"
   }
 }
 ```
@@ -318,10 +318,11 @@ User query -> Embed -> mode (dense | sparse | hybrid+RRF) + filters
 - ✅ **P2 — Hybrid search**: BM25 sparse + dense + server-side RRF, default mode.
 - ✅ **P5 v0 — `--answer` mode**: grounded answers via local Ollama, Tier B answer eval.
 - ✅ **Re-indexing + watch mode**: hash/version change detection, fsnotify watch.
-- **Next:** M0 refreshed evidence, then M3 indexing reliability/external eval;
-  M4 local diagnostics/hygiene can proceed alongside them.
-- **Optional:** M1 answer streaming, driven by CLI use and measured latency.
-- **Deferred:** M5 retrieval layers until current failures justify them.
+- **Next:** M0 fresh baseline plus one external repository, then M3 dense reuse
+  with retry/cleanup. M4 existing-command errors and .gitignore can proceed independently.
+- **Optional:** M1 sources-first output before generation.
+- **Deferred:** streaming, standalone doctor, automated retrieval CI, scanners,
+  and M5 retrieval layers/prototypes until repeated failures justify them.
 - **Removed from active scope:** M2 MCP/agent-first integration, multi-repo
   workspace commands, and shared/team deployment.
 
@@ -336,7 +337,7 @@ User query -> Embed -> mode (dense | sparse | hybrid+RRF) + filters
 | Tree-sitter vs regex vs AST | Go AST now; regex fallback; tree-sitter deferred | Best chunks where it matters most, least complexity |
 | CLI vs daemon | Thin CLI; Qdrant+Ollama are the daemons | See `architecture_decisions.md` — daemon solves problems we don't have |
 | Collection scope | Existing repo filters; separate collections for distinct evaluation/worktree scopes | Basename repo IDs can collide; independently indexed scopes have different BM25 statistics |
-| Eval gating | Current reports require manual judgment; score-aware CI planned in M3 | Frozen paired evidence and named failures precede automated quality gates |
+| Eval gating | Manual pinned-input comparisons; automated retrieval CI deferred | Frozen paired evidence and named failures precede automated quality gates |
 
 ---
 

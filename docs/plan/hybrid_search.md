@@ -211,7 +211,11 @@ Elasticsearch defaults `k1=1.2` are calibrated for long, mixed-length documents 
 
 The tokenizer now uses additive Snowball stemming via [`github.com/kljensen/snowball`](https://github.com/kljensen/snowball): `Tokenize("hashes")` emits both `hashes` and `hash`, preserving exact tokens while adding a normalized matching dimension. The stem is filtered through the stop-word list so that, e.g., `having → have` (stop word) is dropped consistently. BM25's `docLen` uses the **unstemmed** token count so the doubled token list doesn't inflate length normalization.
 
-Because this change affects stored sparse vectors even when source files don't change, indexed chunks now carry an `index_version` payload (current value: `sparse-bm25-snowball-v1`). The ingestion pipeline classifies files into a fifth category — *index-version refresh* — and re-embeds them when the stored version differs from `embedding.SparseIndexVersion`, eliminating manual `collections delete` for future tokenizer or weighting changes.
+Because this change affects stored sparse vectors even when source files don't change, indexed chunks now carry an `index_version` payload. The ingestion pipeline classifies files into a fifth category — *index-version refresh* — and re-embeds them when the stored version differs from `embedding.SparseIndexVersion`, eliminating manual `collections delete` for future tokenizer or weighting changes. Stemming shipped as `sparse-bm25-snowball-v1`; additive identifier tokens later bumped it to `sparse-bm25-snowball-ident-v2`.
+
+#### Additive identifier tokens
+
+CamelCase / snake_case splits used to drop the identifier itself: `ChunkFile` became only `chunk` + `file`, so "where is ChunkFile defined" competed with every chunk about files. The tokenizer now also emits the concatenated lowercase form (`chunkfile`) as an extra matching dimension, same additive pattern as stemming. `ChunkFile` and `chunk_file` share `chunkfile`. Joined forms are not stemmed (they are not English words). BM25 `docLen` still counts split parts only. Current `SparseIndexVersion`: `sparse-bm25-snowball-ident-v2`.
 
 **Result:** `hasher_concept` recovered (concept hit@5 back to 1.000), overall hit@5 returned to the TF-IDF level (0.895), MRR@5 stayed within 0.7pp of P3 (0.699 vs 0.706). Cost: 2 navigation queries dropped from hit@1 (`run_eval_navigation`, `hihatk_navigation`) — expected stemming cost as the expanded token space adds competition for exact-identifier queries; 1 concept query gained hit@1 (`chunking_concept`). Net top-1 change vs P3: −5.3pp. Net top-5 change vs P3: +5.3pp.
 
@@ -245,6 +249,7 @@ Code-aware tokenizer that produces `SparseVector` values:
 - Sub-split camelCase: `ChunkFile` → `["chunk", "file"]`
 - Sub-split snake_case: `chunk_file` → `["chunk", "file"]`
 - Keep digit runs attached: `sha256Hash` → `["sha256", "hash"]`
+- Additive unsplitted identifier when a word splits: `ChunkFile` / `chunk_file` also emit `chunkfile`
 - Lowercase all tokens
 - Remove Go keywords and common English stop words
 - Add stemmed variants without replacing originals: `hashes` → `["hashes", "hash"]`
@@ -273,10 +278,10 @@ function TokenizeQuery(query) → SparseVector
 **Token hashing (CRC32):** With ~1M unique tokens in a code corpus, CRC32 (4B values) has an expected birthday-paradox collision count of ~120 — small but non-zero. Two different tokens sharing a hash get merged into one sparse dimension. This is accepted for the MVP. If retrieval quality suffers, upgrade to xxhash or a per-collection vocab map.
 
 **Test cases:**
-- camelCase: `"ChunkFile"` → `["chunk", "file"]`
-- snake_case: `"chunk_file"` → `["chunk", "file"]`
-- Mixed: `"NewVectorInputSparse"` → `["new", "vector", "input", "sparse", "spars"]`
-- Numbers: `"sha256Hash"` → `["sha256", "hash"]`
+- camelCase: `"ChunkFile"` → `["chunkfile", "chunk", "file"]`
+- snake_case: `"chunk_file"` → `["chunkfile", "chunk", "file"]`
+- Mixed: `"NewVectorInputSparse"` → `["newvectorinputsparse", "new", "vector", "input", "sparse", "spars"]`
+- Numbers: `"sha256Hash"` → `["sha256hash", "sha256", "hash"]`
 - Stemming: `"hashes"` preserves `hashes` and adds `hash`
 - Stop word removal
 - Sparse vector output: keys are uint32, values are positive floats

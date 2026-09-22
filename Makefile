@@ -1,4 +1,4 @@
-.PHONY: help build test lint vet tidy check run-index run-search up down clean
+.PHONY: help build test lint vet tidy check run-index run-search up down clean site
 
 # Default target
 help:
@@ -12,9 +12,10 @@ help:
 	@echo "    tidy         Run go mod tidy"
 	@echo "    check        Run vet + tidy + lint + test (mirrors CI)"
 	@echo ""
-	@echo "  Infrastructure"
+	@echo "  Infrastructure & Website"
 	@echo "    up           Start Qdrant via Docker Compose"
 	@echo "    down         Stop Qdrant"
+	@echo "    site         Start local HTTP server for website preview (:8000)"
 	@echo ""
 	@echo "  Quick run (requires Qdrant running)"
 	@echo "    index        Index the current repo (go, ragcodepilot)"
@@ -53,6 +54,10 @@ up:
 
 down:
 	docker compose down
+
+site:
+	@echo "Serving website at http://localhost:8000 (Press Ctrl+C to stop)"
+	python3 -m http.server 8000 --directory site
 
 # ─── Quick run ────────────────────────────────────────────────────────────────
 

@@ -4,6 +4,8 @@
 [roadmap](mvp_roadmap.md) must establish current failures before either experiment
 enters M5. A conventional technique is not automatically useful for this corpus.
 Keep Go + Ollama + Qdrant and the default hybrid path until evidence supports a change.
+No availability spike, model sweep, or reranker prototype is scheduled in M0/M3;
+these notes are used only after repeated real failures reopen a specific experiment.
 
 ## Evidence and selection
 
@@ -94,7 +96,7 @@ python3 docs/eval/compare.py /tmp/base_full.json /tmp/candidate_full.json
 python3 docs/eval/compare.py /tmp/base_structural.json /tmp/candidate_structural.json
 ```
 
-Run only after M0 reconciles score calibration with main. Structural-only runs
+Run only after M0 captures a fresh baseline of the reconciled implementation. Structural-only runs
 contain no negatives; the full and external sets supply those checks. If changing
 a score family/model requires calibration, perform it on a separate calibration
 split and freeze the rules before evaluating held-out queries.

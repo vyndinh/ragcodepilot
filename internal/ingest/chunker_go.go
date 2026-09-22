@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
-	"go/token"
+	gotoken "go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,16 +18,16 @@ import (
 const maxFunctionLines = 80
 
 // chunkGoFile parses a Go source file using go/ast and produces one chunk
-// per function/method declaration. Code between functions (imports, types,
-// package-level vars) is collected into "block" chunks. If the file has
-// syntax errors, it falls back to the generic sliding-window chunker.
+// per function/method and per named type/interface. Remaining code (imports,
+// vars, consts) is collected into "block" chunks. If the file has syntax
+// errors, it falls back to the generic sliding-window chunker.
 func chunkGoFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *config.Config) ([]model.CodeChunk, error) {
 	src, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("reading file %s: %w", filePath, err)
 	}
 
-	fset := token.NewFileSet()
+	fset := gotoken.NewFileSet()
 	file, parseErr := parser.ParseFile(fset, filePath, src, parser.ParseComments)
 	if parseErr != nil {
 		// Syntax error — fall back to generic chunker.
@@ -47,53 +47,38 @@ func chunkGoFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *c
 
 	var chunks []model.CodeChunk
 
-	// Track which lines are covered by function declarations so we can
-	// collect the gaps as "block" chunks.
+	// Track lines covered by named declarations so remaining gaps (imports,
+	// vars, consts) can be collected as "block" chunks.
 	covered := make([]bool, len(lines))
 
 	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok {
-			continue
-		}
-
-		// Determine the start line, including the doc comment if present.
-		startPos := fn.Pos()
-		if fn.Doc != nil {
-			startPos = fn.Doc.Pos()
-		}
-		startLine := fset.Position(startPos).Line // 1-based
-		endLine := fset.Position(fn.End()).Line   // 1-based
-
-		// Mark lines as covered.
-		for i := startLine - 1; i < endLine && i < len(lines); i++ {
-			covered[i] = i < len(lines)
-		}
-
-		name := fn.Name.Name
-		content := joinLines(lines, startLine, endLine)
-
-		funcLines := endLine - startLine + 1
-		if funcLines > maxFunctionLines {
-			// Large function — split with sliding window.
-			subChunks := splitLargeBlock(lines, startLine, endLine, relPath, repo, language, chunkSize, overlap, "function", name)
-			chunks = append(chunks, subChunks...)
-		} else {
-			chunks = append(chunks, model.CodeChunk{
-				ID:        generateChunkID(repo, relPath, name, 0),
-				Repo:      repo,
-				FilePath:  relPath,
-				Language:  language,
-				ChunkType: "function",
-				Name:      name,
-				Content:   content,
-				StartLine: startLine,
-				EndLine:   endLine,
-			})
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			startPos := d.Pos()
+			if d.Doc != nil {
+				startPos = d.Doc.Pos()
+			}
+			startLine := fset.Position(startPos).Line
+			endLine := fset.Position(d.End()).Line
+			markCovered(covered, startLine, endLine)
+			chunks = append(chunks, namedGoChunks(lines, startLine, endLine, relPath, repo, language, chunkSize, overlap, "function", d.Name.Name)...)
+		case *ast.GenDecl:
+			if d.Tok != gotoken.TYPE {
+				continue
+			}
+			for i, s := range d.Specs {
+				spec, ok := s.(*ast.TypeSpec)
+				if !ok || spec.Name == nil || spec.Name.Name == "_" {
+					continue
+				}
+				startLine, endLine := typeSpecLines(fset, d, spec, i)
+				markCovered(covered, startLine, endLine)
+				chunks = append(chunks, namedGoChunks(lines, startLine, endLine, relPath, repo, language, chunkSize, overlap, goTypeChunkKind(spec), spec.Name.Name)...)
+			}
 		}
 	}
 
-	// Collect non-function code (imports, types, vars, consts) as gap chunks.
+	// Collect leftover code (imports, vars, consts) as gap chunks.
 	gapChunks := collectGapChunks(lines, covered, relPath, repo, language, chunkSize, overlap)
 	chunks = append(chunks, gapChunks...)
 
@@ -101,6 +86,61 @@ func chunkGoFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *c
 	sortChunksByStartLine(chunks)
 
 	return chunks, nil
+}
+
+func markCovered(covered []bool, startLine, endLine int) {
+	for i := startLine - 1; i < endLine && i < len(covered); i++ {
+		if i >= 0 {
+			covered[i] = true
+		}
+	}
+}
+
+// typeSpecLines returns 1-based inclusive source lines for one TypeSpec.
+// The first spec in a GenDecl includes the `type` keyword and group doc;
+// the last spec includes a closing `)` of a grouped declaration.
+func typeSpecLines(fset *gotoken.FileSet, decl *ast.GenDecl, spec *ast.TypeSpec, specIndex int) (startLine, endLine int) {
+	startPos := spec.Pos()
+	if spec.Doc != nil {
+		startPos = spec.Doc.Pos()
+	}
+	if specIndex == 0 {
+		if decl.Doc != nil {
+			startPos = decl.Doc.Pos()
+		} else {
+			startPos = decl.Pos()
+		}
+	}
+	endPos := spec.End()
+	if specIndex == len(decl.Specs)-1 {
+		endPos = decl.End()
+	}
+	return fset.Position(startPos).Line, fset.Position(endPos).Line
+}
+
+func goTypeChunkKind(spec *ast.TypeSpec) string {
+	if _, ok := spec.Type.(*ast.InterfaceType); ok {
+		return "interface"
+	}
+	return "type"
+}
+
+func namedGoChunks(lines []string, startLine, endLine int, relPath, repo, language string, chunkSize, overlap int, chunkType, name string) []model.CodeChunk {
+	nLines := endLine - startLine + 1
+	if nLines > maxFunctionLines {
+		return splitLargeBlock(lines, startLine, endLine, relPath, repo, language, chunkSize, overlap, chunkType, name)
+	}
+	return []model.CodeChunk{{
+		ID:        generateChunkID(repo, relPath, name, 0),
+		Repo:      repo,
+		FilePath:  relPath,
+		Language:  language,
+		ChunkType: chunkType,
+		Name:      name,
+		Content:   joinLines(lines, startLine, endLine),
+		StartLine: startLine,
+		EndLine:   endLine,
+	}}
 }
 
 // collectGapChunks gathers consecutive uncovered lines into "block" chunks.

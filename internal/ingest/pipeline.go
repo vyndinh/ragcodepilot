@@ -73,6 +73,15 @@ func NewPipeline(cfg *config.Config, embedder embedding.Embedder, store vectorSt
 	return p
 }
 
+// chunkerVersion is bumped when AST/chunk shape changes (e.g. extracting
+// named type chunks) so unchanged files are re-indexed. Stored with the
+// sparse tokenizer version in IndexVersion.
+const chunkerVersion = "go-types-v1"
+
+func representationVersion() string {
+	return embedding.SparseIndexVersion + "+" + chunkerVersion
+}
+
 // Run walks the repository, chunks files, embeds them, and upserts to Qdrant.
 // On re-index, it uses file hashes to skip unchanged files, delete stale points,
 // and avoid work when the corpus is unchanged. When any file changes, sparse
@@ -139,9 +148,9 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 		rel := absToRel[absFile]
 		existingState, exists := existingStates[rel]
 		hashMatches := exists && existingState.FileHash == hash
-		versionMatches := exists && existingState.IndexVersion == embedding.SparseIndexVersion
+		versionMatches := exists && existingState.IndexVersion == representationVersion()
 		if hashMatches && versionMatches {
-			// File unchanged and already indexed with the current sparse representation.
+			// File unchanged and already indexed with the current representation.
 			skipped++
 			continue
 		}
@@ -151,7 +160,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 			// File changed — mark for post-upsert cleanup.
 			changedFiles = append(changedFiles, rel)
 		} else {
-			// File content is unchanged, but tokenizer/sparse representation changed.
+			// File content is unchanged, but tokenizer/chunker representation changed.
 			versionRefreshes++
 		}
 		// New, changed, or stale-index-version files are re-indexed.
@@ -203,7 +212,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 		for i := range chunks {
 			chunks[i].IndexedAt = indexedAt
 			chunks[i].FileHash = hash
-			chunks[i].IndexVersion = embedding.SparseIndexVersion
+			chunks[i].IndexVersion = representationVersion()
 		}
 		allChunks = append(allChunks, chunks...)
 	}

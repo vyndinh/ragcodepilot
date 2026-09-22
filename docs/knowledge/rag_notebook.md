@@ -383,7 +383,7 @@ A **dense vector** has a meaningful value at every position. A **sparse vector**
 
 Imagine searching for the exact identifier `ChunkFile`. Dense embedding works in *meaning space* — it might return chunks about "splitting files," "file processing," "iterating over directories," and so on. All semantically related, but the exact function `ChunkFile` could rank fifth or tenth.
 
-A **sparse vector** built on the words actually present (with rare-word weighting) boosts chunks that contain the same identifier parts. In ragcodepilot, `ChunkFile` is split into `chunk` and `file`, so sparse search helps exact-symbol queries by matching those parts. It improves the odds, but it does not guarantee the definition ranks first — the eval shows a strong top-1/top-5 lift, not perfect top-1 accuracy.
+A **sparse vector** built on the words actually present (with rare-word weighting) boosts chunks that contain the same identifier. In ragcodepilot, `ChunkFile` still splits into `chunk` and `file`, and also keeps the joined form `chunkfile`, so exact-symbol queries can match the identifier instead of only the generic parts. It improves the odds, but it does not guarantee the definition ranks first — the eval shows a strong top-1/top-5 lift, not perfect top-1 accuracy.
 
 ### How ragcodepilot builds them
 
@@ -395,6 +395,7 @@ Step 1.  Tokenize(text) — single source of truth
            - Sub-split camelCase: ChunkFile → ["chunk", "file"]
            - Sub-split snake_case: chunk_file → ["chunk", "file"]
            - Keep digit runs:      sha256Hash → ["sha256", "hash"]
+           - Additive joined identifier: ChunkFile / chunk_file also emit chunkfile
            - Lowercase, drop Go keywords + English stop words
 
 Step 2.  Per chunk: count term frequencies (TF — raw counts)

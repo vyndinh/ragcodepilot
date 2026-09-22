@@ -21,14 +21,15 @@
 
 The analyses below retain historical observations and hypotheses. Active sequencing
 is the [local CLI roadmap](../plan/mvp_roadmap.md); MCP, the agent-first pivot, and
-multi-repo workspace features are deferred. New retrieval layers require fresh
-external evidence, not an expected percentage gain quoted in an older section.
+multi-repo workspace features are deferred. New retrieval layers and dedicated prototypes stay deferred until recurring
+failures justify investigation. Start with one external repository and manual
+comparisons; automated retrieval CI, broader benchmark collections, and extra
+product surfaces are deferred.
 
-Reviewed local main `a3ac8ff` has a saved v8 hybrid report (39 queries/35 positives,
-hit@5 34/35, navigation 23/24, negative pass 2/4 at RRF 0.02). This branch does not
-yet contain that report or main's identifier/type/calibration changes. v8 is saved
-evidence, not a fresh benchmark of current main. M0 refreshes the baseline after
-reconciliation; [evaluation guidance](../eval/README.md) defines comparability.
+The branch is reconciled with fetched main `a3ac8ff` and includes its v8 hybrid report (39 queries/35 positives,
+hit@5 34/35, navigation 23/24, negative pass 2/4 at RRF 0.02). The identifier/type/calibration changes are now present. v8 remains saved
+evidence, not a fresh benchmark of the reconciled tree. M0 refreshes the baseline
+and tests one external repository; [evaluation guidance](../eval/README.md) defines comparability.
 
 Historical v6/v7 hybrid 1.00 negative pass used an ineffective 0.55 cosine cutoff.
 It is not a faithfulness floor. Preserve passing negatives under valid fixed
@@ -125,7 +126,7 @@ Pick **answer mode (Phase 5 v0) instead if** you want to start exercising the fu
 | **Hit@K** (K=3, 5) | Is the correct result somewhere in the top K? | Tolerance for slightly imperfect ranking. |
 | **MRR@K** | Average position of the first correct hit (`1/rank`). | Hybrid of precision and top-of-list bias. |
 | **Recall@K** | What fraction of *all* relevant chunks made it to top K? | Coverage — matters when there's more than one right answer. |
-| **Negative pass** | Out-of-scope queries return nothing on-topic. | "We know when we don't know." |
+| **Negative pass** | Out-of-scope queries return nothing on-topic. | "We know when we don't know." Mode-calibrated: dense uses cosine 0.55; hybrid RRF fails only on dual-prefetch agreement (ceiling 0.02); sparse BM25 uses ceiling 10. A single 0.55 cutoff is vacuous under RRF. |
 
 Not currently measured but worth adding eventually:
 

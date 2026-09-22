@@ -2,7 +2,8 @@
 
 **Status: deferred, not started. Updated 2026-09-22.** This design is an M5
 candidate under the [roadmap](mvp_roadmap.md), not the next committed build.
-M0/M3 refresh evidence first. Existing implementation sketches below remain
+M0/M3 focus on evidence and indexing reliability; no dedicated graph prototype
+or reachability study is scheduled unless recurring structural failures justify it. Existing implementation sketches below remain
 proposals and require validation against the selected code/runtime versions.
 
 The proposed graph adds `defines`, concrete `calls`, and `imports` relationships

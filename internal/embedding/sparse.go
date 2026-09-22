@@ -15,7 +15,7 @@ import (
 // SparseIndexVersion identifies the sparse retrieval representation. Bump this
 // whenever tokenization, stemming, or BM25 weighting changes in a way that makes
 // existing sparse vectors stale.
-const SparseIndexVersion = "sparse-bm25-snowball-v1"
+const SparseIndexVersion = "sparse-bm25-snowball-ident-v2"
 
 // SparseVector represents a sparse vector as parallel index/value arrays.
 // Indices are CRC32 hashes of tokens; values are BM25 weights.
@@ -64,6 +64,10 @@ var stopWords = map[string]struct{}{
 //   - Sub-split camelCase: "ChunkFile" → ["chunk", "file"].
 //   - Sub-split snake_case: "chunk_file" → ["chunk", "file"].
 //   - Keep digit runs attached: "sha256Hash" → ["sha256", "hash"].
+//   - Additive unsplitted identifier: when a word splits into more than one
+//     part, also emit the concatenated lowercase form. "ChunkFile" and
+//     "chunk_file" both add "chunkfile" so exact-symbol queries match the
+//     identifier, not just the generic parts "chunk" and "file".
 //   - Lowercase all tokens.
 //   - Remove stop words (Go keywords + common English).
 //   - Additive stemming: if a token has a stemmed form
@@ -72,13 +76,16 @@ var stopWords = map[string]struct{}{
 //     exact-match recall while allowing morphological cross-matching.
 //     Uses the Snowball English stemmer (Porter2).
 //
+// Extra identifier and stem tokens are matching dimensions only. BM25
+// document length uses the split-part count (no extras).
+//
 // This function is the single source of truth — BuildSparseVectors and
 // TokenizeQuery both call it internally.
 func Tokenize(text string) []string {
 	return tokenize(text, true)
 }
 
-func tokenize(text string, includeStems bool) []string {
+func tokenize(text string, includeAdditive bool) []string {
 	// Step 1: Split on whitespace and punctuation into raw words.
 	rawWords := splitOnBoundaries(text)
 
@@ -86,32 +93,51 @@ func tokenize(text string, includeStems bool) []string {
 	var tokens []string
 	for _, word := range rawWords {
 		parts := splitCamelSnake(word)
+
+		// Additive unsplitted identifier — extra matching dimension, same
+		// idea as stemming. Only when the word actually split, so a single
+		// token like "chunker" is not duplicated. Do not stem the joined
+		// form: it is not an English word (chunkfile → chunkfil).
+		if includeAdditive && len(parts) > 1 {
+			tokens = append(tokens, emitToken(joinLower(parts), false)...)
+		}
+
 		for _, part := range parts {
-			lower := strings.ToLower(part)
-			if lower == "" {
-				continue
-			}
-			if _, stop := stopWords[lower]; stop {
-				continue
-			}
-			tokens = append(tokens, lower)
-
-			if !includeStems {
-				continue
-			}
-
-			// Step 3: Additive stemming via Snowball (Porter2).
-			// If the token has a stemmed form, emit it too.
-			// BM25 length normalization uses the original token count; stems are
-			// added only as extra matching dimensions.
-			if stemmed := stemToken(lower); stemmed != lower {
-				if _, stop := stopWords[stemmed]; !stop {
-					tokens = append(tokens, stemmed)
-				}
-			}
+			tokens = append(tokens, emitToken(strings.ToLower(part), includeAdditive)...)
 		}
 	}
 	return tokens
+}
+
+// joinLower concatenates split identifier parts into one lowercase token
+// ("Chunk"+"File" → "chunkfile", "sha256"+"Hash" → "sha256hash").
+func joinLower(parts []string) string {
+	var b strings.Builder
+	for _, p := range parts {
+		b.WriteString(strings.ToLower(p))
+	}
+	return b.String()
+}
+
+// emitToken appends a normalized token, skipping empties and stop words.
+// When includeStem is set, also appends the Snowball stem if it differs.
+func emitToken(lower string, includeStem bool) []string {
+	if lower == "" {
+		return nil
+	}
+	if _, stop := stopWords[lower]; stop {
+		return nil
+	}
+	out := []string{lower}
+	if !includeStem {
+		return out
+	}
+	if stemmed := stemToken(lower); stemmed != lower {
+		if _, stop := stopWords[stemmed]; !stop {
+			out = append(out, stemmed)
+		}
+	}
+	return out
 }
 
 // stemToken applies the Snowball English stemmer (Porter2 algorithm) to
@@ -259,6 +285,8 @@ func ComputeCorpusStats(texts []string) CorpusStats {
 	totalDocLen := 0
 	for _, text := range texts {
 		tokens := Tokenize(text)
+		// Length uses split parts only — identifier joins and stems are
+		// extra matching dimensions and must not inflate avgdl.
 		totalDocLen += len(tokenize(text, false))
 		seen := make(map[string]struct{}, len(tokens))
 		for _, tok := range tokens {
@@ -311,7 +339,8 @@ func BuildSparseVectors(texts []string, stats CorpusStats) []SparseVector {
 		}
 
 		// Length normalization. Falls back to 1.0 if the corpus is empty
-		// (avgdl == 0) so we never divide by zero.
+		// (avgdl == 0) so we never divide by zero. Split-part count only;
+		// identifier joins and stems are extra matching dimensions.
 		docLen := float64(len(tokenize(text, false)))
 		lenNorm := 1.0
 		if stats.AvgDocLen > 0 {
