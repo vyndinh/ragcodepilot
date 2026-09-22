@@ -1,0 +1,19 @@
+{
+  "evidence_validation": "pass",
+  "index_integrity": "fail: 11 generated chunks overwritten in 7 duplicate-ID groups",
+  "label_hashes_unchanged": true,
+  "labels_frozen_before_index": true,
+  "corpus_file_hashes_checked": 98,
+  "runner_file_hashes_checked": 54,
+  "indexed_files": 57,
+  "generated_chunks": 382,
+  "unique_ids_and_stored_points": 371,
+  "stored_payload_is_last_generated_variant_for_every_id": true,
+  "query_metrics_independently_recomputed": 24,
+  "query_errors": 0,
+  "structural_metrics_match_full": true,
+  "result_variations_between_full_and_structural": [
+    "custom_http_method_flow"
+  ],
+  "validation_scope": "Input/artifact hashes, YAML identity, point provenance, collision accounting, file-only hit/MRR/recall and fixed negative outcomes, aggregates and type breakdowns. Quality failures remain recorded; passing evidence validation does not certify index integrity."
+}

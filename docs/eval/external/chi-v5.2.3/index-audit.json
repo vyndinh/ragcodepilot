@@ -1,0 +1,325 @@
+{
+  "status": "known_integrity_failure",
+  "generated_chunks": 382,
+  "unique_ids": 371,
+  "stored_points": 371,
+  "duplicate_id_groups": 7,
+  "overwritten_chunks": 11,
+  "cause": "Named Go chunks use repo:file:name:subchunk_index; receiver/declaration identity is omitted. Same-file functions/methods sharing a name overwrite one another.",
+  "runner_evidence": [
+    "internal/ingest/chunker_go.go:65",
+    "internal/ingest/chunker_go.go:134",
+    "internal/ingest/chunker.go:127"
+  ],
+  "collisions": [
+    {
+      "id": "4ca7e3ef-b1d0-5a3c-8fc7-d3ac9e896913",
+      "file": "_examples/rest/main.go",
+      "name": "Bind",
+      "generated_variants": [
+        {
+          "id": "4ca7e3ef-b1d0-5a3c-8fc7-d3ac9e896913",
+          "file_path": "_examples/rest/main.go",
+          "name": "Bind",
+          "start_line": 299,
+          "end_line": 303,
+          "chunk_type": "function",
+          "content_sha256": "f0877d2315808cc5134ff8d96cc6420479137fe5695c0dc42146079b55b40284",
+          "embedding_input_sha256": "5046a45c7f6f4a3c53998c26e8f69be153168e80222227414cdf082158b99d77"
+        },
+        {
+          "id": "4ca7e3ef-b1d0-5a3c-8fc7-d3ac9e896913",
+          "file_path": "_examples/rest/main.go",
+          "name": "Bind",
+          "start_line": 327,
+          "end_line": 342,
+          "chunk_type": "function",
+          "content_sha256": "84c33a0c21f12e6149181bc6872f3cd8864ab971196dbaadf2c0c9516360cb2e",
+          "embedding_input_sha256": "3bad5675f32bb5c18f578000e9a7ca7c3d9a13958df2de6b16ad7c62ee0cdf37"
+        }
+      ],
+      "retained": {
+        "id": "4ca7e3ef-b1d0-5a3c-8fc7-d3ac9e896913",
+        "file_path": "_examples/rest/main.go",
+        "name": "Bind",
+        "start_line": 327,
+        "end_line": 342,
+        "chunk_type": "function",
+        "content_sha256": "84c33a0c21f12e6149181bc6872f3cd8864ab971196dbaadf2c0c9516360cb2e",
+        "embedding_input_sha256": "3bad5675f32bb5c18f578000e9a7ca7c3d9a13958df2de6b16ad7c62ee0cdf37"
+      },
+      "lost_variants": 1
+    },
+    {
+      "id": "5aaa5fa1-5c92-53a0-9698-e47b7970a7ed",
+      "file": "_examples/rest/main.go",
+      "name": "Render",
+      "generated_variants": [
+        {
+          "id": "5aaa5fa1-5c92-53a0-9698-e47b7970a7ed",
+          "file_path": "_examples/rest/main.go",
+          "name": "Render",
+          "start_line": 305,
+          "end_line": 308,
+          "chunk_type": "function",
+          "content_sha256": "eed19a5310a5495ee6ddcecc953ecb24707658681c43ae66eeef1af43a8cd71c",
+          "embedding_input_sha256": "cfb42dd2f1a2fd364b9cc87c9c7621d566dc5277f72b865072a822a0ca375792"
+        },
+        {
+          "id": "5aaa5fa1-5c92-53a0-9698-e47b7970a7ed",
+          "file_path": "_examples/rest/main.go",
+          "name": "Render",
+          "start_line": 372,
+          "end_line": 376,
+          "chunk_type": "function",
+          "content_sha256": "a3be538aef31adc74b011d0f4fd79beef428495d22b50194e312eb2f4efcfd41",
+          "embedding_input_sha256": "27056ccf9742fcc74e88209569f3c3bcca1c810b1176be6276a34952c1fe89ad"
+        },
+        {
+          "id": "5aaa5fa1-5c92-53a0-9698-e47b7970a7ed",
+          "file_path": "_examples/rest/main.go",
+          "name": "Render",
+          "start_line": 410,
+          "end_line": 413,
+          "chunk_type": "function",
+          "content_sha256": "cb7495dcb2f566d7c8d37dfb258a91c8d9fed4001c1302510f76c16cf36128bf",
+          "embedding_input_sha256": "fe9bef53ddaf2e7ede680692fdee45c2798e49ebffa90ca1831978d7f3339c6d"
+        }
+      ],
+      "retained": {
+        "id": "5aaa5fa1-5c92-53a0-9698-e47b7970a7ed",
+        "file_path": "_examples/rest/main.go",
+        "name": "Render",
+        "start_line": 410,
+        "end_line": 413,
+        "chunk_type": "function",
+        "content_sha256": "cb7495dcb2f566d7c8d37dfb258a91c8d9fed4001c1302510f76c16cf36128bf",
+        "embedding_input_sha256": "fe9bef53ddaf2e7ede680692fdee45c2798e49ebffa90ca1831978d7f3339c6d"
+      },
+      "lost_variants": 2
+    },
+    {
+      "id": "65bf0415-7ce4-5402-a26a-1f647954a768",
+      "file": "context.go",
+      "name": "URLParam",
+      "generated_variants": [
+        {
+          "id": "65bf0415-7ce4-5402-a26a-1f647954a768",
+          "file_path": "context.go",
+          "name": "URLParam",
+          "start_line": 9,
+          "end_line": 15,
+          "chunk_type": "function",
+          "content_sha256": "c39835d634cf3d8d118a06a71dd5c6121c26284ad78d8b36816481fc8ee1dbb5",
+          "embedding_input_sha256": "34bd20b44ffb2f4c19043a2c2ea9a5a86b2f96efbdfdfab6f117c4397a98df00"
+        },
+        {
+          "id": "65bf0415-7ce4-5402-a26a-1f647954a768",
+          "file_path": "context.go",
+          "name": "URLParam",
+          "start_line": 98,
+          "end_line": 107,
+          "chunk_type": "function",
+          "content_sha256": "a40c2f243a88c487c2a7978f0c0e5721134008fa76bf371760799c0665037b72",
+          "embedding_input_sha256": "d97003a0bac90d6f2d1d364c01baebd7111b9e3a1f424d06615e2c6ce7bfb55b"
+        }
+      ],
+      "retained": {
+        "id": "65bf0415-7ce4-5402-a26a-1f647954a768",
+        "file_path": "context.go",
+        "name": "URLParam",
+        "start_line": 98,
+        "end_line": 107,
+        "chunk_type": "function",
+        "content_sha256": "a40c2f243a88c487c2a7978f0c0e5721134008fa76bf371760799c0665037b72",
+        "embedding_input_sha256": "d97003a0bac90d6f2d1d364c01baebd7111b9e3a1f424d06615e2c6ce7bfb55b"
+      },
+      "lost_variants": 1
+    },
+    {
+      "id": "88ef497b-f47e-554c-a940-c9ddff9618ce",
+      "file": "middleware/wrap_writer.go",
+      "name": "Flush",
+      "generated_variants": [
+        {
+          "id": "88ef497b-f47e-554c-a940-c9ddff9618ce",
+          "file_path": "middleware/wrap_writer.go",
+          "name": "Flush",
+          "start_line": 147,
+          "end_line": 151,
+          "chunk_type": "function",
+          "content_sha256": "9960ed97be7fdce4bf69bf581ab7350fe0ebc48206d5eba708f0e1952e36e1f9",
+          "embedding_input_sha256": "c5b6b37903c66b8d0ccf51cac68f21424534dbff6cd54d052f44f6c5b32aac23"
+        },
+        {
+          "id": "88ef497b-f47e-554c-a940-c9ddff9618ce",
+          "file_path": "middleware/wrap_writer.go",
+          "name": "Flush",
+          "start_line": 172,
+          "end_line": 176,
+          "chunk_type": "function",
+          "content_sha256": "9897c6150de82375e60024b908ae054190b518589030e7e1f80ab17f928bdefd",
+          "embedding_input_sha256": "1517f5f13182010d2fb8817bc5a16a50d7130900e833d0e82150d844f95137ca"
+        },
+        {
+          "id": "88ef497b-f47e-554c-a940-c9ddff9618ce",
+          "file_path": "middleware/wrap_writer.go",
+          "name": "Flush",
+          "start_line": 194,
+          "end_line": 198,
+          "chunk_type": "function",
+          "content_sha256": "54bea92b987c1137d111e24e13d3682dc0e1cbe7243e728c43b3c0e02a349066",
+          "embedding_input_sha256": "1d14df7e0741596f3e31a32cb830632f70066e8c52efda326eac6ddeb1695fab"
+        },
+        {
+          "id": "88ef497b-f47e-554c-a940-c9ddff9618ce",
+          "file_path": "middleware/wrap_writer.go",
+          "name": "Flush",
+          "start_line": 235,
+          "end_line": 239,
+          "chunk_type": "function",
+          "content_sha256": "7b671ee1a22b64d069f41e83fb736878ed98fee77c0d8cef8b290488fa885798",
+          "embedding_input_sha256": "0eb0886188ffe6c6665f7fcf1ba6319f21c4960fbe022ebe1fb02bffcb0627bd"
+        }
+      ],
+      "retained": {
+        "id": "88ef497b-f47e-554c-a940-c9ddff9618ce",
+        "file_path": "middleware/wrap_writer.go",
+        "name": "Flush",
+        "start_line": 235,
+        "end_line": 239,
+        "chunk_type": "function",
+        "content_sha256": "7b671ee1a22b64d069f41e83fb736878ed98fee77c0d8cef8b290488fa885798",
+        "embedding_input_sha256": "0eb0886188ffe6c6665f7fcf1ba6319f21c4960fbe022ebe1fb02bffcb0627bd"
+      },
+      "lost_variants": 3
+    },
+    {
+      "id": "f37dd2f1-1d9b-53f0-acb6-2c9fe5ec17a6",
+      "file": "middleware/wrap_writer.go",
+      "name": "Hijack",
+      "generated_variants": [
+        {
+          "id": "f37dd2f1-1d9b-53f0-acb6-2c9fe5ec17a6",
+          "file_path": "middleware/wrap_writer.go",
+          "name": "Hijack",
+          "start_line": 160,
+          "end_line": 163,
+          "chunk_type": "function",
+          "content_sha256": "793e05ae05faedfec7b0853a978cf2845cfcc1cc8c0a314a1981f43d2079d28b",
+          "embedding_input_sha256": "77e086e6740ce2eb4ca9cee2486404f7c6a157159f0416923e0f168c23b216e0"
+        },
+        {
+          "id": "f37dd2f1-1d9b-53f0-acb6-2c9fe5ec17a6",
+          "file_path": "middleware/wrap_writer.go",
+          "name": "Hijack",
+          "start_line": 178,
+          "end_line": 181,
+          "chunk_type": "function",
+          "content_sha256": "0fcf0a918b3e1178c84595e03c234728a1b056af926a74b515c764a79650d9ef",
+          "embedding_input_sha256": "7f92d7f760445088e83e649e0c014b964063fd507b00a53024d42ed180a5745e"
+        },
+        {
+          "id": "f37dd2f1-1d9b-53f0-acb6-2c9fe5ec17a6",
+          "file_path": "middleware/wrap_writer.go",
+          "name": "Hijack",
+          "start_line": 200,
+          "end_line": 203,
+          "chunk_type": "function",
+          "content_sha256": "cd994b5f8ae933870697e50e63c7fbda85be6ead36c58edc304d188786a67eee",
+          "embedding_input_sha256": "21c4fba11808f8052bdf0368682bf39477044fcadb240a975487e1807d5f128e"
+        }
+      ],
+      "retained": {
+        "id": "f37dd2f1-1d9b-53f0-acb6-2c9fe5ec17a6",
+        "file_path": "middleware/wrap_writer.go",
+        "name": "Hijack",
+        "start_line": 200,
+        "end_line": 203,
+        "chunk_type": "function",
+        "content_sha256": "cd994b5f8ae933870697e50e63c7fbda85be6ead36c58edc304d188786a67eee",
+        "embedding_input_sha256": "21c4fba11808f8052bdf0368682bf39477044fcadb240a975487e1807d5f128e"
+      },
+      "lost_variants": 2
+    },
+    {
+      "id": "8da1dd5c-6f65-580d-a335-ad89e38fc02c",
+      "file": "tree.go",
+      "name": "findEdge",
+      "generated_variants": [
+        {
+          "id": "8da1dd5c-6f65-580d-a335-ad89e38fc02c",
+          "file_path": "tree.go",
+          "name": "findEdge",
+          "start_line": 546,
+          "end_line": 572,
+          "chunk_type": "function",
+          "content_sha256": "87ff0d267b0306583f176b312a461b6d38466bd8d3f8b285e99c017ffdeaa5d7",
+          "embedding_input_sha256": "c9ab991302cd126c5ac3deea7b107f2e46f1a97cb33b58bf4769d950d7b20676"
+        },
+        {
+          "id": "8da1dd5c-6f65-580d-a335-ad89e38fc02c",
+          "file_path": "tree.go",
+          "name": "findEdge",
+          "start_line": 808,
+          "end_line": 826,
+          "chunk_type": "function",
+          "content_sha256": "8387fe1c9398b770bede3c67db85437568e5b8a25791df9ca1d19d716c52a9f0",
+          "embedding_input_sha256": "7104c12d9dbae2c7a58e99d7550fa10eb3fb5bfce9a33842564b53f1552684a1"
+        }
+      ],
+      "retained": {
+        "id": "8da1dd5c-6f65-580d-a335-ad89e38fc02c",
+        "file_path": "tree.go",
+        "name": "findEdge",
+        "start_line": 808,
+        "end_line": 826,
+        "chunk_type": "function",
+        "content_sha256": "8387fe1c9398b770bede3c67db85437568e5b8a25791df9ca1d19d716c52a9f0",
+        "embedding_input_sha256": "7104c12d9dbae2c7a58e99d7550fa10eb3fb5bfce9a33842564b53f1552684a1"
+      },
+      "lost_variants": 1
+    },
+    {
+      "id": "7e1906dd-d78e-571b-bc99-123de15cfc92",
+      "file": "tree.go",
+      "name": "walk",
+      "generated_variants": [
+        {
+          "id": "7e1906dd-d78e-571b-bc99-123de15cfc92",
+          "file_path": "tree.go",
+          "name": "walk",
+          "start_line": 668,
+          "end_line": 683,
+          "chunk_type": "function",
+          "content_sha256": "dc254c8f12f8baf8537df0e86b15eb8cbf0425ff98838201cf2b9e19501293b4",
+          "embedding_input_sha256": "204bae428ff3d81db2777ab55faaef592911c5dca66acee10d7cd1896da8d6ab"
+        },
+        {
+          "id": "7e1906dd-d78e-571b-bc99-123de15cfc92",
+          "file_path": "tree.go",
+          "name": "walk",
+          "start_line": 844,
+          "end_line": 879,
+          "chunk_type": "function",
+          "content_sha256": "32a3be931b751382035fc97f62184b2a283254d2cf573833a51278d39d595ab2",
+          "embedding_input_sha256": "c1518c1a554f8b148b78d5b231cffe6f4dbe505115935049a9c23dcb32e94513"
+        }
+      ],
+      "retained": {
+        "id": "7e1906dd-d78e-571b-bc99-123de15cfc92",
+        "file_path": "tree.go",
+        "name": "walk",
+        "start_line": 844,
+        "end_line": 879,
+        "chunk_type": "function",
+        "content_sha256": "32a3be931b751382035fc97f62184b2a283254d2cf573833a51278d39d595ab2",
+        "embedding_input_sha256": "c1518c1a554f8b148b78d5b231cffe6f4dbe505115935049a9c23dcb32e94513"
+      },
+      "lost_variants": 1
+    }
+  ],
+  "audit_method": "Run the pinned WalkFiles and ChunkFile functions with the same config/language/default chunk settings in a separate temporary diagnostic copy; group all emitted chunks by ID, then compare to paginated Qdrant payloads. Frozen runner and corpus are unchanged.",
+  "diagnostic_helper_sha256": "1fbc51f23181a5b598b0e723f84d84da6ae0b0c85799d6d195f3a213d4b65de6",
+  "implication": "The pipeline reports 382 embeddings/upserts; only 371 distinct records survive. Sparse statistics were computed over all 382 generated chunks, including overwritten variants."
+}

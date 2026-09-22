@@ -283,8 +283,9 @@ model, and score-calibration snapshots; they are not evergreen acceptance target
 
 The [v9 run record](runs/2026-09-22-self-fed7f22/README.md) includes the manifest,
 source/query/config hashes, model digest, chunk IDs, exact commands, and named
-failure inventory. This completes only M0's self-repository refresh; the external
-repository remains open. Do not infer an isolated algorithm win by comparing v9
+failure inventory. The [external chi run](external/chi-v5.2.3/README.md) completes M0's external
+measurement with 20 pre-labeled queries. It also confirms a chunk-ID collision
+that loses 11 generated chunks; evidence completion is not an index-integrity pass. Do not infer an isolated algorithm win by comparing v9
 with older reports whose corpus and runtime manifests differ or are missing.
 
 **Negative semantics:** the reconciled runner uses score-family calibration
@@ -369,7 +370,8 @@ These are measurement limitations. The [roadmap](../plan/mvp_roadmap.md) owns de
 
 The implemented hybrid and answer-mode reports remain historical evidence.
 Current evaluation work is M0 in the [roadmap](../plan/mvp_roadmap.md): a fresh
-self-corpus baseline (v9 complete), one external repository (open), and a named failure inventory.
+self-corpus baseline (v9 complete), external chi evaluation (complete), and a named failure inventory.
+The discovered chunk-ID collision must be fixed before M3 cache optimization.
 This guide defines comparison practice; it does not schedule retrieval features.
 
 Do not silently delete or rewrite existing queries during a refactor. Add new

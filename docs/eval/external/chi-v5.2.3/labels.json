@@ -1,0 +1,290 @@
+{
+  "source_revision": "9b9fb55def404397748a9fc7e044efe9db1d618e",
+  "label_policy": "File-only positives; required evidence ranges and rationales set before retrieval. No post-result tuning. Manual source inspection, not independently blinded annotation.",
+  "queries": [
+    {
+      "id": "urlparam_definition",
+      "rationale": "The public accessor delegates to the routing context; no symbol-only alternative is accepted.",
+      "required_evidence": [
+        {
+          "file": "context.go",
+          "start_line": 9,
+          "end_line": 15,
+          "purpose": "URLParam definition"
+        }
+      ]
+    },
+    {
+      "id": "compressor_constructor",
+      "rationale": "The constructor owns allowed-type setup and encoder configuration.",
+      "required_evidence": [
+        {
+          "file": "middleware/compress.go",
+          "start_line": 63,
+          "end_line": 91,
+          "purpose": "NewCompressor configuration"
+        }
+      ]
+    },
+    {
+      "id": "response_writer_wrapper",
+      "rationale": "The constructor selects wrappers based on protocol and optional interfaces.",
+      "required_evidence": [
+        {
+          "file": "middleware/wrap_writer.go",
+          "start_line": 15,
+          "end_line": 43,
+          "purpose": "NewWrapResponseWriter interface selection"
+        }
+      ]
+    },
+    {
+      "id": "walk_router_definition",
+      "rationale": "The public Walk entry delegates to recursive route traversal.",
+      "required_evidence": [
+        {
+          "file": "tree.go",
+          "start_line": 839,
+          "end_line": 852,
+          "purpose": "Walk and recursive traversal entry"
+        }
+      ]
+    },
+    {
+      "id": "routing_context_reuse",
+      "rationale": "ServeHTTP owns the pool lifecycle; Context.Reset defines what state is cleared.",
+      "required_evidence": [
+        {
+          "file": "mux.go",
+          "start_line": 78,
+          "end_line": 90,
+          "purpose": "pool get, reset, attachment and return"
+        },
+        {
+          "file": "context.go",
+          "start_line": 81,
+          "end_line": 96,
+          "purpose": "reset routing state"
+        }
+      ]
+    },
+    {
+      "id": "middleware_execution_order",
+      "rationale": "Router updateRouteHandler invokes chain; chain wraps from the end back to the first middleware.",
+      "required_evidence": [
+        {
+          "file": "mux.go",
+          "start_line": 506,
+          "end_line": 513,
+          "purpose": "router delegates chain construction"
+        },
+        {
+          "file": "chain.go",
+          "start_line": 34,
+          "end_line": 49,
+          "purpose": "reverse wrapper construction"
+        }
+      ]
+    },
+    {
+      "id": "request_id_propagation",
+      "rationale": "RequestID checks the header then stores the reused/generated identifier in the request context.",
+      "required_evidence": [
+        {
+          "file": "middleware/request_id.go",
+          "start_line": 67,
+          "end_line": 79,
+          "purpose": "header fallback and context propagation"
+        }
+      ]
+    },
+    {
+      "id": "nested_route_pattern",
+      "rationale": "RoutePattern joins the stack and replaceWildcards removes wildcard separators.",
+      "required_evidence": [
+        {
+          "file": "context.go",
+          "start_line": 123,
+          "end_line": 135,
+          "purpose": "join routing pattern stack"
+        },
+        {
+          "file": "context.go",
+          "start_line": 139,
+          "end_line": 144,
+          "purpose": "remove wildcard separators"
+        }
+      ]
+    },
+    {
+      "id": "late_middleware_panics",
+      "rationale": "Use panics once the computed handler exists.",
+      "required_evidence": [
+        {
+          "file": "mux.go",
+          "start_line": 100,
+          "end_line": 105,
+          "purpose": "late middleware guard"
+        }
+      ]
+    },
+    {
+      "id": "head_get_fallback",
+      "rationale": "GetHead writes RouteMethod without modifying r.Method; routeHTTP uses that override.",
+      "required_evidence": [
+        {
+          "file": "middleware/get_head.go",
+          "start_line": 29,
+          "end_line": 35,
+          "purpose": "HEAD match failure selects GET override"
+        },
+        {
+          "file": "mux.go",
+          "start_line": 459,
+          "end_line": 464,
+          "purpose": "routing uses the override"
+        }
+      ]
+    },
+    {
+      "id": "timeout_cooperation",
+      "rationale": "Timeout creates a deadline and calls next synchronously; its deferred check writes 504 after next returns.",
+      "required_evidence": [
+        {
+          "file": "middleware/timeout.go",
+          "start_line": 9,
+          "end_line": 14,
+          "purpose": "cooperative cancellation contract"
+        },
+        {
+          "file": "middleware/timeout.go",
+          "start_line": 32,
+          "end_line": 46,
+          "purpose": "context deadline and deferred response"
+        }
+      ]
+    },
+    {
+      "id": "abort_handler_panic",
+      "rationale": "Recoverer re-panics ErrAbortHandler before logging or writing the usual error response.",
+      "required_evidence": [
+        {
+          "file": "middleware/recoverer.go",
+          "start_line": 22,
+          "end_line": 31,
+          "purpose": "ErrAbortHandler special case"
+        }
+      ]
+    },
+    {
+      "id": "url_parameter_flow",
+      "rationale": "FindRoute appends captured params to URLParams; accessors consult that context state.",
+      "required_evidence": [
+        {
+          "file": "tree.go",
+          "start_line": 372,
+          "end_line": 388,
+          "purpose": "transfer captured parameters"
+        },
+        {
+          "file": "context.go",
+          "start_line": 9,
+          "end_line": 15,
+          "purpose": "request accessor"
+        },
+        {
+          "file": "context.go",
+          "start_line": 100,
+          "end_line": 107,
+          "purpose": "context parameter lookup"
+        }
+      ]
+    },
+    {
+      "id": "method_not_allowed_flow",
+      "rationale": "Tree search records allowed methods and mismatch; routeHTTP dispatches the 405 helper that emits Allow.",
+      "required_evidence": [
+        {
+          "file": "tree.go",
+          "start_line": 471,
+          "end_line": 479,
+          "purpose": "collect methods and flag mismatch"
+        },
+        {
+          "file": "mux.go",
+          "start_line": 480,
+          "end_line": 484,
+          "purpose": "dispatch method mismatch"
+        },
+        {
+          "file": "mux.go",
+          "start_line": 518,
+          "end_line": 526,
+          "purpose": "emit Allow and 405"
+        }
+      ]
+    },
+    {
+      "id": "custom_http_method_flow",
+      "rationale": "RegisterMethod updates the method map; Mux.Method uses that map when registering handlers.",
+      "required_evidence": [
+        {
+          "file": "tree.go",
+          "start_line": 60,
+          "end_line": 75,
+          "purpose": "register custom method"
+        },
+        {
+          "file": "mux.go",
+          "start_line": 127,
+          "end_line": 133,
+          "purpose": "use registered method to add route"
+        }
+      ]
+    },
+    {
+      "id": "panic_log_entry_flow",
+      "rationale": "RequestLogger calls WithLogEntry; Recoverer calls GetLogEntry and invokes its Panic method.",
+      "required_evidence": [
+        {
+          "file": "middleware/logger.go",
+          "start_line": 44,
+          "end_line": 56,
+          "purpose": "create and attach log entry"
+        },
+        {
+          "file": "middleware/logger.go",
+          "start_line": 74,
+          "end_line": 84,
+          "purpose": "context set/get helpers"
+        },
+        {
+          "file": "middleware/recoverer.go",
+          "start_line": 33,
+          "end_line": 39,
+          "purpose": "retrieve entry and log panic"
+        }
+      ]
+    },
+    {
+      "id": "oidc_jwks_negative",
+      "rationale": "No OpenID discovery or JWKS implementation exists in the indexed Go corpus; basic-auth middleware and examples do not implement this feature.",
+      "required_evidence": []
+    },
+    {
+      "id": "sqlite_migrations_negative",
+      "rationale": "No SQLite driver, schema migration runner, or SQL transaction implementation exists in the indexed source.",
+      "required_evidence": []
+    },
+    {
+      "id": "kafka_offsets_negative",
+      "rationale": "No Kafka consumer, offset commit, or group rebalance implementation exists in the indexed source.",
+      "required_evidence": []
+    },
+    {
+      "id": "grpc_reflection_negative",
+      "rationale": "The HTTP router has no gRPC server, protobuf service registration, or reflection implementation.",
+      "required_evidence": []
+    }
+  ]
+}

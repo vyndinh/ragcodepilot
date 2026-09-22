@@ -1,0 +1,269 @@
+{
+  "schema_version": 1,
+  "status": "completed_external_evaluation_with_known_failures",
+  "runner": {
+    "revision": "f46d3f169ee1de0d2652045c75547f84b211c2bf",
+    "tree": "4c1bbf7a97427faa9291638f1bc5ff181369fad5",
+    "archive_sha256": "8f11e798886de1fcd89f3b4f041a1b7eda6bf71b1726972f67351d49a0b86fd7",
+    "runtime_source_identical_to_self_revision": "fed7f22fd016311078d2112c4681e1aafb59bd3a",
+    "binary_sha256": "7cf632bf46f0264d46e3f93e47860d9d0adf877244780ec4ed110886357895f8",
+    "go_mod_sha256": "05a31c4bb0938f118f63df3cbcda0363b966ce7cfa4343485e028c415d4b65af",
+    "go_sum_sha256": "98f74cd3922ad0af52a185e59ee3a03ee8ece474d4ff83eb0ee81a2766c36227",
+    "build_command": "go build -trimpath -o ../ragcodepilot ./cmd/ragcodepilot",
+    "build_info": "build-info.txt",
+    "build_info_normalization": "binary path replaced with ragcodepilot; trailing whitespace stripped"
+  },
+  "corpus": {
+    "url": "https://github.com/go-chi/chi",
+    "tag": "v5.2.3",
+    "revision": "9b9fb55def404397748a9fc7e044efe9db1d618e",
+    "tree": "95895595cf98ade326a0762fa5dd5d503c017f69",
+    "archive_sha256": "4803e81451b9f0fa58a5c0a9dd6288a1d376283fc7ccdc9ceb2a827ac3e3d916",
+    "basename": "chi",
+    "license": "MIT",
+    "license_sha256": "a2d51b7515acfaff2f7a88688650f2fc4fd99561383e72bba2305e3db59a1647",
+    "source": "clean git archive; no upstream code executed",
+    "scope": "All non-hidden, config-included non-test Go files, including _examples and both build-tag variants; this is source indexing, not a Go-build selection.",
+    "indexed_file_count": 57,
+    "generated_chunks": 382,
+    "stored_points": 371,
+    "chunk_types_stored": {
+      "function": 245,
+      "block": 71,
+      "type": 47,
+      "interface": 8
+    },
+    "license_file": "CORPUS-LICENSE.txt"
+  },
+  "runtime": {
+    "hardware": {
+      "cpu": "Apple M1",
+      "memory_bytes": 17179869184,
+      "logical_cpus": 8,
+      "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83"
+    },
+    "ollama_version": {
+      "version": "0.33.3"
+    },
+    "qdrant": {
+      "title": "qdrant - vector search engine",
+      "version": "1.19.1",
+      "commit": "6ab21cac18ebb6f4ae29102c7f8f5cc11affd5de"
+    },
+    "qdrant_image": {
+      "Id": "sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10",
+      "RepoDigests": [
+        "qdrant/qdrant@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10"
+      ],
+      "Architecture": "arm64",
+      "Os": "linux"
+    }
+  },
+  "representation": {
+    "version": "sparse-bm25-snowball-ident-v2+go-types-v1",
+    "dense_dimensions": 768,
+    "dense_distance": "Cosine",
+    "sparse": "BM25 k1=0.5 b=0.75, identifier tokens plus Snowball; corpus statistics over 382 generated enriched texts",
+    "document_preprocessing": "File path/language/chunk type/name header plus raw code; exact text hashes in chunks.json",
+    "query_preprocessing": "Raw query, no prefix, POST /api/embed with model and input only; same pinned tokenizer for sparse query",
+    "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+    "vector_conversion": "float64 JSON to float32; validate dimensions",
+    "truncation": "No explicit truncate/options override or telemetry; configured num_ctx=8192 but loaded context=2048. No no-truncation claim."
+  },
+  "collection": {
+    "name": "m0_chi_9b9fb55_20260922_101950",
+    "absent_before_index": true,
+    "isolation": "Separate collection; self and working indexes untouched",
+    "after_index": {
+      "status": "green",
+      "optimizer_status": "ok",
+      "indexed_vectors_count": 371,
+      "points_count": 371,
+      "segments_count": 4,
+      "config": {
+        "params": {
+          "vectors": {
+            "dense": {
+              "size": 768,
+              "distance": "Cosine"
+            }
+          },
+          "shard_number": 1,
+          "replication_factor": 1,
+          "write_consistency_factor": 1,
+          "on_disk_payload": true,
+          "sparse_vectors": {
+            "sparse": {}
+          }
+        },
+        "hnsw_config": {
+          "m": 16,
+          "ef_construct": 100,
+          "full_scan_threshold": 10000,
+          "max_indexing_threads": 0,
+          "on_disk": false
+        },
+        "optimizer_config": {
+          "deleted_threshold": 0.2,
+          "vacuum_min_vector_number": 1000,
+          "default_segment_number": 0,
+          "max_segment_size": null,
+          "memmap_threshold": null,
+          "indexing_threshold": 10000,
+          "flush_interval_sec": 5,
+          "max_optimization_threads": null,
+          "prevent_unoptimized": null
+        },
+        "wal_config": {
+          "wal_capacity_mb": 32,
+          "wal_segments_ahead": 0,
+          "wal_retain_closed": 1
+        },
+        "quantization_config": null
+      },
+      "payload_schema": {
+        "repo": {
+          "data_type": "keyword",
+          "points": 371
+        },
+        "file_path": {
+          "data_type": "keyword",
+          "points": 371
+        },
+        "language": {
+          "data_type": "keyword",
+          "points": 371
+        }
+      },
+      "update_queue": {
+        "length": 0
+      }
+    },
+    "after_eval": {
+      "status": "green",
+      "optimizer_status": "ok",
+      "indexed_vectors_count": 371,
+      "points_count": 371,
+      "segments_count": 4,
+      "config": {
+        "params": {
+          "vectors": {
+            "dense": {
+              "size": 768,
+              "distance": "Cosine"
+            }
+          },
+          "shard_number": 1,
+          "replication_factor": 1,
+          "write_consistency_factor": 1,
+          "on_disk_payload": true,
+          "sparse_vectors": {
+            "sparse": {}
+          }
+        },
+        "hnsw_config": {
+          "m": 16,
+          "ef_construct": 100,
+          "full_scan_threshold": 10000,
+          "max_indexing_threads": 0,
+          "on_disk": false
+        },
+        "optimizer_config": {
+          "deleted_threshold": 0.2,
+          "vacuum_min_vector_number": 1000,
+          "default_segment_number": 0,
+          "max_segment_size": null,
+          "memmap_threshold": null,
+          "indexing_threshold": 10000,
+          "flush_interval_sec": 5,
+          "max_optimization_threads": null,
+          "prevent_unoptimized": null
+        },
+        "wal_config": {
+          "wal_capacity_mb": 32,
+          "wal_segments_ahead": 0,
+          "wal_retain_closed": 1
+        },
+        "quantization_config": null
+      },
+      "payload_schema": {
+        "repo": {
+          "data_type": "keyword",
+          "points": 371
+        },
+        "language": {
+          "data_type": "keyword",
+          "points": 371
+        },
+        "file_path": {
+          "data_type": "keyword",
+          "points": 371
+        }
+      },
+      "update_queue": {
+        "length": 0
+      }
+    }
+  },
+  "evaluation": {
+    "mode": "hybrid",
+    "limit": 10,
+    "dense_sparse_prefetch_each": 20,
+    "rrf_k": 60,
+    "negative_score_kind": "rrf",
+    "negative_threshold": 0.02,
+    "answer_generation": false,
+    "full_queries": 20,
+    "positive": 16,
+    "negative": 4,
+    "structural": 4,
+    "multi_file_positive": 7,
+    "filters": {
+      "languages": [
+        "go"
+      ],
+      "repos": [
+        "chi"
+      ]
+    },
+    "label_freeze": "label-freeze.json",
+    "ordering": "index, one unmeasured warmup search, full, structural; fresh CLI connections per command",
+    "model_warm_state": "See model.json residency before index and full; full follows index/warmup, structural follows full. No controlled cold-search measurement.",
+    "all_exit_codes_zero": true,
+    "stderr": "Normal embedder-selection messages retained in stderr.log",
+    "reports": [
+      "full.json",
+      "structural.json"
+    ],
+    "dataset_policy": "20 source-authored cases frozen before retrieval; file-only positives, required source ranges, no post-result threshold/query/label tuning."
+  },
+  "limitations": [
+    "One compact router/middleware repository, not a held-out multi-repo benchmark or broad quality claim.",
+    "Labels were authored with source knowledge by one reviewer, not independently blinded.",
+    "Known indexing collision: 382 chunks generated but 371 retained; do not treat file hit@5 as proof of index integrity.",
+    "Three calibrated negative failures; threshold unchanged.",
+    "File presence alone does not prove required source/relationship coverage; see evidence-review.json.",
+    "Single full and structural observations; equal-score rank variation and uncontrolled machine load limit performance conclusions.",
+    "The baseline is for the buggy current implementation. Any collision fix requires fresh paired reindexing and evaluation."
+  ],
+  "artifact_sha256": {
+    "CORPUS-LICENSE.txt": "a2d51b7515acfaff2f7a88688650f2fc4fd99561383e72bba2305e3db59a1647",
+    "README.md": "d4943e3ce83e9d2e4a0d1461fb05a3f7a47e8d189d0ade951edfd6733af17eef",
+    "build-info.txt": "f7ef36a136ed5bcaefc7acc0a05f6afc1101d361ec25b314e3f0c6f2fbc157f6",
+    "chunks.json": "cde0f22a930af2769922ff48a0bdbc79a0f9ca26a31fc57c4ab5a7d13da888fb",
+    "evidence-review.json": "3b43823cec6d548318073bcf4280f1b0e75d1adcff483ec7f30a58e67418ad31",
+    "execution.json": "0cffb80065f7755847974ab392c8dec541a149937b572009b2776d956350f447",
+    "failures.json": "4c19560a835c497afbfa836d734e4b684fbbd006e0cf58089466434260e08860",
+    "full.json": "bdd97883bc116bdba1316c8bddc23d683bfb15d5e4c97d11ce352b2d9fd8e2a1",
+    "golden.yaml": "63320af970e20cb8784df1ea0cf8032e633ac3bd2a6f4e687f5fc19e1267d0e7",
+    "index-audit.json": "6bf55ffbb5e311c4f04bd480fb0619dc55941016f262322e80de16ff324ba5f4",
+    "index.log": "6c853a46aa29c4eead0ab231a6502350ccb6de2f55a48d7f5d5248fd727d473b",
+    "inputs.json": "111b66d277c9d20db96435f42d773975bd0402966923de556a1b0f1428f46c7a",
+    "label-freeze.json": "552c253170bb525f5d764301521236d1d0c71e64e047e2e1e097f23501ba92a1",
+    "labels.json": "3d6aef7ce7cfdc09e6ebb2b30ebc0565ab650f99fb898cd1431d0da212a3acb4",
+    "model.json": "4b08d7bde4f350af075ad4b7f81f802a86b954150f92d5a092d7ab97185f6b0c",
+    "stderr.log": "78c3b16d8498891f63be1aed9a2753a1c2318192be9244ec705e4f03f54a1edb",
+    "structural.json": "b5917e724ff94a57da75c84b50d725119aa3e0ebebaefd53a16ab7398b619636",
+    "validation.json": "eef16d7ab650a3cff02f80a6f5fb8a1440b1fd4d605fab7067006122cf7173cd"
+  }
+}
