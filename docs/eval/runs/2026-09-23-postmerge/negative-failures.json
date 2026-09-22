@@ -1,0 +1,86 @@
+{
+  "self_full": [
+    {
+      "id": "oauth_middleware_negative",
+      "top_score": 0.032002047,
+      "negative": {
+        "score_kind": "rrf",
+        "threshold": 0.02,
+        "pass": false
+      },
+      "top_result": {
+        "file_path": "internal/embedding/ollama.go",
+        "name": "setDim",
+        "score": 0.032002047,
+        "start_line": 113,
+        "end_line": 117
+      }
+    },
+    {
+      "id": "grpc_gateway_router_negative",
+      "top_score": 0.032291666,
+      "negative": {
+        "score_kind": "rrf",
+        "threshold": 0.02,
+        "pass": false
+      },
+      "top_result": {
+        "file_path": "internal/qdrant/client.go",
+        "name": "Close",
+        "score": 0.032291666,
+        "start_line": 46,
+        "end_line": 49
+      }
+    }
+  ],
+  "chi_full": [
+    {
+      "id": "oidc_jwks_negative",
+      "top_score": 0.032051284,
+      "negative": {
+        "score_kind": "rrf",
+        "threshold": 0.02,
+        "pass": false
+      },
+      "top_result": {
+        "file_path": "chi.go",
+        "name": "Router",
+        "score": 0.032051284,
+        "start_line": 64,
+        "end_line": 114
+      }
+    },
+    {
+      "id": "kafka_offsets_negative",
+      "top_score": 0.030414745,
+      "negative": {
+        "score_kind": "rrf",
+        "threshold": 0.02,
+        "pass": false
+      },
+      "top_result": {
+        "file_path": "middleware/throttle.go",
+        "name": "throttler",
+        "score": 0.030414745,
+        "start_line": 136,
+        "end_line": 143
+      }
+    },
+    {
+      "id": "grpc_reflection_negative",
+      "top_score": 0.028042844,
+      "negative": {
+        "score_kind": "rrf",
+        "threshold": 0.02,
+        "pass": false
+      },
+      "top_result": {
+        "file_path": "middleware/heartbeat.go",
+        "name": "Heartbeat",
+        "score": 0.028042844,
+        "start_line": 8,
+        "end_line": 26
+      }
+    }
+  ]
+}

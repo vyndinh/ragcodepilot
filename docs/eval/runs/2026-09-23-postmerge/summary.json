@@ -1,0 +1,239 @@
+{
+  "run_date": "2026-09-23",
+  "source_revision": "b3483b0",
+  "representation_version": "sparse-bm25-snowball-ident-v2+go-types-v2-identity",
+  "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+  "collections": {
+    "self": {
+      "name": "m0_self_postmerge_20260922_185850",
+      "generated_chunks": 250,
+      "stored_points": 250,
+      "unique_ids": 250,
+      "duplicate_ids": 0
+    },
+    "chi": {
+      "name": "m0_chi_postmerge_20260922_185850",
+      "generated_chunks": 382,
+      "stored_points": 382,
+      "unique_ids": 382,
+      "duplicate_ids": 0
+    }
+  },
+  "reports": {
+    "self_full": {
+      "queries": 39,
+      "positive_queries": 35,
+      "negative_queries": 4,
+      "errors": 0,
+      "hit_at_1": 0.8571428571428571,
+      "hit_at_3": 0.9428571428571428,
+      "hit_at_5": 0.9714285714285714,
+      "mrr_at_5": 0.9023809523809524,
+      "recall_at_5": 0.8161904761904762,
+      "recall_at_10": 0.8885714285714286,
+      "negative_pass_rate": 0.5,
+      "latency_total_p50_ms": 21,
+      "latency_total_p95_ms": 33,
+      "latency_embed_p50_ms": 16,
+      "latency_embed_p95_ms": 26,
+      "latency_qdrant_p50_ms": 3,
+      "latency_qdrant_p95_ms": 7
+    },
+    "self_structural": {
+      "queries": 16,
+      "positive_queries": 16,
+      "negative_queries": 0,
+      "errors": 0,
+      "hit_at_1": 0.9375,
+      "hit_at_3": 0.9375,
+      "hit_at_5": 0.9375,
+      "mrr_at_5": 0.9375,
+      "recall_at_5": 0.6916666666666667,
+      "recall_at_10": 0.81875,
+      "negative_pass_rate": 0,
+      "latency_total_p50_ms": 28,
+      "latency_total_p95_ms": 35,
+      "latency_embed_p50_ms": 21,
+      "latency_embed_p95_ms": 26,
+      "latency_qdrant_p50_ms": 3,
+      "latency_qdrant_p95_ms": 7
+    },
+    "chi_full": {
+      "queries": 20,
+      "positive_queries": 16,
+      "negative_queries": 4,
+      "errors": 0,
+      "hit_at_1": 0.9375,
+      "hit_at_3": 1,
+      "hit_at_5": 1,
+      "mrr_at_5": 0.9583333333333333,
+      "recall_at_5": 0.96875,
+      "recall_at_10": 0.96875,
+      "negative_pass_rate": 0.25,
+      "latency_total_p50_ms": 28,
+      "latency_total_p95_ms": 42,
+      "latency_embed_p50_ms": 21,
+      "latency_embed_p95_ms": 31,
+      "latency_qdrant_p50_ms": 3,
+      "latency_qdrant_p95_ms": 7
+    },
+    "chi_structural": {
+      "queries": 4,
+      "positive_queries": 4,
+      "negative_queries": 0,
+      "errors": 0,
+      "hit_at_1": 1,
+      "hit_at_3": 1,
+      "hit_at_5": 1,
+      "mrr_at_5": 1,
+      "recall_at_5": 0.875,
+      "recall_at_10": 0.875,
+      "negative_pass_rate": 0,
+      "latency_total_p50_ms": 22,
+      "latency_total_p95_ms": 26,
+      "latency_embed_p50_ms": 16,
+      "latency_embed_p95_ms": 17,
+      "latency_qdrant_p50_ms": 2,
+      "latency_qdrant_p95_ms": 7
+    }
+  },
+  "checks": {
+    "all_points_unique": true,
+    "no_generated_points_lost": true,
+    "all_query_errors_zero": true,
+    "labels_unchanged": "docs/eval/golden.yaml and docs/eval/external/chi-v5.2.3/labels.json reused without edits",
+    "negative_failures_preserved": {
+      "self_full": [
+        {
+          "id": "oauth_middleware_negative",
+          "top_score": 0.032002047,
+          "negative": {
+            "score_kind": "rrf",
+            "threshold": 0.02,
+            "pass": false
+          },
+          "top_result": {
+            "file_path": "internal/embedding/ollama.go",
+            "name": "setDim",
+            "score": 0.032002047,
+            "start_line": 113,
+            "end_line": 117
+          }
+        },
+        {
+          "id": "grpc_gateway_router_negative",
+          "top_score": 0.032291666,
+          "negative": {
+            "score_kind": "rrf",
+            "threshold": 0.02,
+            "pass": false
+          },
+          "top_result": {
+            "file_path": "internal/qdrant/client.go",
+            "name": "Close",
+            "score": 0.032291666,
+            "start_line": 46,
+            "end_line": 49
+          }
+        }
+      ],
+      "chi_full": [
+        {
+          "id": "oidc_jwks_negative",
+          "top_score": 0.032051284,
+          "negative": {
+            "score_kind": "rrf",
+            "threshold": 0.02,
+            "pass": false
+          },
+          "top_result": {
+            "file_path": "chi.go",
+            "name": "Router",
+            "score": 0.032051284,
+            "start_line": 64,
+            "end_line": 114
+          }
+        },
+        {
+          "id": "kafka_offsets_negative",
+          "top_score": 0.030414745,
+          "negative": {
+            "score_kind": "rrf",
+            "threshold": 0.02,
+            "pass": false
+          },
+          "top_result": {
+            "file_path": "middleware/throttle.go",
+            "name": "throttler",
+            "score": 0.030414745,
+            "start_line": 136,
+            "end_line": 143
+          }
+        },
+        {
+          "id": "grpc_reflection_negative",
+          "top_score": 0.028042844,
+          "negative": {
+            "score_kind": "rrf",
+            "threshold": 0.02,
+            "pass": false
+          },
+          "top_result": {
+            "file_path": "middleware/heartbeat.go",
+            "name": "Heartbeat",
+            "score": 0.028042844,
+            "start_line": 8,
+            "end_line": 26
+          }
+        }
+      ]
+    },
+    "self_incomplete_file_coverage_at_5": [
+      "reindex_change_detection_behavior",
+      "collection_dimension_mismatch_behavior",
+      "eval_limit_guard_behavior",
+      "chunkfile_callers_structural",
+      "pipeline_run_callers_structural",
+      "searcher_search_callers_structural",
+      "trace_answer_flag_to_ollama_chat_structural",
+      "trace_index_to_qdrant_upsert_structural",
+      "change_impact_embedder_embed_structural",
+      "change_impact_generator_generate_structural",
+      "propagate_skip_file_pattern_structural"
+    ],
+    "chi_incomplete_file_coverage_at_5": [
+      "method_not_allowed_flow"
+    ],
+    "chi_predeclared_source_ranges_complete_at_5": 11,
+    "chi_predeclared_source_ranges_total": 16,
+    "chi_source_range_audit": "source ranges from frozen labels compared with top-5/top-10 returned chunk locations and all stored payload ranges",
+    "self_incomplete_file_coverage_at_10": [
+      "reindex_change_detection_behavior",
+      "collection_dimension_mismatch_behavior",
+      "chunkfile_callers_structural",
+      "pipeline_run_callers_structural",
+      "trace_answer_flag_to_ollama_chat_structural",
+      "change_impact_embedder_embed_structural"
+    ]
+  },
+  "limitations": [
+    "Post-merge self source includes the merged implementation, so this is a verification run rather than an algorithm A/B against v9.",
+    "One run per corpus; latency is descriptive, not a capacity or stability gate.",
+    "File hit@5 and source-range coverage are separate; a file hit can contain the wrong declaration.",
+    "Negative failures remain retrieval diagnostics, not answer-faithfulness results."
+  ],
+  "artifact_sha256": {
+    "README.md": "c4ce182655bb53b6ef61901fd948d8c43cc24ce3ff1e955277c8f60d853d2843",
+    "chi-full.json": "7c5084bf791722991ec5018665a0bde07a771764d21b89a7c0203493bd546d94",
+    "chi-structural.json": "3bcc43182b251c248fb1c51f69f3827ba192b8a88ba3bafd1cbd81d3c6dd95e6",
+    "coverage.json": "e23950a60624c8550a4ec86b6c2ba4c47cbc08311bf8f34838a354fa0c540d75",
+    "negative-failures.json": "3a38df401971a92b415ca37c404ca498c612f1dd265537044a9f2726a82baeff",
+    "self-full.json": "2561b78b0a540d59db6d06a83a526d01e831ae34ac131278fd0bfbd5d05a2916",
+    "self-structural.json": "7897cec41eaa69a3cebdeb26b049dcd6d0bb0efba62a25bdafd386dec2a02277"
+  },
+  "labels_sha256": {
+    "self_golden_yaml": "751e0460157a5d9e4871cba70f5562b6dd1949d148ee3ff293a1d1d673d4ca98",
+    "chi_golden_yaml": "63320af970e20cb8784df1ea0cf8032e633ac3bd2a6f4e687f5fc19e1267d0e7",
+    "chi_labels_json": "3d6aef7ce7cfdc09e6ebb2b30ebc0565ab650f99fb898cd1431d0da212a3acb4"
+  }
+}

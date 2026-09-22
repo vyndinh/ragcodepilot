@@ -97,7 +97,7 @@ waits until this manual process is stable and worth automating.
 same-file name collision groups and 11 overwritten chunks. The fix includes receiver
 and declaration identity, bumps the representation version, removes old points on
 same-hash refresh, and passes fresh self/chi point-survival checks:
-[recheck record](../eval/runs/2026-09-23-idfix/README.md).
+[post-merge recheck](../eval/runs/2026-09-23-postmerge/README.md).
 
 - [x] Fix receiver/declaration identity in deterministic IDs; cover same-name methods
   on different receivers and a package function sharing a method name.
