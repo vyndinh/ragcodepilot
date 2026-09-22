@@ -90,6 +90,23 @@ func representationVersion() string {
 	return embedding.SparseIndexVersion + "+" + chunkerVersion
 }
 
+type cacheIdentityProvider interface {
+	CacheIdentity(context.Context) (string, error)
+}
+
+func embedderCacheIdentity(ctx context.Context, embedder embedding.Embedder) (string, error) {
+	if provider, ok := embedder.(cacheIdentityProvider); ok {
+		identity, err := provider.CacheIdentity(ctx)
+		if err != nil {
+			return "", fmt.Errorf("resolving embedder cache identity: %w", err)
+		}
+		if identity = normalizeCacheIdentity(identity); identity != "" {
+			return identity, nil
+		}
+	}
+	return fallbackEmbedderIdentity(embedder), nil
+}
+
 // Run walks the repository, chunks files, embeds them, and upserts to Qdrant.
 // On re-index, it uses file hashes to skip unchanged files, delete stale points,
 // and avoid work when the corpus is unchanged. When any file changes, sparse
@@ -264,6 +281,14 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 	if len(allChunks) == 0 {
 		return fmt.Errorf("no chunks generated from %s", repoName)
 	}
+	denseCache, err := openDenseCache(p.runStateDir, p.collection)
+	if err != nil {
+		return err
+	}
+	embedderIdentity, err := embedderCacheIdentity(ctx, p.embedder)
+	if err != nil {
+		return err
+	}
 
 	// Step 7.5: Build enriched texts once and compute global IDF over the full
 	// chunk corpus for this indexing run.
@@ -299,20 +324,48 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 		// Reuse precomputed enriched texts for this batch.
 		texts := allTexts[start:end]
 
-		// Embed the batch.
-		vectors, err := p.embedder.Embed(ctx, texts)
-		if err != nil {
-			return fmt.Errorf("embedding batch %d-%d: %w", start, end, err)
-		}
-		if len(vectors) != len(batch) {
-			return fmt.Errorf("embedding batch %d-%d: expected %d vectors, got %d", start, end, len(batch), len(vectors))
+		vectors := make([][]float32, len(batch))
+		missingTexts := make([]string, 0, len(batch))
+		missingIndexes := make([]int, 0, len(batch))
+		cacheKeys := make([]string, len(batch))
+		for i, text := range texts {
+			key := denseCacheKey(embedderIdentity, representationVersion(), text)
+			cacheKeys[i] = key
+			if cached, ok := denseCache.get(key, expectedDim); ok {
+				vectors[i] = cached
+				if expectedDim == 0 {
+					expectedDim = len(cached)
+				}
+				continue
+			}
+			missingTexts = append(missingTexts, text)
+			missingIndexes = append(missingIndexes, i)
 		}
 
-		detectedDim, err := embedding.ValidateVectorBatch(vectors, expectedDim)
-		if err != nil {
-			return fmt.Errorf("validating embedding batch %d-%d: %w", start, end, err)
+		if len(missingTexts) > 0 {
+			embeddings, err := p.embedder.Embed(ctx, missingTexts)
+			if err != nil {
+				return fmt.Errorf("embedding batch %d-%d: %w", start, end, err)
+			}
+			if len(embeddings) != len(missingIndexes) {
+				return fmt.Errorf("embedding batch %d-%d: expected %d vectors, got %d", start, end, len(missingIndexes), len(embeddings))
+			}
+			detectedDim, err := embedding.ValidateVectorBatch(embeddings, expectedDim)
+			if err != nil {
+				return fmt.Errorf("validating embedding batch %d-%d: %w", start, end, err)
+			}
+			expectedDim = detectedDim
+			for i, vector := range embeddings {
+				index := missingIndexes[i]
+				vectors[index] = vector
+				if err := denseCache.put(cacheKeys[index], vector); err != nil {
+					return err
+				}
+			}
 		}
-		expectedDim = detectedDim
+		if _, err := embedding.ValidateVectorBatch(vectors, expectedDim); err != nil {
+			return fmt.Errorf("validating cached embedding batch %d-%d: %w", start, end, err)
+		}
 
 		// Build sparse vectors from the same enriched texts using BM25 over
 		// the global corpus stats (IDF + average document length).
@@ -323,7 +376,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 
 		// After the first batch, infer dimension and ensure the collection.
 		if !collectionReady {
-			dim := uint64(detectedDim)
+			dim := uint64(expectedDim)
 			fmt.Printf("Detected vector dimension: %d\n", dim)
 			if err := p.store.EnsureCollection(ctx, p.collection, dim); err != nil {
 				return fmt.Errorf("ensuring collection: %w", err)
@@ -354,6 +407,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 	}
 
 	fmt.Printf("Successfully indexed %d chunks into collection %q\n", len(allChunks), p.collection)
+	fmt.Println(denseCache.summary())
 	return nil
 }
 
