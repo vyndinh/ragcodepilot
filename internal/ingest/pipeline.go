@@ -2,8 +2,11 @@ package ingest
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/dinhvy/ragcodepilot/internal/config"
@@ -85,9 +88,19 @@ func NewPipeline(cfg *config.Config, embedder embedding.Embedder, store vectorSt
 // named type chunks) so unchanged files are re-indexed. Stored with the
 // sparse tokenizer version in IndexVersion.
 const chunkerVersion = "go-types-v2-identity"
+const enrichmentVersion = "enrich-v1"
 
 func representationVersion() string {
-	return embedding.SparseIndexVersion + "+" + chunkerVersion
+	return embedding.SparseIndexVersion + "+" + chunkerVersion + "+" + enrichmentVersion
+}
+
+func (p *Pipeline) currentRepresentation(identity string) string {
+	base := representationVersion()
+	if p.runStateDir == "" {
+		return base
+	}
+	digest := sha256.Sum256([]byte(identity))
+	return fmt.Sprintf("%s+chunk-size=%d+overlap=%d+embedder=%s", base, p.chunkSize, p.chunkOverlap, hex.EncodeToString(digest[:]))
 }
 
 type cacheIdentityProvider interface {
@@ -159,9 +172,14 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 		relHashes[rel] = hash
 		absToRel[absFile] = rel
 	}
+	embedderIdentity, err := embedderCacheIdentity(ctx, p.embedder)
+	if err != nil {
+		return err
+	}
+	currentRepresentation := p.currentRepresentation(embedderIdentity)
 	if lease != nil && lease.lockFile != nil {
-		fingerprint := inputFingerprint(p.collection, repoName, representationVersion(), p.languageKeys(), p.chunkSize, p.chunkOverlap, relHashes)
-		if err := lease.begin(p.collection, absPath, representationVersion(), fingerprint, len(files)); err != nil {
+		fingerprint := inputFingerprint(p.collection, repoName, currentRepresentation, p.languageKeys(), p.chunkSize, p.chunkOverlap, relHashes)
+		if err := lease.begin(p.collection, absPath, currentRepresentation, fingerprint, len(files)); err != nil {
 			return err
 		}
 	}
@@ -197,7 +215,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 		rel := absToRel[absFile]
 		existingState, exists := existingStates[rel]
 		hashMatches := exists && existingState.FileHash == hash
-		versionMatches := exists && !existingState.MixedState && existingState.IndexVersion == representationVersion()
+		versionMatches := exists && !existingState.MixedState && existingState.IndexVersion == currentRepresentation
 		if hashMatches && versionMatches {
 			// File unchanged and already indexed with the current representation.
 			skipped++
@@ -272,7 +290,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 		for i := range chunks {
 			chunks[i].IndexedAt = indexedAt
 			chunks[i].FileHash = hash
-			chunks[i].IndexVersion = representationVersion()
+			chunks[i].IndexVersion = currentRepresentation
 		}
 		allChunks = append(allChunks, chunks...)
 	}
@@ -282,10 +300,6 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 		return fmt.Errorf("no chunks generated from %s", repoName)
 	}
 	denseCache, err := openDenseCache(p.runStateDir, p.collection)
-	if err != nil {
-		return err
-	}
-	embedderIdentity, err := embedderCacheIdentity(ctx, p.embedder)
 	if err != nil {
 		return err
 	}
@@ -329,7 +343,7 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 		missingIndexes := make([]int, 0, len(batch))
 		cacheKeys := make([]string, len(batch))
 		for i, text := range texts {
-			key := denseCacheKey(embedderIdentity, representationVersion(), text)
+			key := denseCacheKey(embedderIdentity, currentRepresentation, text)
 			cacheKeys[i] = key
 			if cached, ok := denseCache.get(key, expectedDim); ok {
 				vectors[i] = cached
@@ -405,10 +419,60 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 	if len(changedFiles) > 0 {
 		fmt.Printf("Cleaned up stale chunks for %d changed files\n", len(changedFiles))
 	}
+	if err := p.verifySourceSnapshot(absPath, relHashes); err != nil {
+		return err
+	}
 
 	fmt.Printf("Successfully indexed %d chunks into collection %q\n", len(allChunks), p.collection)
 	fmt.Println(denseCache.summary())
 	return nil
+}
+
+// verifySourceSnapshot rejects completion when files changed while the index
+// was being built. The next run then replays the affected scope from a fresh
+// manifest instead of recording a false successful completion.
+func (p *Pipeline) verifySourceSnapshot(absPath string, expected map[string]string) error {
+	files, err := WalkFiles(absPath, p.cfg)
+	if err != nil {
+		return fmt.Errorf("verifying source snapshot: %w", err)
+	}
+	files = p.filterFilesByLanguage(files)
+	current, err := HashFiles(files)
+	if err != nil {
+		return fmt.Errorf("hashing source snapshot for verification: %w", err)
+	}
+	actual := make(map[string]string, len(current))
+	for path, hash := range current {
+		rel, err := filepath.Rel(absPath, path)
+		if err != nil {
+			rel = path
+		}
+		actual[rel] = hash
+	}
+	if len(actual) == len(expected) {
+		matches := true
+		for path, hash := range expected {
+			if actual[path] != hash {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			return nil
+		}
+	}
+	changed := make([]string, 0)
+	for path, hash := range expected {
+		if actual[path] != hash {
+			changed = append(changed, path)
+		}
+	}
+	for path := range actual {
+		if _, ok := expected[path]; !ok {
+			changed = append(changed, path)
+		}
+	}
+	return fmt.Errorf("source changed during indexing; retry required (files: %s)", strings.Join(changed, ", "))
 }
 
 func (p *Pipeline) filterFilesByLanguage(files []string) []string {
