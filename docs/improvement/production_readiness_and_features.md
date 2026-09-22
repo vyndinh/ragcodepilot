@@ -102,9 +102,9 @@ on retry with an incomplete-run marker:
     do not skip work merely because individual file hashes now match
 ```
 
-Persist the marker, input/representation fingerprint, and last successful run
-state durably. Define their storage location and crash recovery before implementation.
-A source change during a run or a failed write must leave the run incomplete.
+M3-A now persists the marker, input/representation fingerprint, and last
+successful run state durably. M3-B must keep using that contract: a source change
+during a run or a failed write must leave the run incomplete.
 Retry can replay the entire affected scope, reusing valid cached dense inputs.
 This is a single recoverable in-place index, not multiple publication generations.
 
