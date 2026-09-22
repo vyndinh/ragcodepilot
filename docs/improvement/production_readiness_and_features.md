@@ -35,12 +35,35 @@ version, deletes same-hash old points during migration, and retains 382/382 poin
 in the [post-fix recheck](../eval/runs/2026-09-23-idfix/README.md). This stays within
 single-repo indexing; it does not reopen workspace expansion.
 
-### Proposed contract
+### M3-A: Durable run state and writer ownership (complete)
+
+The CLI stores state under the platform user cache directory at
+`<user-cache>/ragcodepilot/index-state/`. Each collection gets a SHA-256-derived
+state and lock filename, so indexing does not write control files into the source
+repository. The state JSON records the collection, repository path, representation,
+input fingerprint, file count, process, timestamps, and one of `in_progress`,
+`completed`, or `failed`.
+
+The input fingerprint covers sorted relative file hashes, collection/repository,
+language scope, chunk size/overlap, and the current representation version. It is
+published atomically after walking and hashing the source but before Qdrant schema
+or point changes. A failed run keeps the marker with its error; an interrupted run
+leaves `in_progress` visible for the next operator.
+
+The collection lock is created with an atomic exclusive file create. A live owner
+causes the next index command to fail with the PID, host, and lock path. If the
+recorded PID is no longer alive, the lock is archived and ownership is retried.
+The lock is released after the marker is completed or failed. This prevents
+overlapping CLI/watch writers while keeping in-place updates and their recovery
+limits explicit.
+
+### M3-B — Dense cache contract (proposed)
 
 The first implementation is a content-addressed dense cache with the existing
 full sparse refresh and complete-point upserts. Sparse-only vector updates, staged
-collections, and atomic swaps are deferred. Add a durable incomplete-run marker
-and a simple writer lock; the cache alone does not fix interrupted runs.
+collections, and atomic swaps are deferred. The M3-A run-state and writer contract
+above handles interrupted ownership; the cache alone does not make a failed run
+safe to resume.
 
 ```text
 on index(scope):

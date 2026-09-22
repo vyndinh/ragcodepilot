@@ -110,15 +110,24 @@ remains as the defect record.
 
 Detailed contract: [local reliability](../improvement/production_readiness_and_features.md).
 
+### M3-A: Durable run state and writer ownership (complete)
+
+The CLI now
+publishes a durable source/representation fingerprint before collection changes,
+keeps failed or interrupted status visible, and prevents overlapping writers per
+collection. See the [run-state contract](../improvement/production_readiness_and_features.md#m3-a-durable-run-state-and-writer-ownership-complete).
+
+- [x] Publish durable input/representation state before collection changes.
+- [x] Keep failed/interrupted status visible and prevent overlapping writers.
+
+### M3-B: Dense cache and reliable retry (next)
+
 - [ ] Cache dense vectors by model artifact, preprocessing, and exact enriched
   input. Reuse unchanged inputs; correctly invalidate model/enrichment/chunker changes.
 - [ ] Retain the existing full sparse refresh and complete-point upsert path.
   Do not add sparse-only updates, staged collections, or atomic index swapping.
-- [ ] Use a durable incomplete-run marker with the input/representation fingerprint.
-  A failed run must remain detectable and replay the affected scope rather than
-  skipping work because some file hashes were already written.
 - [ ] Verify deletions, renames, obsolete chunk cleanup, interrupted-run retries,
-  source changes during indexing, and exclusion of overlapping writers.
+  and source changes during indexing.
 - [ ] Measure dense calls, sparse writes, and total time independently; a dense
   cache does not make all re-index work proportional to the changed files.
 

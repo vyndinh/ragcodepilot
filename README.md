@@ -23,7 +23,7 @@ Answer mode is **opt-in** — without it, the tool works as a pure code search e
 - Search with dense vector lookup and optional language and repo payload filtering.
 - **Answer mode (`--answer`)**: feeds retrieved chunks to a local Ollama generative model (`qwen2.5-coder:7b` by default) and prints a synthesized answer above its sources. Opt-in; the default `search` path is unchanged.
 - Embedding dimension auto-detection and validation (collection mismatch produces clear error with fix instructions).
-- Re-indexing: unchanged hashes and index version allow a no-op. A change, addition, deletion, or version refresh currently re-chunks and re-embeds all remaining files in that repository/language scope; stale chunks are cleaned up. A same-hash representation refresh deletes old file points before writing replacement IDs, so old IDs do not survive a version migration. `--watch` uses the same pipeline. Dense reuse is planned, not implemented.
+- Re-indexing: unchanged hashes and index version allow a no-op. A change, addition, deletion, or version refresh currently re-chunks and re-embeds all remaining files in that repository/language scope; stale chunks are cleaned up. A same-hash representation refresh deletes old file points before writing replacement IDs, so old IDs do not survive a version migration. Index runs also publish durable state and hold one writer lock per collection; dense vector reuse is the next M3 increment. `--watch` uses the same pipeline.
 - **Retrieval evaluation harness** (`ragcodepilot eval`) with golden dataset, `hit@k`, `MRR@5`, `recall@10`, and per-stage latency percentiles.
 - Collection list and delete commands.
 - `config.yaml` is auto-loaded during indexing when present; built-in defaults are used only when it is absent.
