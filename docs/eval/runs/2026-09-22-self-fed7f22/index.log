@@ -1,0 +1,14 @@
+Filtering to languages: go
+Found 28 source files in ragsearch
+Change detection: 0 unchanged, 0 changed, 28 new, 0 stale, 0 index-version refresh
+Generated 248 chunks from 28 files
+Detected vector dimension: 768
+Indexed 32/248 chunks
+Indexed 64/248 chunks
+Indexed 96/248 chunks
+Indexed 128/248 chunks
+Indexed 160/248 chunks
+Indexed 192/248 chunks
+Indexed 224/248 chunks
+Indexed 248/248 chunks
+Successfully indexed 248 chunks into collection "m0_self_fed7f22_20260922_094004"

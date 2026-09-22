@@ -2,7 +2,7 @@
 
 > Updated 2026-09-22 after the docs_update review. This document owns sequencing
 > and next-up tasks. `checklist.md` records the original phase plan.
-> These are planned changes, not implementation or release claims.
+> Milestones are planned unless checked complete with linked evidence; this is not a release claim.
 
 ## Product direction
 
@@ -23,20 +23,24 @@ A local sidecar is compatible with local-first but adds deployment complexity.
 
 ## Evidence snapshot and branch boundary
 
-Reconciled with fetched `origin/main` at `a3ac8ff` on 2026-09-22. This branch
-now includes that implementation and its saved reports. The PR adds documentation
-only relative to main; no retrieval benchmark was rerun for this update.
+The fresh self-repository run on 2026-09-22 used merged revision `fed7f22`, a
+clean archived source snapshot, and a new isolated collection. The
+[run record](../eval/runs/2026-09-22-self-fed7f22/README.md) pins all inputs and
+records limitations. No runtime source or golden labels changed for this refresh.
 
 | Saved report | Queries / positives | hit@5 | Navigation hit@5 | Negative pass | Interpretation |
 |---|---|---|---|---|---|
-| `baseline_v6.json` on this branch | 23 / 19 | 17/19 = 0.8947 | 6/8 = 0.7500 | 4/4 at 0.55 | Historical; hybrid negative cutoff was ineffective |
-| `baseline_v7.json` on this branch | 39 / 35 | 31/35 = 0.8857 | 20/24 = 0.8333 | 4/4 at 0.55 | Historical full set after structural queries were added |
-| `baseline_v8.json` | 39 / 35 | 34/35 = 0.9714 | 23/24 = 0.9583 | 2/4 at 0.02 | Latest saved hybrid baseline on reviewed main; not a fresh run |
+| `baseline_v6.json` | 23 / 19 | 17/19 = 0.8947 | 6/8 = 0.7500 | 4/4 at 0.55 | Historical; hybrid negative cutoff was ineffective |
+| `baseline_v7.json` | 39 / 35 | 31/35 = 0.8857 | 20/24 = 0.8333 | 4/4 at 0.55 | Historical full set after structural additions |
+| `baseline_v8.json` | 39 / 35 | 34/35 = 0.9714 | 23/24 = 0.9583 | 2/4 at 0.02 | Historical; predates later chunker changes |
+| `baseline_v9.json` | 39 / 35 | 34/35 = 0.9714 | 23/24 = 0.9583 | 2/4 at 0.02 | Fresh pinned self baseline; 248 chunks, zero query errors |
+| `baseline_v9_structural.json` | 16 / 16 | 15/16 = 0.9375 | 15/16 = 0.9375 | N/A | Same index; expected-file recall@5 0.6917 |
 
-The reconciled implementation includes additive identifier tokens, named Go
-type/interface chunks, and mode-calibrated negative checks. The v8 report predates
-some later chunker changes; it is not proof of current HEAD performance. Capture
-a fresh baseline before choosing new retrieval work.
+The implementation includes identifier tokens, named Go type/interface chunks,
+and calibrated negative checks. v9 records one positive hit miss, two negative
+failures, and eleven positives with incomplete expected-file coverage at top 5.
+Historical reports are not controlled A/Bs against v9. External evaluation remains
+open; this self-corpus run does not establish broader quality.
 
 The old 0.55 cosine threshold cannot fail for two-list RRF with k=60 (maximum
 about 0.0333). Replaying v6's saved scores at 0.02 fails the same two negatives
@@ -56,21 +60,22 @@ their original meanings; gaps refer to retired proposals.
 
 | ID | Scope | Size | Exit criterion | Status |
 |---|---|---|---|---|
-| M0 | Fresh evidence on self + one external repo | S–M | Pinned inputs, saved reports, named failure inventory, manual comparison checklist | Next |
+| M0 | Fresh evidence on self + one external repo | S–M | Pinned inputs, saved reports, named failure inventory, manual comparison checklist | In progress: self complete; external open |
 | M3 | Dense reuse + retry/cleanup | M | Cache reuse and invalidation, interrupted-run replay, stale-ID cleanup, one writer per index | After M0 |
 | M4 | Existing-command errors + .gitignore | S–M | Actionable operation-specific failures; nested ignore/exclusion behavior verified | Independent |
 | M1 | Sources-first terminal output | S | Exact answer sources appear before warmup and generation | Optional small UX change |
 
 ## M0 — Fresh baseline and one external repository [S–M]
 
-- [ ] Record the reconciled code revision and freeze the source snapshot, query
+- [x] Record the reconciled code revision and freeze the source snapshot, query
   set, config/filters, model artifact/preprocessing, representation version, and limits.
-- [ ] Capture fresh full and structural self-corpus reports with current score
-  semantics. Saved v8 evidence is useful history, not a substitute for this run.
+- [x] Capture fresh full and structural self-corpus reports with current score
+  semantics: [v9 evidence and failure inventory](../eval/runs/2026-09-22-self-fed7f22/README.md).
 - [ ] Evaluate **one representative external Go repository**, in its own collection,
   with a small carefully labeled query set (about 15–20 positive/negative cases).
   Include required multi-file evidence; retain per-query failures and source revision.
-- [ ] Classify recurring misses, then document a manual regression checklist for
+- [ ] Complete the failure inventory across self and external repos; the self-run
+  record already includes a manual regression checklist. Retain the checklist for
   changes to retrieval. Retain comparable control/candidate reports and inspect
   query errors, accepted hits/coverage, negatives, and latency.
 

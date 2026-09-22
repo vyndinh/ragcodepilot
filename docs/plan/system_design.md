@@ -16,11 +16,11 @@ document describes the **current architecture as built**, plus the original
 requirements and scale framing. The implementation establishes current behavior;
 the roadmap establishes planned work, never proof that a feature has shipped.
 
-**Implementation snapshot:** reconciled with fetched `origin/main` at `a3ac8ff`
-on 2026-09-22. This includes additive identifier tokens, named Go type/interface
-chunks, combined chunker/tokenizer representation versioning, and mode-calibrated
-negative evaluation. This PR changes documentation relative to that base. Saved
-v8 evidence predates some chunker changes, so a fresh baseline remains M0 work.
+**Implementation snapshot:** merged revision `fed7f22`, evaluated on 2026-09-22.
+This includes identifier tokens, named Go type/interface chunks, representation
+versioning, and calibrated negative checks. The
+[pinned v9 self baseline](../eval/runs/2026-09-22-self-fed7f22/README.md) records
+248 chunks and zero query errors; external quality is still unverified.
 
 ---
 
@@ -236,7 +236,8 @@ per-stage latency percentiles, per-type breakdown. With `--answer`, adds
 reference-free Tier B answer metrics (citation validity, refusal-on-negative,
 well-formedness) — report-only, never gated. Baselines are committed under
 `docs/eval/`. v6/v7 are historical reports on this branch; the latest saved
-baseline is `baseline_v8.json`. Its 0.50 negative pass rate uses the corrected
+baseline is `baseline_v9.json`, with a paired structural report and manifest.
+Its 0.50 negative pass rate uses the corrected
 RRF ceiling (0.02), now also in this branch. The historical v6/v7 1.00 rates
 used an ineffective cosine threshold. They do not establish negative-query
 safety; score families require separate calibration. See
