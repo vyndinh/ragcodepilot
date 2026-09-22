@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -724,5 +725,73 @@ func TestPipeline_RunDeletesStaleFiles(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected delete:removed.py in ops, got: %v", store.ops)
+	}
+}
+
+type mutatingEmbedder struct {
+	base    *fakeEmbedder
+	path    string
+	mutated bool
+}
+
+type failOnceStore struct {
+	recordingStore
+	failed bool
+}
+
+func (s *failOnceStore) Upsert(ctx context.Context, collection string, chunks []model.CodeChunk, vectors [][]float32, sparseVectors []embedding.SparseVector) error {
+	if !s.failed {
+		s.failed = true
+		return errors.New("injected upsert failure")
+	}
+	return s.recordingStore.Upsert(ctx, collection, chunks, vectors, sparseVectors)
+}
+
+func TestPipeline_RunCanRetryAfterUpsertFailure(t *testing.T) {
+	t.Parallel()
+
+	repoPath := writeTestRepo(t, 1)
+	store := &failOnceStore{}
+	p := NewPipeline(config.Default(), &fakeEmbedder{dim: 4}, store, "retry-test")
+	if err := p.Run(context.Background(), repoPath); err == nil || !strings.Contains(err.Error(), "injected upsert failure") {
+		t.Fatalf("first run error = %v, want injected failure", err)
+	}
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("retry error = %v", err)
+	}
+	if store.upsertCalls != 1 {
+		t.Fatalf("successful upsert calls = %d, want 1 after retry", store.upsertCalls)
+	}
+}
+
+func (e *mutatingEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
+	if !e.mutated {
+		e.mutated = true
+		if err := os.WriteFile(e.path, []byte("# changed during indexing\nprint('v2')\n"), 0o644); err != nil {
+			return nil, err
+		}
+	}
+	return e.base.Embed(ctx, texts)
+}
+
+func (e *mutatingEmbedder) Dimension() int { return e.base.Dimension() }
+
+func TestPipeline_RunRejectsSourceChangeDuringIndexing(t *testing.T) {
+	t.Parallel()
+
+	repoPath := t.TempDir()
+	filePath := filepath.Join(repoPath, "app.py")
+	if err := os.WriteFile(filePath, []byte("# initial\nprint('v1')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store := &recordingStore{}
+	p := NewPipeline(config.Default(), &mutatingEmbedder{base: &fakeEmbedder{dim: 4}, path: filePath}, store, "source-consistency")
+
+	err := p.Run(context.Background(), repoPath)
+	if err == nil || !strings.Contains(err.Error(), "source changed during indexing") {
+		t.Fatalf("Run() error = %v, want source-consistency error", err)
+	}
+	if store.upsertCalls == 0 {
+		t.Fatal("expected the run to upsert before detecting the source change")
 	}
 }

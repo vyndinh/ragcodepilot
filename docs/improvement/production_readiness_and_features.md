@@ -113,6 +113,15 @@ after an interrupted refresh. The scroll state marks a file as mixed whenever it
 points disagree; the next run refreshes and replaces the whole file so stale IDs
 cannot be accepted from an arbitrary point's metadata.
 
+### M3-C — Retry, cleanup, and source consistency [in progress]
+
+After batch writes and stale-point cleanup, the pipeline re-hashes the filtered
+source manifest. If any file was added, removed, or changed during the run, the
+run fails and remains retryable rather than publishing a completed state. The
+existing mixed-state detection and changed-file cleanup make the next retry
+replace obsolete points. Acceptance still requires interruption/retry results to
+match a clean rebuild and explicit deletion/rename coverage.
+
 Prevent overlapping CLI/watch writers with a collection-level lock. In-place writes
 can be visible while incomplete; acceptance covers recovery after successful retry,
 not atomic snapshot reads. Defer staging/reader gating unless a real requirement

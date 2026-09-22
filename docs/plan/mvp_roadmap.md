@@ -66,7 +66,7 @@ their original meanings; gaps refer to retired proposals.
 | ID | Scope | Size | Exit criterion | Status |
 |---|---|---|---|---|
 | M0 | Fresh evidence on self + one external repo | S–M | Pinned inputs, saved reports, named failure inventory, manual comparison checklist | Complete as measurement; known failures retained |
-| M3 | Dense reuse + retry/cleanup | M | Cache reuse and invalidation, interrupted-run replay, stale-ID cleanup, one writer per index | Cache complete; recovery/cleanup next |
+| M3 | Dense reuse + retry/cleanup | M | Cache reuse and invalidation, interrupted-run replay, stale-ID cleanup, one writer per index | Recovery/cleanup in progress |
 | M4 | Existing-command errors + .gitignore | S–M | Actionable operation-specific failures; nested ignore/exclusion behavior verified | Independent |
 | M1 | Sources-first terminal output | S | Exact answer sources appear before warmup and generation | Optional small UX change |
 
