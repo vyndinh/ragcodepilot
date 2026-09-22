@@ -297,55 +297,29 @@ A subtle but useful framing: this number doesn't measure answer quality. It's a 
 
 ---
 
-## Phase 6 — GraphRAG, and a deliberate bet
+## Historical structural-retrieval investigation
 
-By the time `hit@5` was back at 0.89, the eval was pointing at one weak spot. Navigation queries were the only category still below 1.0, and not by accident.
+Navigation failures in the May reports motivated a graph-retrieval hypothesis.
+It remained a proposal. The useful outcome was a larger evaluation set and a
+clearer distinction between finding one relevant result and retrieving complete
+evidence for an answer.
 
-*"Where is X defined."* *"What calls Y."* *"What would break if I change Z."*
+The 16-query structural subset in `baseline_v7_structural.json` recorded hit@5
+of 0.875 (14/16), recall@5 of 0.60, and recall@10 of 0.75. Two queries failed
+hit@5; seven already passed but had additional relevant files at ranks 6–10;
+seven had no recall gap. Those patterns describe failures, not a proven choice
+of retrieval component.
 
-These aren't similarity questions. The answer lives in the *edges* between chunks — definitions, callers, imports — not in the chunks themselves. Pure vector + BM25 retrieval is built for similarity, and similarity isn't what's missing.
+The follow-up AL=5 versus AL=8 experiment kept retrieval unchanged and increased
+generation p50 from 23.9s to 37.1s, about 55%. Citation and answer-shape metrics
+stayed flat. They could not determine whether the larger context improved answer
+content. The saved reports and exact figures remain in
+[retrieval quality decisions](retrieval_quality_decisions.md#25-practical-implications-for-current-decisions).
 
-The original roadmap had Phase 3 = cross-encoder reranking next. We almost built it. Then we asked one more question: even if a reranker did a perfect job, could it surface a "what calls X" answer if the caller never lexically named X? It couldn't. Reranking can only reorder what hybrid already retrieved.
-
-So the next phase pivoted: **GraphRAG.** A graph layer over the codebase, with edges for `defines`, `calls`, and `imports`, populated by a Go AST pass at index time, stored in local SQLite. At query time, hybrid still picks the top-50 seeds. Then we expand — 1–2 hops along the graph — re-score, and return.
-
-To even test this, the eval needed structural queries it didn't have. So the golden set grew by 16 hand-curated multi-hop questions: *"what calls `Pipeline.Run`"*, *"trace from `runSearch` to `qdrant.Client.Search`"*, *"what would break if I change `Embedder.Embed`'s signature."* The eval doubled its navigation count and gained two new patterns: traces and change-impact.
-
-The hybrid baseline on this new subset (`baseline_v7_structural.json`):
-
-- hit@5 = 0.875 (14 of 16 pass)
-- recall@5 = 0.60, recall@10 = 0.75
-- **recall gap = 0.15** — comfortably above the reranker-headroom threshold
-
-This is where things got honest. The recall gap triggers the reranker rule by our own standing diagnostic. So "GraphRAG over reranker" couldn't be sold as *"reranker can't help."* It had to be sold as a **deliberate bet**: structural signal would pay more on these queries than reordering would pay on the gap. Phase 3 reranking is parked, not cancelled; the data justifies it on the gap alone, but the bet says GraphRAG will help more on the *specific* structural failures.
-
-Per-query analysis split the 16 structural queries into three buckets:
-
-| Bucket | Count | Shape | Lever |
-|---|---|---|---|
-| **A** — hard fails (chunk absent from top-10) | 2 | embedding-shaped | GraphRAG or embedding upgrade |
-| **B** — partial recall (chunk in top-10, not top-5) | 7 | reranker-shaped | reranker OR cheaper: raise `--answer-limit` |
-| **C** — fully resolved | 7 | hybrid is enough | none |
-
-And out of that table came a tempting hypothesis. If Bucket B's chunks were sitting at rank 6–10, why not just *feed more chunks to the LLM* — raise `--answer-limit` from 5 to 8 — and let the model see them directly? No graph. No reranker. No new infrastructure. A free win, on paper.
-
-So that's what we tested.
-
-The result, on 2026-05-28, didn't match the prediction. *(Canonical A/B data:
-`docs/knowledge/retrieval_quality_decisions.md` §2.5 — the figures below are
-illustrative for the story; that section is the source of truth.)*
-
-- **Retrieval, identical.** Same `hit@5 = 0.875` in both runs — sanity check passed.
-- **Tier B shape metrics, flat.** Cited rate, citation validity, dangling refs — all unchanged.
-- **Latency, +55% at p50.** From 23.9s to 37.1s per answer. Total wall-clock +31%.
-
-The retrieval logic was right. The rank-6–10 chunks *were* in the prompt at AL=8. But the prediction that Tier B's *shape* metrics would lift didn't hold — and Tier B can't see whether the answer's *content* improved. That's a correctness question. Answering it needs either dogfooding judgment or a Tier C faithfulness judge.
-
-So the gate moved. The cheap lever's "free win" turned out to be inconclusive on automated metrics, with a real latency cost on top. The next step isn't another eval run; it's a side-by-side dogfooding pass — read AL=5 and AL=8 answers on the same multi-chunk questions, judge by hand which is more complete.
-
-And there's a subtler implication for Phase 6 hiding in this result. A true retrieval-side fix — reranker or graph — puts Bucket B's chunks *into top-5*. The LLM sees them at AL=5. Same prompt content, *without* the +55% latency. So the AL=8 finding doesn't weaken the case for Phase 6. It strengthens it.
-
-Phase 6 stays designed, stays gated, and waits on dogfooding. Phase 2 was *"build it and measure."* Phase 6 is *"measure first, re-measure with humans, then decide whether to build."*
+The lesson is to inspect missing evidence and answer content before selecting an
+implementation. Neither the recall gap nor the latency result proved a graph or
+reranker would help. The detailed proposal was removed when the roadmap narrowed
+to evaluation and local indexing reliability.
 
 ---
 
@@ -376,7 +350,7 @@ The numbers tell a story of steady improvement — with one honest dip-and-recov
 | v5_pre (post-Phase-5 corpus) | 0.789 | 0.660 | Corpus grew with Phase 5 code; same algorithm |
 | v6 (+ `*_test.go` exclusion) | 0.895 | 0.673 | Test-file hygiene recovered hit@5 |
 | v7 (+ 16 structural queries) | 0.886 | 0.717 | Bigger golden set; aggregate held |
-| v7_structural (16-q subset) | 0.875 | 0.771 | Phase 6 comparison target |
+| v7_structural (16-q subset) | 0.875 | 0.771 | Historical structural evidence |
 
 Each number was earned by building something, measuring it, and keeping only what the eval proved helped. The `v5_pre` row is the corpus-drift story made literal — same code, refreshed input, lost 10pp — and `v6` is the recovery.
 
@@ -398,29 +372,20 @@ Looking back, a few choices mattered more than the code:
 
 **"The corpus is part of the experiment"** is the rule that came out of corpus drift. A baseline isn't an algorithm score; it's an algorithm score against a specific corpus. Before declaring a regression or a win, re-baseline on the corpus you're actually testing on. Otherwise the change-under-test is conflated with the change-in-inputs and the conclusion is meaningless.
 
-**"Choose levers in cost order"** is the rule that came out of the Bucket A/B/C analysis and the AL=8 A/B. When the data shows two ways to fix the same problem — one cheap, one expensive — try the cheap one first, even if it sounds less interesting. Sometimes the cheap lever's outcome narrows the expensive scope; sometimes it leaves the question open or even *strengthens* the case for the expensive one (the `--answer-limit 8` A/B did the latter — Tier B couldn't see content benefits, latency rose +55%, and a true retrieval-side fix would deliver the same prompt without the cost). Either way, you've learned cheaper than the alternative.
+**"Measure the claimed benefit"** is the lesson from the AL=8 A/B. Answer-shape metrics stayed flat while generation latency rose. That establishes a cost, but leaves content quality unanswered; it cannot justify a different retrieval component by itself.
 
 ---
 
 ## What comes next
 
-The first product question — *does `--answer` mode add value over raw chunks?* — has a tentative yes from limited dogfooding (the model refuses on negatives, citations resolve, well-formed rate is 1.00), with the caveat that latency on 7B is real. The next decision isn't *whether* `--answer` helps; it's *which retrieval investment helps the specific failures the eval surfaced*.
+The [roadmap](../plan/mvp_roadmap.md) owns the current sequence:
 
-The evidence so far, drawn from the Bucket A/B/C split on `baseline_v7_structural` plus the AL=8 A/B (2026-05-28):
+1. **M0:** fresh self-corpus evidence and one representative external Go repository,
+   with pinned inputs and named failures.
+2. **M3:** dense embedding reuse with reliable retry, cleanup, and writer ownership.
+3. **M4:** actionable errors in existing commands and .gitignore support; this can
+   proceed independently of M0/M3.
 
-- **Bucket B (7 queries)** has relevant chunks at rank 6–10. The cheap-lever hypothesis — raise `--answer-limit` from 5 to 8 — was tested: Tier B shape metrics stayed flat, generation latency rose +55% at p50. The retrieval logic was right (those chunks are in the prompt at AL=8), but the *content* benefit is invisible to Tier B and needs human judgment.
-- **Bucket A (2 queries)** has the right chunks absent from top-10 entirely. Reranking can't help; GraphRAG might, if those chunks are reachable through `calls`/`defines` edges from hybrid's seeds.
-- **Bucket C (7 queries)** is already fully resolved.
-
-So the next concrete steps, in order:
-
-1. **Dogfood AL=5 vs AL=8 on 3–5 multi-chunk questions.** The eval can't tell us whether AL=8's bigger prompt actually produces better answers; a human reading both side-by-side can. If the verdict says AL=8 materially helps, raise the default and narrow Phase 6 to Bucket A. If not, leave the default at 5; Phase 6 keeps its full scope.
-2. **Phase 6 (GraphRAG)** — start with scope set by the dogfooding verdict. The plan is fully drafted at [`../plan/graphrag.md`](../plan/graphrag.md), with per-query gating and the dogfooding prerequisite baked in. Note: the AL=8 result actually *strengthens* the retrieval-side case, since a reranker or graph would land Bucket B's chunks in top-5 without the +55% latency penalty.
-3. **`index --watch`** ✅ **shipped.** Long-running mode that uses `fsnotify` to detect file changes and re-runs the pipeline (debounced). Removes the manual `delete → index → eval` cycle that punctuated this whole project. Independent of Phase 6; ran in parallel with the dogfooding sub-step.
-
-Further out:
-
-- **Phase 5 v1** features — multi-provider (OpenAI-compatible HTTP, native Anthropic), faithfulness judge (Tier C), streaming, refusal-on-low-confidence guardrail. Gated on dogfooding signal. Current verdict: the model self-refuses cleanly on negatives (pass = 1.00), so the refusal guardrail is justified-but-not-urgent.
-- **Phase C** (custom Go vector DB) — still the long-term learning goal that started this project. Original ambition, now on a distant horizon. The decision to go top-down was the right one; eventually the bottom-up tour is still worth taking.
-
-The thread through all of this remains the same: every change carries a measurement that justifies it, and the next change waits for the measurement of the last one. The system searches code, answers questions, measures its own quality, and now has a forecast tool — the recall gap — that tells it which kind of measurement to take next. It got here one honest decision at a time.
+Sources-first output is optional. Existing hybrid retrieval, answer mode, and
+watch mode remain implemented. Historical results above explain how the project
+arrived here; they do not prescribe an additional retrieval layer.

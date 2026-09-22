@@ -12,7 +12,7 @@
 - [`../plan/mvp_roadmap.md`](../plan/mvp_roadmap.md) — active local CLI roadmap and product direction
 - [`../plan/hybrid_search.md`](../plan/hybrid_search.md) — current BM25 + dense + RRF design with additive stemming (`baseline_v4`)
 - [`../plan/rag_evaluation_metrics.md`](../plan/rag_evaluation_metrics.md) — eval harness spec
-- [`code_graph_retrieval_landscape.md`](code_graph_retrieval_landscape.md) — industry landscape / prior-art companion to the GraphRAG (Phase 6) decision
+- [`code_graph_retrieval_landscape.md`](code_graph_retrieval_landscape.md) — code-graph concepts and historical research references
 - [`rag_notebook.md`](rag_notebook.md) — beginner walkthrough; §14 has historical performance examples
 
 ---
@@ -39,80 +39,34 @@ to restore 1.00. The same two v6 saved negatives fail when scored at main's 0.02
 Structural hit@5 already passes 14/16 historical queries. All seven recall-gap
 queries already pass it too. Use required-evidence coverage for completeness,
 retain hit@5 as a preservation check, and do not require binary improvement on
-already-passing queries. Proposed model/reranker gains and latency ranges below
-are hypotheses to benchmark, not commitments.
+already-passing queries. The concepts below explain these measurements without
+scheduling another retrieval component.
 
 ## Table of contents
 
 1. [Reranking — pros/cons for ragcodepilot](#1-reranking--proscons-for-ragcodepilot)
 2. [Which retrieval metrics matter](#2-which-retrieval-metrics-matter)
-3. [Bottom line](#3-bottom-line)
+3. [Measurement rules](#3-measurement-rules)
 
 ---
 
 ## 1. Reranking — pros/cons for ragcodepilot
 
-### 1.1 What it is
+A reranker scores query/chunk pairs and changes the order of retrieved candidates.
+It can move relevant evidence into the displayed or generated context, but cannot
+recover evidence absent from its input pool. Its quality and latency effects must
+be measured on the actual corpus; there is no established local gain to promise.
 
-Two-stage retrieval. Today is one stage (hybrid search returns top-K). Reranking adds a second:
+The historical recall gap identifies additional relevant files below top-5. It
+does not establish that a reranker will promote the right chunks, improve answers,
+or fit the local resource budget. Candidate depth is also a separate variable:
+compare ordering on the same pool to isolate it.
 
-```
-Stage 1 (current): hybrid search → top-50 candidates           (~30ms p50 today)
-Stage 2 (new):     cross-encoder scores each (query, chunk) pair
-                   → re-sort → return top-K                    (+200–500ms)
-```
-
-A **cross-encoder** processes query and document **together** through attention. Much richer signal than the bi-encoder (embedding) similarity used in stage 1, but it runs per-pair instead of as a single query embedding — so it's slower.
-
-### 1.2 Pros
-
-1. **Biggest available hit@1 lever.** Published cross-encoder benchmarks consistently add **+10–20pp on hit@1** over bi-encoder retrieval. Current state (`baseline_v6`, unchanged from `baseline_v4`): hit@1 = 0.579 → reranking plausibly pushes to **0.70–0.80**.
-2. **Stabilizes top-K ordering and may recover navigation queries that stemming displaced.** Stemming (shipped 2026-05-15) gave back full hit@5 but cost two navigation hit@1 results (`run_eval_navigation`, `hihatk_navigation` — both lost top-1 due to the expanded token space adding competition for exact-identifier queries). A cross-encoder reading the full query text could re-promote these. The `hasher_concept` regression that BM25 originally introduced is **already fixed** by stemming; reranking is no longer needed for that specific failure.
-3. **Improves all query categories**, not just navigation. Concept, behavior, and navigation queries all benefit when retrieval surfaces 5–10 plausible candidates that need re-ordering.
-4. **No re-indexing.** Drops in on top of existing hybrid retrieval. Unlike the BM25 switch, you can A/B reranking without touching the Qdrant collection.
-5. **Composable with everything else.** Orthogonal to chunking, embedding model, tokenizer, sparse algorithm. Adds a step, doesn't replace one.
-6. **Precondition for Phase 5 (answer mode).** If you feed chunks to an LLM, you want top-3 to be the actually-best 3. Reranking is the realistic path to "top-K I'd trust an LLM to summarize without hallucinating."
-
-### 1.3 Cons
-
-1. **Latency: 5–10× the current p50.** Cross-encoders run per-pair. Reranking top-20 with a small cross-encoder on CPU adds 200–500ms. p50 goes from 28ms → ~250–500ms; p95 likely 800ms+. **This is the dominant cost** and the single biggest reason not to do it. Whether it matters depends on how "interactive" the CLI should feel.
-2. **Deployment complexity.** No clean local option:
-   - **Ollama**: primarily a generation runtime. Most rerankers (BGE-reranker, jina-reranker, mxbai-rerank) are encoder-only and don't have first-class Ollama support. Workable but custom.
-   - **Python sidecar**: easiest model access (sentence-transformers, FlagEmbedding), but introduces Python to a Go-only repo, plus IPC + startup overhead.
-   - **Pure Go**: porting cross-encoder inference is unrealistic for a learning project.
-3. **Model choice matters — a bad reranker is *worse* than no reranker.** Safe default (BGE-reranker-base) is decent; larger ones (BGE-reranker-large, jina-reranker-v2) cost 2–3× more latency. Tuning required.
-4. **Hit@1 lift not guaranteed at our scale.** Published numbers are mostly MS MARCO (large general corpus). 350-chunk code corpus is a different regime — the lift could be smaller.
-5. **Doesn't fix everything.** Reranker can only re-order what retrieval surfaces. If hybrid drops the right chunk out of the top-20 entirely (the `chunkfile_navigation` case in `hybrid_search.md`), reranking can't recover it. **Retrieval quality is the floor.**
-6. **Eval harness work.** Need to extend the harness to capture pre- vs post-rerank scores so you can isolate where the lift comes from.
-7. **Adds a second model to maintain.** The current "single Ollama embedder + Qdrant" simplicity goes away. Versioning, model files, integration tests all grow.
-
-### 1.4 Compared to alternatives
-
-| Next step | Effort | Expected hit@1 lift | Latency impact | State |
-|---|---|---|---|---|
-| **Reranking** | M–L | **+10–20pp** | **−5× to −10× (slower)** | Not yet attempted |
-| **Tokenizer stemming** (`hashes` → `hash`) via `kljensen/snowball` | S | small (recovered the one regression) | minor (+18% p95 on hybrid) | ✅ **Shipped 2026-05-15 in `baseline_v4`** |
-| **Better embedding model** (e.g. `jina-embeddings-v2-base-code`) | S–M | unknown; +2–5pp likely | similar | Not yet attempted |
-| **Phase 5 v0 answer mode** (per current roadmap) | M | n/a (new capability, not retrieval) | adds LLM call | Not yet attempted |
-| **Rust AST chunker** | M | small (Rust-only) | none | Not yet attempted |
-
-### 1.5 Decision criteria
-
-Pick reranking **if** all of:
-
-- Top-1 quality is the metric you actually care about *(see §2 — under RAG, this is less true than it seems)*.
-- You'll accept p50 latency rising from 28ms to ~250–500ms.
-- You're OK with a Python sidecar OR finding/customizing a cross-encoder for Ollama.
-
-~~Pick stemming instead if...~~ **Stemming already shipped (2026-05-15)**. Result: hit@5 recovered to 0.895, concept hit@5 back to 1.000, hit@1 dropped 5.3pp vs `baseline_v3` (small navigation cost). See [`../plan/hybrid_search.md`](../plan/hybrid_search.md) for the full P3 → P4 comparison.
-
-Pick **answer mode (Phase 5 v0) instead if** you want to start exercising the full-RAG product surface before retrieval is "perfect." The mvp_roadmap.md pivoted in this direction on 2026-05-14; the argument was that `baseline_v3` hit@5 of 0.842 was strong enough to feed an LLM. **With `baseline_v4` at hit@5 = 0.895 the argument is even stronger.** Reranking would make those answers visibly sharper at top-1, but you don't strictly need it before starting answer mode.
-
-### 1.6 Risks specific to this codebase
-
-- **Two retrieval-system "personality" effects**: cross-encoders calibrated on natural-language QA may misrank code-specific tokens (identifiers, snake_case symbols). The same risk affected stemming. Plan eval comparison carefully.
-- **CPU-only inference budget**: most users run ragcodepilot on a laptop without GPU. Latency claims here assume CPU; with a Metal/CUDA backend the picture changes meaningfully.
-- **Eval corpus size is small (350 chunks).** A 20-chunk top-K means reranker sees ~6% of the corpus. The signal-to-noise ratio in eval results will be limited until the corpus grows.
+Stemming, identifier tokens, and named Go type/interface chunks are implemented.
+Answer mode is also implemented and did not require a reranker. Detailed runtime
+choices, predicted uplift tables, and feature sequencing have been removed.
+Current comparison rules live in the
+[evaluation guide](../eval/README.md#interpreting-coverage-and-isolating-changes).
 
 ---
 
@@ -164,26 +118,28 @@ An LLM reads top-K and synthesizes an answer.
 
 ### 2.3 Recommended priority order for ragcodepilot today
 
-Given you're between retrieval-CLI (now) and answer mode (next phase):
+For the implemented CLI and optional answer mode, preserve accepted hits and
+required-evidence coverage first. Use MRR@5 and hit@1 to diagnose ordering;
+use recall@5 and recall@10 to locate incomplete context. No single metric or
+historical threshold selects the next retrieval component.
 
-1. **MRR@5 — headline metric.** Single number that captures both "is top-1 right" and "if not, is the right answer near the top." Best for tracking improvements and catching regressions in one number.
-2. **Hit@5 — RAG-readiness gate.** Once answer mode ships, `hit@5 < 0.70` means the LLM gets the right info less than 70% of the time. Set a floor (e.g., *"no future change drops hit@5 below 0.85"*). Historical value (`baseline_v6`, its 182-chunk corpus): **0.895** — above the floor. It briefly dipped to 0.789 when Phase 5 grew the corpus (`baseline_v5_pre`), but excluding `*_test.go` from indexing recovered it; see §2.5 "Corpus re-baseline + test-file hygiene".
-3. **Negative pass — calibrated retrieval diagnostic.** Preserve passing cases under fixed score-aware thresholds and track failures. The historical hybrid 1.00 was vacuous; neither it nor a calibrated score threshold proves answer faithfulness.
-4. **Recall@10 vs Recall@5 ratio — diagnostic, not a target.** If recall@10 is much higher than recall@5, *"we know it but can't rank it"* → **reranking** is the right next step. If they're equal, embedding/chunking is the floor → upgrade the embedding model.
-5. **Hit@1 — secondary.** Tracks retrieval-CLI quality. Useful as a leading indicator of "did the algorithm get sharper?" but no longer the final-answer metric.
+Negative checks use fixed score-aware policies with named known failures.
+Answer content requires manual review. Follow the
+[evaluation comparison rules](../eval/README.md#interpreting-coverage-and-isolating-changes)
+for new measurements.
 
-### 2.4 New metrics needed when answer mode ships
+### 2.4 Implemented answer diagnostics and measurement gaps
 
 These are **generation-quality** metrics. Some now exist as a **reference-free** answer-eval tier (`eval --answer`, shipped with Phase 5 v0) — deterministic checks on real generation (greedy/temp 0), reported but never gated:
 
 - **Citation validity** ✅ *(reference-free, shipped)*: do `[N]` references in the answer point at chunks that were actually provided? Catches dangling citations. This is the cheap, deterministic cousin of citation precision.
-- **Refusal rate on weak retrieval** ✅ *(reference-free, shipped)*: on negative queries (no strong match), does the model say "not enough information" instead of hallucinating? Detected by a phrase heuristic — a diagnostic, not ground truth. The hallucination floor.
+- **Refusal rate on weak retrieval** ✅ *(reference-free, shipped)*: on negative queries (no strong match), does the model say "not enough information" instead of hallucinating? Detected by a phrase heuristic — a diagnostic, not ground truth. This does not measure hallucination directly.
 - **Well-formedness** ✅ *(shipped)*: non-empty answer produced.
 
-Still **not** implemented (the reference-*based* / judge tier — deferred to v1, "Tier C"):
+The following content measurements are not automated; they describe gaps, not a scheduled feature list:
 
-- **Faithfulness / groundedness**: does the generated answer's *content* match the retrieved chunks? Needs LLM-as-judge — non-deterministic, requires a judge model, must not gate CI.
-- **Citation precision** (semantic): do the cited chunks actually *contain the claimed facts*? (Validity checks the reference resolves; precision checks the claim is supported — the latter needs a judge.)
+- **Faithfulness / groundedness**: does the generated answer's *content* match the retrieved chunks? Review manually; automated judging is outside the current scope.
+- **Citation precision** (semantic): do the cited chunks actually *contain the claimed facts*? (Validity checks the reference resolves; precision checks the claim is supported — the latter needs content review.)
 - **Per-query-type breakdown for answers**: navigation vs concept answers have different "what counts as success" definitions in RAG. (Retrieval already breaks down by type; answer metrics do not yet.)
 
 ### 2.5 Practical implications for current decisions
@@ -194,7 +150,7 @@ Result: hit@1 +21pp, hit@5 −5pp (one query), MRR@5 +10pp. p95 latency 173→11
 
 - **Was that a good trade for current state?** Yes — hit@1 +21pp is huge, the hit@5 loss is one tokenizer-bound query (a structural issue, not BM25). Users see better top-1 results immediately.
 - **Was it a good trade for RAG state?** Yes — and the stemming follow-up (`baseline_v4`) closed the one hit@5 gap, making the BM25 switch a strict win in retrospect.
-- **For the *next* trade, raise the hit@5 bar.** A future change should not drop hit@5 below 0.85 without an equally large or larger MRR@5 gain — measured on a *fixed* corpus (see "Corpus re-baseline" below; the Phase 2 number was 0.895).
+- **Current acceptance:** preserve accepted hits and required coverage on frozen inputs. Historical aggregate floors do not authorize losing cases in exchange for higher MRR.
 
 #### Corpus re-baseline + test-file hygiene (2026-05-27, `baseline_v6`)
 
@@ -204,7 +160,7 @@ After Phase 5 v0 (`--answer` mode) landed, re-indexing the repo grew the corpus 
 - `baseline_v5` — after excluding `*_test.go` (and hidden dirs like `.claude/worktrees`) from indexing. **182 chunks.**
 - `baseline_v6` — same corpus, first run carrying the new `recall@5` / recall-gap diagnostic. **Historical pre-identifier-token baseline; see the current decision boundary above.** (The tiny v5→v6 drift — hit@3 0.632→0.684, MRR@5 0.668→0.673 — is the recall-gap code itself getting indexed between runs; a reminder the signal-to-noise is low at this corpus size.)
 
-| Metric | `baseline_v4` (Phase 2, 350 chunks) | `baseline_v5_pre` (grown, +tests) | `baseline_v6` (current, −tests) |
+| Metric | `baseline_v4` (Phase 2, 350 chunks) | `baseline_v5_pre` (grown, +tests) | `baseline_v6` (historical, −tests) |
 |---|---|---|---|
 | hit@1 | 0.579 | 0.579 | 0.579 |
 | hit@3 | 0.737 | 0.737 | 0.684 |
@@ -219,14 +175,17 @@ After Phase 5 v0 (`--answer` mode) landed, re-indexing the repo grew the corpus 
 
 1. **The v5_pre dip was corpus drift, not a regression** — hit@1 identical, run stable; the bulk of it was **test files crowding the top-K** (concept queries hurt most).
 2. **Excluding test files recovered hit@5 to 0.895** (+10.5pp) and concept hit@5 to 1.000 (+28.6pp), clearing the 0.85 RAG-readiness floor — an S-effort fix, no reranker required. (hit@3 dipped from reshuffling, but that's below the top-5 the answer prompt uses.)
-3. **The recall gap came back 0.132 (recall@10 0.921 − recall@5 0.789) — *above* the 0.10 threshold → reranking has headroom.** This corrected an earlier guess that the residual was purely an embedding/chunking floor. ~13pp of expected files are retrieved but ranked 6–10, outside the top-5 the answer sees — most relevant for multi-chunk concept/behavior answers.
+3. **The recall gap was 0.132 (recall@10 0.921 − recall@5 0.789).** This corrected an earlier guess that the residual was purely an embedding/chunking floor. ~13pp of expected files are retrieved but ranked 6–10, outside the top-5 the answer sees — most relevant for multi-chunk concept/behavior answers.
 
 The two residual `nav hit@5` misses split along that line:
 
-- `run_eval_navigation` — `r@5=0, r@10=1`: retrieved but ranked 6–10 → **reranker-shaped** (a reranker, or a larger answer window, would fix it).
+- `run_eval_navigation` — `r@5=0, r@10=1`: retrieved but ranked 6–10 → **reranker-shaped** (ordering and context depth were hypotheses to test).
 - `chunkfile_navigation` — `r@5=0, r@10=0`: absent from the top-10 → **embedding/chunking-shaped**, reranking can't surface it. (Now beaten by `internal/answer/fake.go` — code added this session competing, i.e. more self-inflicted drift.)
 
-**Decision: reranker is justified-but-deferred.** The gap legitimately trips the "reranking has headroom" rule, but three things argue against building it now: (a) small sample — 19 positives, a 0.132 mean gap ≈ 2–3 queries; (b) hit@5 already clears the floor, so this is about recall@5 *completeness*, not the headline rate; (c) the reranker's cost is high (Python sidecar + 200–500 ms, the dominant con in §1.3). **Cheaper lever evaluated:** see `--answer-limit 8` A/B below.
+**Historical interpretation:** this gap motivated a reranking hypothesis and the
+larger-context experiment below. Neither the small sample nor the gap proves a
+reranker would help. The saved measurements remain useful; the proposed build
+and runtime estimates have been removed.
 
 #### `--answer-limit 8` A/B (2026-05-28)
 
@@ -263,17 +222,18 @@ The two residual `nav hit@5` misses split along that line:
 
 1. **Don't change the default `--answer-limit`** based on this data alone — shape is flat, latency cost is real.
 2. **The Bucket B "free win" claim doesn't validate on automated metrics.** Whether AL=8 actually helps answers requires human judgment.
-3. **GraphRAG's scope is *not* automatically narrowed.** A reranker or graph layer that lands Bucket B chunks in top-5 would deliver the same prompt without the latency penalty — this *strengthens* the case for a retrieval-side fix, not weakens it.
-4. **The gating prerequisite for Phase 6 was updated** to require dogfooding judgment (not an eval-side number) before any "narrow scope" verdict — see `graphrag.md` gating section.
+3. **No retrieval-layer benefit was demonstrated.** The result does not prove a
+   graph or reranker would provide complete evidence at lower total latency.
+   Keep answer defaults unchanged without content-quality evidence.
 
 This is the cleanest example so far of a hypothesis that looked right on retrieval logic but didn't show up on the shape metrics. The eval is a forecast tool, not a content judge.
 
-#### Stemming vs reranking, reframed under the RAG lens
+#### Coverage and ordering are different measurements
 
-- **Stemming** ✅ **shipped** — recovered the missing hit@5 result (`hasher_concept`) and the concept hit@5 score. Hybrid p95 latency +18% (119→141 ms), still well under the interactive threshold.
-- **Reranking** lifts hit@1 and MRR@5 further. **Does not add new chunks to top-K.** If the right chunk is already there but ranked #4, reranking promotes it to #1 — the LLM may anchor on it (good), but doesn't change *what's in the prompt*. If the right chunk is missing from top-K entirely, reranking can't surface it.
-
-Both help; **stemming is the more RAG-aligned cheap win**, **reranking is the bigger CLI-perception win**. For pure RAG quality, sequence: stemming → embedding model upgrade → reranking. For pure CLI feel, sequence: reranking → stemming.
+Stemming recovered the historical `hasher_concept` hit@5 regression. Its measured
+result is retained in the hybrid-search history. A possible ordering change must
+be evaluated separately: it can change the final top-K, but only using evidence
+already in its candidate pool. Neither mechanism implies a fixed next-feature order.
 
 ### 2.6 The intuitive reframing
 
@@ -281,19 +241,20 @@ Both help; **stemming is the more RAG-aligned cheap win**, **reranking is the bi
 >
 > **RAG:** *"Did we give the model enough material to write a correct answer — and refuse when we didn't?"* → hit@K + recall@K + negative pass + (later) faithfulness.
 
-Same retrieval substrate, different success criterion. Track both axes; emphasize the RAG axis as Phase 5 approaches.
+Track retrieval coverage and manually reviewed answer quality separately; answer mode is already implemented.
 
 ---
 
-## 3. Bottom line
+## 3. Measurement rules
 
-- **Track MRR@5 as the single headline metric.** It blends "did we put the right answer near the top" (CLI relevance) and "is the LLM likely to anchor on something correct" (RAG relevance) — the same blend the product cares about during this transition phase.
-- **Use Hit@5 as a hard floor.** Once answer mode ships, hit@5 below ~0.80 means the LLM is missing the right context too often. No retrieval-algorithm change should violate this floor without an exceptional MRR@5 lift to compensate.
-- **Treat Hit@1 as a precision indicator, not the final-answer metric.** Useful for tracking algorithm sharpness; don't optimize it at the expense of hit@5.
-- **Keep negative checks meaningful.** Compare fixed score-aware policies on frozen inputs; track named existing failures and reject new regressions. Historical hybrid 1.00 is not an acceptance target.
-- **For the next quality investment:**
-  - If you want the cheapest fix to the one known regression: **stemming** (S, no latency cost, RAG-aligned).
-  - If you want the biggest hit@1 lift and have latency budget: **reranking** (M–L, large latency cost, CLI-aligned, also helps RAG by stabilizing top-K ordering).
-  - If you want the new capability before more quality work: **Phase 5 v0 answer mode** (M, doesn't lift retrieval but proves the RAG product surface).
+- Preserve accepted hit@5 cases and required evidence; use ranking metrics to
+  diagnose ordering rather than as a substitute for coverage.
+- Keep negative checks meaningful with fixed score-aware policies on frozen
+  inputs. Track existing failures and reject new regressions.
+- Inspect answer content manually; citation shape and recall gaps do not prove
+  faithfulness or task usefulness.
+- Save reports with pinned manifests and unique revision/experiment names.
+  Do not overwrite historical baselines or treat different snapshots as an A/B.
 
-Whatever choice gets made next, **commit the eval result alongside the code change** (as `baseline_v4*.json`) so this doc and `hybrid_search.md` stay grounded in measured behavior, not predicted behavior.
+The [roadmap](../plan/mvp_roadmap.md) owns next work. This reference records
+concepts and evidence, not a feature backlog.

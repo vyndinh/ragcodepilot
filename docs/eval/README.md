@@ -323,29 +323,51 @@ follow-up work. Tier B answer metrics remain report-only.
 
 Corpus drift can move ranking without changing an algorithm. The earlier Phase 1
 versus Phase 2 comparison changed the indexed source population; experiment code
-must not accidentally become part of one arm's corpus. See the command template
-in [cheaper levers](../plan/cheaper_levers.md) for a fresh paired model comparison.
+must not accidentally become part of one arm's corpus.
+
+### Interpreting coverage and isolating changes
+
+Historical v7 structural hit@5 passes 14/16 queries. All seven queries with a
+recall@10–recall@5 gap already pass hit@5: the missing evidence concerns completeness.
+A file-level hit can still return the wrong chunk from the right file. Preserve
+accepted hits and inspect required files, symbols, and relationships separately.
+A larger recall gap can also result from better recall@10; it is not automatically
+a regression or proof that a new component is needed.
+
+For any future retrieval comparison:
+
+- Choose target query IDs, the primary metric, and resource budget before running.
+  Use coverage for incomplete context and ranking metrics when coverage suffices.
+- Keep candidate depth fixed when isolating ordering changes. Increasing retrieval
+  depth and changing ordering together cannot establish which caused the result.
+- Record index/query model artifacts and preprocessing. Equal vector dimensions
+  do not establish compatibility between models.
+- Calibrate changed score families on separate tuning inputs, then freeze the
+  policy before evaluating held-out queries. Raw scores from different families
+  are not interchangeable.
+- Report per-query regressions, known failures, sample counts, and latency alongside
+  aggregate gains. Answer shape alone cannot establish content quality.
 
 ---
 
 ## What's not measured (yet)
 
-- **Answer correctness / faithfulness (Tier C).** `--answer` checks answer *shape* (well-formed, citations resolve, refuses on negatives) but **not** whether the claims are actually supported by the cited chunks. That needs an LLM-as-judge pass and is deferred to v1. See the [verification ladder](#the-verification-ladder-where-tier-b-sits).
-- **Filter correctness.** The eval doesn't verify that all returned chunks honor the language/repo filter. Add later (vision review's feedback `filter_violation_count`).
+- **Answer correctness / faithfulness (Tier C).** `--answer` checks answer *shape* (well-formed, citations resolve, refuses on negatives) but **not** whether the claims are actually supported by the cited chunks. Content review is manual; no automated judging feature is scheduled. See the [verification ladder](#the-verification-ladder-where-tier-b-sits).
+- **Filter correctness.** The eval doesn't verify that all returned chunks honor the language/repo filter.
 - **Result-shape validation.** No check that returned chunks contain non-empty `content`, valid line numbers, etc.
 - **Comparison mode.** No built-in `eval compare` yet. `compare.py` prints report deltas; manifest checks and per-query review are still manual.
 - **CI gating.** Automated retrieval gates are deferred. Use the manual frozen-input comparison policy above; existing unit/site CI is unchanged. Answer metrics remain report-only.
 
-Items intentionally deferred — see `docs/review_feedback/rag_evaluation_metrics_with_feedback.md` for the full backlog and roadmap.
+These are measurement limitations. The [roadmap](../plan/mvp_roadmap.md) owns delivery scope; historical review logs are not an active backlog.
 
 ---
 
-## Hooking into Phase 2 and 3
+## Relationship to the roadmap
 
-This harness is the measurement contract for:
+The implemented hybrid and answer-mode reports remain historical evidence.
+Current evaluation work is M0 in the [roadmap](../plan/mvp_roadmap.md): a fresh
+self-corpus baseline, one external repository, and a named failure inventory.
+This guide defines comparison practice; it does not schedule retrieval features.
 
-- **Phase 2 (hybrid search):** Tag queries with `type: navigation` (mostly exact-symbol). Phase 2's exit criterion is ≥10pp `hit@5` lift on those, with no regression on `concept` queries. Compare `baseline_v1.json` (dense) vs `baseline_v2.json` (hybrid).
-- **Phase 3 (reranking):** Add an `ambiguous` tag to queries that have weak top-1 results. Reranking should lift their `MRR@5`.
-- **Phase 3 (chunker upgrades):** When adding a non-Go chunker, also add 3-5 golden queries targeting that language.
-
-Do not delete or rewrite existing queries during a refactor — that destroys the regression-detection value. Add new queries; supersede old ones in a labeled batch with explicit before/after metrics.
+Do not silently delete or rewrite existing queries during a refactor. Add new
+queries or supersede old ones in a labeled batch with explicit before/after results.
