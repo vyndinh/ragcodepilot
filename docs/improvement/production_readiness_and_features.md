@@ -30,10 +30,10 @@ is insufficient: path/name headers, chunk boundaries, or model changes matter.
 
 The [external chi audit](../eval/external/chi-v5.2.3/index-audit.json) found seven
 same-file name collision groups: 382 generated chunks became 371 stored points.
-The current ID omits receiver identity, so methods and package functions can
-overwrite one another. Fix declaration identity, version the representation, and
-verify clean reindexing before adding dense reuse. This stays within single-repo
-indexing; it does not reopen workspace expansion.
+The fix now includes receiver/declaration identity, bumps the representation
+version, deletes same-hash old points during migration, and retains 382/382 points
+in the [post-fix recheck](../eval/runs/2026-09-23-idfix/README.md). This stays within
+single-repo indexing; it does not reopen workspace expansion.
 
 ### Proposed contract
 

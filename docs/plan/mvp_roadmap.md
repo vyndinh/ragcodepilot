@@ -58,14 +58,15 @@ See [evaluation guidance](../eval/README.md) for snapshot and comparison rules.
 
 The near-term queue has **three deliverables**: a fresh baseline plus one external
 repository, dense embedding reuse with reliable recovery, and actionable errors
-plus .gitignore handling. M0 is complete; fix the discovered chunk-ID collisions
-before M3 cache work. M4 can proceed independently. Active milestone IDs retain
+plus .gitignore handling. M0 is complete. The chunk-ID collision fix and fresh
+self/chi point-survival recheck are complete; M3 cache work is next. M4 can proceed
+independently. Active milestone IDs retain
 their original meanings; gaps refer to retired proposals.
 
 | ID | Scope | Size | Exit criterion | Status |
 |---|---|---|---|---|
 | M0 | Fresh evidence on self + one external repo | S–M | Pinned inputs, saved reports, named failure inventory, manual comparison checklist | Complete as measurement; known failures retained |
-| M3 | Dense reuse + retry/cleanup | M | Cache reuse and invalidation, interrupted-run replay, stale-ID cleanup, one writer per index | Next: chunk-identity correctness first |
+| M3 | Dense reuse + retry/cleanup | M | Cache reuse and invalidation, interrupted-run replay, stale-ID cleanup, one writer per index | Next: recovery/cache implementation |
 | M4 | Existing-command errors + .gitignore | S–M | Actionable operation-specific failures; nested ignore/exclusion behavior verified | Independent |
 | M1 | Sources-first terminal output | S | Exact answer sources appear before warmup and generation | Optional small UX change |
 
@@ -92,20 +93,20 @@ waits until this manual process is stable and worth automating.
 
 ## M3 — Dense reuse and reliable retry/cleanup [M]
 
-**First: chunk-identity correctness [S–M].** The external run confirmed seven
-same-file name collision groups, overwriting 11 generated chunks. Receiver and
-package-function identity must be distinct. This is an implementation defect within
-single-repository indexing, not a request for multi-repo support.
+**Chunk-identity correctness [S–M] — complete.** The original chi run found seven
+same-file name collision groups and 11 overwritten chunks. The fix includes receiver
+and declaration identity, bumps the representation version, removes old points on
+same-hash refresh, and passes fresh self/chi point-survival checks:
+[recheck record](../eval/runs/2026-09-23-idfix/README.md).
 
-- [ ] Fix receiver/declaration identity in deterministic IDs; cover same-name methods
+- [x] Fix receiver/declaration identity in deterministic IDs; cover same-name methods
   on different receivers and a package function sharing a method name.
-- [ ] Bump the representation version and define cleanup/rebuild for affected points.
-- [ ] Reindex frozen self and chi corpora into fresh collections; require unique
-  generated IDs and no lost points, then repeat the unchanged evaluation labels.
-  Preserve accepted hits/coverage and known negative outcomes; retain both reports.
+- [x] Bump the representation version and define cleanup/rebuild for affected points.
+- [x] Reindex the self and chi corpora; all generated IDs are unique and no points
+  are lost. Unchanged evaluation labels preserve the original known failures.
 
-Proceed to cache optimization only after the identity check passes. See the
-[external run's index audit](../eval/external/chi-v5.2.3/index-audit.json).
+Proceed to dense-cache recovery and reuse. The original [chi index audit](../eval/external/chi-v5.2.3/index-audit.json)
+remains as the defect record.
 
 Detailed contract: [local reliability](../improvement/production_readiness_and_features.md).
 

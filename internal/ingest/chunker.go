@@ -90,8 +90,9 @@ func chunkGeneric(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *
 // and an index to distinguish sub-chunks of the same symbol. Go AST chunks that
 // need declaration identity use generateChunkIDWithIdentity below.
 //
-// For named chunks (functions, methods): "repo:file:FuncName:0"
-// For unnamed blocks: "repo:file::startLine"
+// Generic named chunks use "repo:file:Name:0"; Go AST chunks pass a
+// declaration identity such as "func:Close" or "method:*Server.Close".
+// Unnamed blocks use "repo:file::startLine".
 //
 // Using the symbol name instead of start_line makes IDs stable when lines
 // shift due to edits above the function.
