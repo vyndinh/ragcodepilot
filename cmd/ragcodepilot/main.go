@@ -349,7 +349,14 @@ func runIndex(repoPath, collection string, languages []string, qdrantHost string
 	}
 	defer func() { _ = client.Close() }()
 
-	pipeline := ingest.NewPipeline(cfg, embedder, client, collection, ingest.WithLanguages(languages))
+	stateDir, err := ingest.DefaultRunStateDir()
+	if err != nil {
+		return err
+	}
+	pipeline := ingest.NewPipeline(cfg, embedder, client, collection,
+		ingest.WithLanguages(languages),
+		ingest.WithRunStateDir(stateDir),
+	)
 
 	if len(languages) > 0 {
 		fmt.Printf("Filtering to languages: %s\n", strings.Join(languages, ", "))

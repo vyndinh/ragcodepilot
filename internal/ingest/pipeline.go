@@ -29,6 +29,7 @@ type Pipeline struct {
 	chunkSize    int
 	chunkOverlap int
 	languages    map[string]struct{}
+	runStateDir  string
 }
 
 // Option configures a Pipeline.
@@ -55,6 +56,13 @@ func WithLanguages(languages []string) Option {
 			p.languages[lang] = struct{}{}
 		}
 	}
+}
+
+// WithRunStateDir enables durable run markers and collection writer ownership.
+// An empty directory keeps the pipeline library mode side-effect free; the CLI
+// supplies DefaultRunStateDir for real indexing.
+func WithRunStateDir(dir string) Option {
+	return func(p *Pipeline) { p.runStateDir = dir }
 }
 
 // NewPipeline creates a new ingestion pipeline.
@@ -87,13 +95,29 @@ func representationVersion() string {
 // and avoid work when the corpus is unchanged. When any file changes, sparse
 // IDF is recomputed globally and all current chunks are re-upserted so sparse
 // weights stay consistent across the collection.
-func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
+func (p *Pipeline) Run(ctx context.Context, repoPath string) (runErr error) {
 	absPath, err := filepath.Abs(repoPath)
 	if err != nil {
 		return fmt.Errorf("resolving path: %w", err)
 	}
 
 	repoName := filepath.Base(absPath)
+	lease, err := acquireRunLease(p.runStateDir, p.collection)
+	if err != nil {
+		return err
+	}
+	if lease != nil && lease.lockFile != nil {
+		defer func() {
+			if runErr != nil {
+				_ = lease.fail(runErr)
+			} else if err := lease.complete(); err != nil {
+				runErr = err
+			}
+			if err := lease.release(); err != nil && runErr == nil {
+				runErr = err
+			}
+		}()
+	}
 
 	// Step 1: Walk source files.
 	files, err := WalkFiles(absPath, p.cfg)
@@ -103,16 +127,34 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 	files = p.filterFilesByLanguage(files)
 	fmt.Printf("Found %d source files in %s\n", len(files), repoName)
 
-	// Step 2: Ensure payload indexes exist for efficient filtered scroll/delete.
-	// This is a no-op if the collection doesn't exist yet or indexes already exist.
-	if err := p.store.EnsurePayloadIndexes(ctx, p.collection); err != nil {
-		return fmt.Errorf("ensuring payload indexes: %w", err)
-	}
-
-	// Step 3: Hash all source files on disk.
+	// Step 2: Hash all source files on disk.
 	diskHashes, err := HashFiles(files)
 	if err != nil {
 		return fmt.Errorf("hashing files: %w", err)
+	}
+	relHashes := make(map[string]string, len(diskHashes))
+	absToRel := make(map[string]string, len(diskHashes))
+	for absFile, hash := range diskHashes {
+		rel, err := filepath.Rel(absPath, absFile)
+		if err != nil {
+			rel = absFile
+		}
+		relHashes[rel] = hash
+		absToRel[absFile] = rel
+	}
+	if lease != nil && lease.lockFile != nil {
+		fingerprint := inputFingerprint(p.collection, repoName, representationVersion(), p.languageKeys(), p.chunkSize, p.chunkOverlap, relHashes)
+		if err := lease.begin(p.collection, absPath, representationVersion(), fingerprint, len(files)); err != nil {
+			return err
+		}
+	}
+
+	// Step 3: Ensure payload indexes exist for efficient filtered scroll/delete.
+	// This is a no-op if the collection doesn't exist yet or indexes already exist.
+	// The durable marker is published before this call because schema setup can
+	// mutate the collection just like point writes can.
+	if err := p.store.EnsurePayloadIndexes(ctx, p.collection); err != nil {
+		return fmt.Errorf("ensuring payload indexes: %w", err)
 	}
 
 	// Step 4: Get existing file hashes and index versions from Qdrant.
@@ -133,17 +175,6 @@ func (p *Pipeline) Run(ctx context.Context, repoPath string) error {
 	versionRefreshes := 0
 	newFiles := 0
 	skipped := 0
-
-	relHashes := make(map[string]string, len(diskHashes))
-	absToRel := make(map[string]string, len(diskHashes))
-	for absFile, hash := range diskHashes {
-		rel, err := filepath.Rel(absPath, absFile)
-		if err != nil {
-			rel = absFile
-		}
-		relHashes[rel] = hash
-		absToRel[absFile] = rel
-	}
 
 	for absFile, hash := range diskHashes {
 		rel := absToRel[absFile]
