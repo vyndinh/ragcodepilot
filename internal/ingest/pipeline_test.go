@@ -581,6 +581,35 @@ func TestPipeline_RunDeletesChangedFilesAfterUpsert(t *testing.T) {
 	}
 }
 
+func TestPipeline_RunDeletesOldPointsBeforeSameHashVersionRefresh(t *testing.T) {
+	t.Parallel()
+
+	repoPath := t.TempDir()
+	filePath := filepath.Join(repoPath, "app.py")
+	if err := os.WriteFile(filePath, []byte("# stable content\nprint('same')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hash, err := HashFile(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The file content is unchanged, but its stored representation is old.
+	// The old points must be removed before new IDs are written.
+	store := &orderingStore{
+		existingHashes: map[string]string{"app.py": hash},
+	}
+	p := NewPipeline(config.Default(), &fakeEmbedder{dim: 4}, store, "test_collection")
+
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+
+	if got, want := store.ops, []string{"delete:app.py", "upsert"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("operation order = %v, want %v", got, want)
+	}
+}
+
 // captureStore extends orderingStore to also record the hash passed to
 // DeleteStaleChunksByFilePath, so tests can verify the correct hash is used.
 type captureStore struct {
