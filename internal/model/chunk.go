@@ -3,8 +3,9 @@ package model
 
 // CodeChunk represents a single chunk of source code that will be embedded and stored.
 type CodeChunk struct {
-	// ID is a deterministic identifier derived from repo + file path + symbol name + chunk index.
-	// Named chunks use the symbol for stability across line shifts; unnamed blocks use start_line.
+	// ID is a deterministic identifier derived from repo + file path + declaration identity + chunk index.
+	// Named chunks use declaration identity for stability across line shifts and to distinguish
+	// same-name methods/functions; unnamed blocks use start_line.
 	ID string `json:"id"`
 
 	// Repo is the repository name or path this chunk came from.

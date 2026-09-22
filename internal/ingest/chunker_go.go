@@ -1,8 +1,10 @@
 package ingest
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
+	"go/format"
 	"go/parser"
 	gotoken "go/token"
 	"os"
@@ -61,7 +63,7 @@ func chunkGoFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *c
 			startLine := fset.Position(startPos).Line
 			endLine := fset.Position(d.End()).Line
 			markCovered(covered, startLine, endLine)
-			chunks = append(chunks, namedGoChunks(lines, startLine, endLine, relPath, repo, language, chunkSize, overlap, "function", d.Name.Name)...)
+			chunks = append(chunks, namedGoChunks(lines, startLine, endLine, relPath, repo, language, chunkSize, overlap, "function", d.Name.Name, goFuncIdentity(fset, d))...)
 		case *ast.GenDecl:
 			if d.Tok != gotoken.TYPE {
 				continue
@@ -73,7 +75,8 @@ func chunkGoFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *c
 				}
 				startLine, endLine := typeSpecLines(fset, d, spec, i)
 				markCovered(covered, startLine, endLine)
-				chunks = append(chunks, namedGoChunks(lines, startLine, endLine, relPath, repo, language, chunkSize, overlap, goTypeChunkKind(spec), spec.Name.Name)...)
+				name := spec.Name.Name
+				chunks = append(chunks, namedGoChunks(lines, startLine, endLine, relPath, repo, language, chunkSize, overlap, goTypeChunkKind(spec), name, "type:"+name)...)
 			}
 		}
 	}
@@ -125,13 +128,13 @@ func goTypeChunkKind(spec *ast.TypeSpec) string {
 	return "type"
 }
 
-func namedGoChunks(lines []string, startLine, endLine int, relPath, repo, language string, chunkSize, overlap int, chunkType, name string) []model.CodeChunk {
+func namedGoChunks(lines []string, startLine, endLine int, relPath, repo, language string, chunkSize, overlap int, chunkType, name, identity string) []model.CodeChunk {
 	nLines := endLine - startLine + 1
 	if nLines > maxFunctionLines {
-		return splitLargeBlock(lines, startLine, endLine, relPath, repo, language, chunkSize, overlap, chunkType, name)
+		return splitLargeBlock(lines, startLine, endLine, relPath, repo, language, chunkSize, overlap, chunkType, name, identity)
 	}
 	return []model.CodeChunk{{
-		ID:        generateChunkID(repo, relPath, name, 0),
+		ID:        generateChunkIDWithIdentity(repo, relPath, identity, 0),
 		Repo:      repo,
 		FilePath:  relPath,
 		Language:  language,
@@ -179,7 +182,7 @@ func buildGapChunks(lines []string, startIdx, endIdx int, relPath, repo, languag
 
 	gapLines := endIdx - startIdx + 1
 	if gapLines > maxFunctionLines {
-		return splitLargeBlock(lines, startIdx+1, endIdx+1, relPath, repo, language, chunkSize, overlap, "block", "")
+		return splitLargeBlock(lines, startIdx+1, endIdx+1, relPath, repo, language, chunkSize, overlap, "block", "", "")
 	}
 
 	return []model.CodeChunk{{
@@ -197,7 +200,7 @@ func buildGapChunks(lines []string, startIdx, endIdx int, relPath, repo, languag
 
 // splitLargeBlock splits a range of lines using the sliding-window strategy.
 // startLine and endLine are 1-based inclusive.
-func splitLargeBlock(lines []string, startLine, endLine int, relPath, repo, language string, chunkSize, overlap int, chunkType, name string) []model.CodeChunk {
+func splitLargeBlock(lines []string, startLine, endLine int, relPath, repo, language string, chunkSize, overlap int, chunkType, name, identity string) []model.CodeChunk {
 	var chunks []model.CodeChunk
 
 	blockLines := lines[startLine-1 : endLine]
@@ -223,7 +226,7 @@ func splitLargeBlock(lines []string, startLine, endLine int, relPath, repo, lang
 		}
 
 		chunks = append(chunks, model.CodeChunk{
-			ID:        generateChunkID(repo, relPath, name, start),
+			ID:        generateChunkIDWithIdentity(repo, relPath, identity, start),
 			Repo:      repo,
 			FilePath:  relPath,
 			Language:  language,
@@ -240,6 +243,23 @@ func splitLargeBlock(lines []string, startLine, endLine int, relPath, repo, lang
 	}
 
 	return chunks
+}
+
+// goFuncIdentity returns a stable declaration identity while keeping the
+// display name unchanged. Receiver identity prevents methods such as
+// (*Server).Close and (*Client).Close from overwriting each other.
+func goFuncIdentity(fset *gotoken.FileSet, decl *ast.FuncDecl) string {
+	if decl.Recv == nil || len(decl.Recv.List) == 0 {
+		return "func:" + decl.Name.Name
+	}
+
+	var receiver bytes.Buffer
+	if err := format.Node(&receiver, fset, decl.Recv.List[0].Type); err != nil {
+		// go/parser already accepted the declaration. Keep a deterministic
+		// fallback if formatting ever fails for a future Go syntax node.
+		receiver.WriteString("receiver")
+	}
+	return "method:" + receiver.String() + "." + decl.Name.Name
 }
 
 // joinLines extracts lines[startLine-1:endLine] and joins them with newlines.

@@ -357,8 +357,11 @@ func TestPipeline_RunRefreshesFileWhenIndexVersionChanges(t *testing.T) {
 	if store.upsertCalls != 1 {
 		t.Fatalf("Upsert calls = %d, want 1", store.upsertCalls)
 	}
-	if store.deleteCalls != 0 {
-		t.Fatalf("Delete calls = %d, want 0 for same-hash version refresh", store.deleteCalls)
+	if store.deleteCalls != 1 {
+		t.Fatalf("Delete calls = %d, want 1 to remove old representation IDs", store.deleteCalls)
+	}
+	if !reflect.DeepEqual(store.deleteFilePaths, []string{"app.py"}) {
+		t.Fatalf("deleted file paths = %v, want [app.py]", store.deleteFilePaths)
 	}
 	if len(store.upsertedChunks) != 1 {
 		t.Fatalf("upserted chunks = %d, want 1", len(store.upsertedChunks))

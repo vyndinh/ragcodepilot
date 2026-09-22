@@ -16,14 +16,14 @@ document describes the **current architecture as built**, plus the original
 requirements and scale framing. The implementation establishes current behavior;
 the roadmap establishes planned work, never proof that a feature has shipped.
 
-**Implementation snapshot:** merged revision `fed7f22`, evaluated on 2026-09-22.
+**Implementation snapshot:** merged revision `047e56e`, evaluated on 2026-09-23.
 This includes identifier tokens, named Go type/interface chunks, representation
 versioning, and calibrated negative checks. The
 [pinned v9 self baseline](../eval/runs/2026-09-22-self-fed7f22/README.md) records
 248 chunks and zero query errors. The [external chi baseline](../eval/external/chi-v5.2.3/README.md)
-has zero query errors but confirms same-file chunk-ID collisions (382 generated,
-371 stored). M0 measurement is complete; general quality and index integrity are
-not certified.
+records the original collision; the [post-fix recheck](../eval/runs/2026-09-23-idfix/README.md)
+retains 382/382 external points. M0 measurement is complete; general quality remains
+uncertified.
 
 ---
 
@@ -306,7 +306,7 @@ User query -> Embed -> mode (dense | sparse | hybrid+RRF) + filters
     "end_line": 87,
     "indexed_at": "2026-07-06T00:00:00Z",
     "file_hash": "9f2c…",
-    "index_version": "sparse-bm25-snowball-ident-v2+go-types-v1"
+    "index_version": "sparse-bm25-snowball-ident-v2+go-types-v2-identity"
   }
 }
 ```
@@ -323,8 +323,9 @@ User query -> Embed -> mode (dense | sparse | hybrid+RRF) + filters
 - ✅ **P5 v0 — `--answer` mode**: grounded answers via local Ollama, Tier B answer eval.
 - ✅ **Re-indexing + watch mode**: hash/version change detection, fsnotify watch.
 - **M0 complete:** pinned self and external chi measurements, with named failures.
-- **Next:** fix receiver/function chunk-ID collisions and re-evaluate, then M3 dense
-  reuse with retry/cleanup. M4 errors and .gitignore can proceed independently.
+- **Completed correctness fix:** declaration-unique Go chunk IDs, versioned migration,
+  and fresh self/chi point-survival recheck.
+- **Next:** M3 dense reuse with retry/cleanup. M4 errors and .gitignore can proceed independently.
 - **Optional:** M1 sources-first output before generation.
 - **Scope exclusions:** see the [roadmap](mvp_roadmap.md#out-of-current-scope).
   Additional retrieval components and product surfaces have no implementation plan.

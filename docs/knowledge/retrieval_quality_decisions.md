@@ -31,9 +31,10 @@ merged revision `fed7f22`, 248 chunks, source/query hashes, runtime, and model d
 It reports hit@5 34/35, structural hit@5 15/16, and negatives 2/4 at RRF 0.02,
 with zero query errors. Eleven positives still lack complete expected-file coverage
 at top 5. The [external chi run](../eval/external/chi-v5.2.3/README.md) completes M0
-measurement: file hit@5 16/16, negatives 1/4, but 11 chunks lost to ID collisions.
-Only 9/16 full-run positives contain all predeclared source ranges at top 5.
-Fix chunk identity before cache optimization. v8 is historical context,
+measurement: file hit@5 16/16, negatives 1/4, with 11 chunks lost to the original ID collisions.
+The [post-fix recheck](../eval/runs/2026-09-23-idfix/README.md) retains 382/382
+external points with unchanged labels. Only 9/16 original full-run positives contain
+all predeclared source ranges at top 5. The collision fix is complete; v8 is historical context,
 not a controlled comparison against v9.
 
 Historical v6/v7 hybrid 1.00 negative pass used an ineffective 0.55 cosine cutoff.

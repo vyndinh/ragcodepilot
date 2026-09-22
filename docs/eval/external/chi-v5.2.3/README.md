@@ -1,15 +1,17 @@
 # M0 external Go baseline — chi v5.2.3
 
-**Evaluation complete; known index-integrity and retrieval failures remain.**
-This completes M0's one-external-repository measurement, not a quality-release gate.
-Fix the confirmed chunk-ID collision before optimizing cache reuse in M3.
+**Original M0 evaluation complete; the original index-integrity defect is fixed and rechecked.**
+This remains a measurement record, not a quality-release gate. The original run is
+preserved below; the [post-fix recheck](../../runs/2026-09-23-idfix/README.md)
+shows all generated points survive with declaration-unique IDs.
 
 ## Frozen inputs and selection
 
 - Corpus: [go-chi/chi v5.2.3](https://github.com/go-chi/chi/tree/9b9fb55def404397748a9fc7e044efe9db1d618e),
   commit `9b9fb55def404397748a9fc7e044efe9db1d618e`, MIT licensed.
-- Runner: merged ragcodepilot revision `f46d3f169ee1de0d2652045c75547f84b211c2bf`.
-  Runtime code, dependencies, and config are identical to the v9 self-run's `fed7f22`.
+- Original runner: merged ragcodepilot revision `f46d3f169ee1de0d2652045c75547f84b211c2bf`.
+  The post-fix recheck uses `047e56e` and representation
+  `sparse-bm25-snowball-ident-v2+go-types-v2-identity`.
 - Dataset: 20 cases, authored from source before any retrieval: 16 positives
   (8 navigation, 4 concept, 4 behavior) and 4 absent-feature negatives. Seven
   positives require multiple files; four are tagged structural flow questions.
@@ -87,6 +89,10 @@ Reproduce the count audit using the pinned walker/config and ChunkFile on all
 included Go files, group returned chunks by ID, and compare each group with
 paginated Qdrant payloads. The diagnostic ran in a separate temporary runner copy;
 the frozen evaluation binary and corpus were unchanged.
+The follow-up recheck at `047e56e` regenerated the same chi source and retained
+382/382 points. It also reran the unchanged 20-query labels; see the
+[recheck record](../../runs/2026-09-23-idfix/README.md). The original 371-point
+collection remains useful as a defect reproduction and is not silently rewritten.
 
 ```text
 chunks = chunk all included Go files using the pinned configuration
@@ -195,7 +201,16 @@ Verify golden.yaml against `label-freeze.json` before replay. A different model 
 runtime is a new condition and needs a new manifest. Do not overwrite these reports
 or silently replace the installed model. Exact executed commands are in execution.json.
 
-## Decision and next acceptance gate
+## Current status after the fix
+
+The collision fix is complete: receiver/declaration identity is included in Go
+named-chunk IDs, the representation version is bumped, and same-hash version
+refresh deletes old file points before reindexing. Focused tests and the fixed
+self/chi recheck pass the point-survival gate. Dense-cache recovery is now the next
+M3 implementation task; the original negative and source-coverage failures remain
+open diagnostics.
+
+## Original decision and next acceptance gate
 
 M0 is complete as a measurement milestone: the self and external runs are pinned,
 failures are named, and [manual comparison rules](../../README.md#baselines-and-the-corpus-stability-assumption)

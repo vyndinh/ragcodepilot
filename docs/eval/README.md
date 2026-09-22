@@ -284,9 +284,10 @@ model, and score-calibration snapshots; they are not evergreen acceptance target
 The [v9 run record](runs/2026-09-22-self-fed7f22/README.md) includes the manifest,
 source/query/config hashes, model digest, chunk IDs, exact commands, and named
 failure inventory. The [external chi run](external/chi-v5.2.3/README.md) completes M0's external
-measurement with 20 pre-labeled queries. It also confirms a chunk-ID collision
-that loses 11 generated chunks; evidence completion is not an index-integrity pass. Do not infer an isolated algorithm win by comparing v9
-with older reports whose corpus and runtime manifests differ or are missing.
+measurement with 20 pre-labeled queries and preserves its original collision audit.
+The [post-fix recheck](runs/2026-09-23-idfix/README.md) confirms all generated points
+survive under declaration-unique IDs. Do not infer an isolated algorithm win by
+comparing v9 with older reports whose corpus and runtime manifests differ or are missing.
 
 **Negative semantics:** the reconciled runner uses score-family calibration
 (RRF 0.02). The historical hybrid 0.55 cosine cutoff exceeded the RRF maximum
@@ -370,9 +371,10 @@ These are measurement limitations. The [roadmap](../plan/mvp_roadmap.md) owns de
 
 The implemented hybrid and answer-mode reports remain historical evidence.
 Current evaluation work is M0 in the [roadmap](../plan/mvp_roadmap.md): a fresh
-self-corpus baseline (v9 complete), external chi evaluation (complete), and a named failure inventory.
-The discovered chunk-ID collision must be fixed before M3 cache optimization.
-This guide defines comparison practice; it does not schedule retrieval features.
+self-corpus baseline (v9 complete), external chi evaluation (complete), and a named
+failure inventory. The chunk-ID collision is fixed and rechecked; M3 cache recovery
+is now the next implementation task. This guide defines comparison practice; it does
+not schedule retrieval features.
 
 Do not silently delete or rewrite existing queries during a refactor. Add new
 queries or supersede old ones in a labeled batch with explicit before/after results.

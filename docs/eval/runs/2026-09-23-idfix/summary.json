@@ -1,0 +1,119 @@
+{
+  "run_date": "2026-09-23",
+  "source_revision": "047e56e",
+  "representation_version": "sparse-bm25-snowball-ident-v2+go-types-v2-identity",
+  "model": "nomic-embed-text:latest",
+  "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+  "collections": {
+    "self": {
+      "name": "m0_self_idfix_20260922_182829",
+      "generated_chunks": 250,
+      "stored_points": 250,
+      "unique_ids": 250
+    },
+    "chi": {
+      "name": "m0_chi_idfix_20260922_182829",
+      "generated_chunks": 382,
+      "stored_points": 382,
+      "unique_ids": 382
+    }
+  },
+  "reports": {
+    "chi_full": {
+      "queries": 20,
+      "positive_queries": 16,
+      "negative_queries": 4,
+      "errors": 0,
+      "hit_at_1": 0.9375,
+      "hit_at_3": 1,
+      "hit_at_5": 1,
+      "mrr_at_5": 0.9583333333333333,
+      "recall_at_5": 0.96875,
+      "recall_at_10": 0.96875,
+      "negative_pass_rate": 0.25,
+      "latency_total_p50_ms": 20,
+      "latency_total_p95_ms": 27,
+      "latency_embed_p50_ms": 14,
+      "latency_embed_p95_ms": 17,
+      "latency_qdrant_p50_ms": 3,
+      "latency_qdrant_p95_ms": 10
+    },
+    "chi_structural": {
+      "queries": 4,
+      "positive_queries": 4,
+      "negative_queries": 0,
+      "errors": 0,
+      "hit_at_1": 1,
+      "hit_at_3": 1,
+      "hit_at_5": 1,
+      "mrr_at_5": 1,
+      "recall_at_5": 0.875,
+      "recall_at_10": 0.875,
+      "negative_pass_rate": 0,
+      "latency_total_p50_ms": 20,
+      "latency_total_p95_ms": 25,
+      "latency_embed_p50_ms": 16,
+      "latency_embed_p95_ms": 17,
+      "latency_qdrant_p50_ms": 1,
+      "latency_qdrant_p95_ms": 6
+    },
+    "self_structural": {
+      "queries": 16,
+      "positive_queries": 16,
+      "negative_queries": 0,
+      "errors": 0,
+      "hit_at_1": 0.9375,
+      "hit_at_3": 0.9375,
+      "hit_at_5": 0.9375,
+      "mrr_at_5": 0.9375,
+      "recall_at_5": 0.6916666666666667,
+      "recall_at_10": 0.81875,
+      "negative_pass_rate": 0,
+      "latency_total_p50_ms": 21,
+      "latency_total_p95_ms": 100,
+      "latency_embed_p50_ms": 15,
+      "latency_embed_p95_ms": 23,
+      "latency_qdrant_p50_ms": 3,
+      "latency_qdrant_p95_ms": 60
+    },
+    "self_full": {
+      "queries": 39,
+      "positive_queries": 35,
+      "negative_queries": 4,
+      "errors": 0,
+      "hit_at_1": 0.8571428571428571,
+      "hit_at_3": 0.9428571428571428,
+      "hit_at_5": 0.9714285714285714,
+      "mrr_at_5": 0.9071428571428571,
+      "recall_at_5": 0.8161904761904762,
+      "recall_at_10": 0.8885714285714286,
+      "negative_pass_rate": 0.5,
+      "latency_total_p50_ms": 20,
+      "latency_total_p95_ms": 41,
+      "latency_embed_p50_ms": 16,
+      "latency_embed_p95_ms": 27,
+      "latency_qdrant_p50_ms": 2,
+      "latency_qdrant_p95_ms": 7
+    }
+  },
+  "checks": [
+    "Fresh collections used; prior self/chi collections untouched",
+    "All generated chunks survived as unique stored points",
+    "Representation version changed from go-types-v1 to go-types-v2-identity",
+    "Unchanged self and chi query labels were reused",
+    "All four evaluations completed with zero query errors",
+    "Original chi negative and coverage failures remain recorded; no threshold or label changes"
+  ],
+  "limitations": [
+    "Self source includes the ID fix, so its counts are a post-fix observation rather than a controlled A/B against v9.",
+    "This recheck verifies collision recovery and quality preservation; it does not evaluate dense-cache recovery.",
+    "Qdrant collections are local inspection artifacts; their names and runtime metadata are recorded here."
+  ],
+  "artifact_sha256": {
+    "README.md": "1ef6ee805f94d602b4def0128ba13bf6570b581bd2ebd834255f3ec41f7a67db",
+    "chi_full.json": "ece99984cb0118541e254c2dc7f58896b704451e6e23b2677d7bc0b1b31f1c9f",
+    "chi_structural.json": "fed9a4796d9c9e7c624f72344a8817e6f2d102346e2ef8fd53b024d24ac8a080",
+    "self_full.json": "f115e426e49e3c858f486435175ffc528c579dbeb2646f02e5863a36fb93e543",
+    "self_structural.json": "b6ca616efaa767ee03d736e9640512139cc20ac051afd8bf3817266a8d7354bd"
+  }
+}
