@@ -1,7 +1,7 @@
 # Evaluation Harness
 
 Offline retrieval evaluation for ragcodepilot.
-Loads a YAML golden dataset, runs each query through the existing search path, and reports `hit@k`, `MRR@5`, `recall@10`, and per-stage latency percentiles. With `--answer`, it additionally generates an answer per query and reports reference-free answer metrics — see [Answer-mode evaluation](#answer-mode-evaluation--answer-tier-b).
+Loads a YAML golden dataset, runs each query through the existing search path, and reports `hit@k`, `MRR@5`, `recall@10`, and per-stage latency percentiles. With `--answer`, it additionally generates an answer per query and reports reference-free answer metrics — see [Answer-mode evaluation](#answer-mode-evaluation----answer-tier-b).
 
 This is Phase 1 of `docs/plan/mvp_roadmap.md`. The harness is the scoreboard for every retrieval-quality change that follows (hybrid search, reranking, chunker upgrades).
 
@@ -267,34 +267,64 @@ Keep the golden set focused. 20-30 hand-curated queries are more useful than 200
 
 ## Baselines and the corpus-stability assumption
 
-Each baseline file is tied to the **state of the indexed corpus** at the time it was captured:
+Updated 2026-09-22. Saved reports are observations tied to their source, query,
+model, and score-calibration snapshots; they are not evergreen acceptance targets.
 
-| File | Corpus | Mode | Use |
-|---|---|---|---|
-| `baseline_v1.json` | Phase 1 corpus (~250 chunks) | dense | Historical only |
-| `baseline_v2_dense.json` | Phase 2 corpus (350 chunks) | dense | Same-corpus dense reference for Phase 3 |
-| `baseline_v2.json` | Phase 2 corpus (350 chunks) | hybrid | Canonical Phase 2 baseline |
-| `baseline_v6.json` | Phase 5 corpus (182 chunks, `*_test.go` excluded) | hybrid | Pre-identifier-token hybrid baseline |
-| `baseline_v7.json` / `baseline_v7_structural.json` | Same generation + 16 structural queries | hybrid | GraphRAG comparison target |
-| `baseline_v8.json` | 199 Go chunks, `sparse-bm25-snowball-ident-v2` | hybrid | Current canonical hybrid baseline (additive identifier tokens). hit@5 = 0.971; negative_pass_rate = 0.50 (mode-calibrated RRF, not the old cosine 0.55 cutoff) |
+| Report | Scope | Use |
+|---|---|---|
+| `baseline_v1.json` | Earlier dense corpus | Historical |
+| `baseline_v2*.json` | Phase 2 corpus | Historical hybrid/dense comparisons |
+| `baseline_v6.json` | 23 queries, 19 positives; historical 182-chunk corpus | Historical retrieval; hybrid 1.00 negatives used ineffective 0.55 cutoff |
+| `baseline_v7.json` | 39 queries, 35 positives | Historical full set after structural additions |
+| `baseline_v7_structural.json` | 16 positives, zero negatives | Historical completeness diagnostic; 14/16 already pass hit@5 |
+| `baseline_v8.json` | Saved main report: 39 queries, 35 positives, 199 Go chunks at capture | Latest saved hybrid baseline on reviewed main; hit@5 34/35, negative pass 2/4 at RRF 0.02 |
 
-A pure-algorithm comparison (e.g. "did the new reranker help?") only makes sense **between runs that share the same corpus**. When the corpus changes — new packages added, chunker upgrades emit different chunks, etc. — the rank ordering shifts for reasons that have nothing to do with the algorithm under test. Comparing across corpus generations conflates "the algorithm changed" with "the inputs changed."
+The branch is reconciled with fetched main `a3ac8ff` and includes the v8 report
+and score-calibration code. That saved report predates later chunker work.
+M0 must record the tested revision and capture a fresh baseline. Do not relabel
+old reports or infer an isolated algorithm win by comparing these different snapshots.
 
-**Methodology when starting a new phase:**
+**Negative semantics:** the reconciled runner uses score-family calibration
+(RRF 0.02). The historical hybrid 0.55 cosine cutoff exceeded the RRF maximum
+of about 0.0333, so 1.00 pass was vacuous. The same
+two saved v6 negatives fail when replayed at that ceiling. Threshold agreement
+alone does not measure semantic irrelevance or answer faithfulness. Preserve known
+failures and apply fixed, independently calibrated policies for new score families.
 
-1. Before changing any retrieval code, re-run the current default mode against the **current corpus** and save it as the phase's baseline. Example workflow for starting Phase 3:
-   ```bash
-   go run ./cmd/ragcodepilot collections delete code_chunks
-   go run ./cmd/ragcodepilot index --language go .
-   go run ./cmd/ragcodepilot eval --mode hybrid --output json > docs/eval/baseline_v3_pre.json
-   ```
-2. Make the algorithm change.
-3. Re-run eval against the same corpus.
-4. Compare with `docs/eval/compare.py baseline_v3_pre.json /tmp/eval_after.json`.
+**Paired experiment workflow:**
 
-If the corpus itself changed mid-phase (e.g. you added a new chunker that emits more chunks), re-capture the pre-change baseline before declaring wins or losses. The eval harness measures retrieval against a corpus — it cannot separate "better algorithm" from "different corpus" on its own.
+1. Freeze source revision/file manifest, query set/hash, config/filters, chunk IDs
+   and counts, representation version, model artifact/preprocessing, runtime
+   versions, retrieval mode, and candidate/output limits. Pin hardware and warm
+   state for latency. Keep tuning and held-out queries separate.
+2. Index control and candidate from the same frozen source into separate fresh
+   experiment collections as needed. Do not delete the working index. Changing
+   model names in an existing collection can incorrectly skip unchanged files.
+3. Run fresh full, structural, and the selected external-repo evaluations in both arms. Preserve
+   the control report actually generated by the experiment. If chunking is the
+   treatment, record both chunk manifests while keeping source and labels fixed.
+4. Validate manifest/query compatibility and query errors before comparing.
+   `compare.py` only prints deltas; it does not enforce these checks or CI gates.
+5. Compare named hits, required-file recall, manually inspected symbol/relationship
+   coverage, negative failures under valid calibration, and latency. A structural
+   run with no negatives cannot certify negative-query behavior.
+6. Retain paired reports and manifests under unique experiment/revision names;
+   update the evidence pointer only after review. Keep old reports unchanged.
 
-A concrete example of why this matters: between Phase 1 and Phase 2, the corpus grew from ~250 chunks to 350 chunks (Phase 2 added the `internal/embedding/sparse*` files). Dense-mode `recall@10` dropped 13pp purely from the new chunks competing for top-10 slots — no search-algorithm change involved. See the `hybrid_search.md` observations for the full investigation.
+Start with manual checks on the self-corpus and one representative external
+repository. A second external repo is required before generalization claims or
+broad retrieval promotion. Nightly/on-demand retrieval CI is deferred until this
+manual workflow is stable and repeated often enough to warrant automation. If
+automated later, reject incompatible inputs, missing required query classes,
+query errors, and new regressions against accepted cases. Corpus-specific
+floors need measured agreement; historical self-corpus hit@5 0.85 and vacuous
+negative 1.00 do not establish universal floors. Known failures remain explicit
+follow-up work. Tier B answer metrics remain report-only.
+
+Corpus drift can move ranking without changing an algorithm. The earlier Phase 1
+versus Phase 2 comparison changed the indexed source population; experiment code
+must not accidentally become part of one arm's corpus. See the command template
+in [cheaper levers](../plan/cheaper_levers.md) for a fresh paired model comparison.
 
 ---
 
@@ -303,8 +333,8 @@ A concrete example of why this matters: between Phase 1 and Phase 2, the corpus 
 - **Answer correctness / faithfulness (Tier C).** `--answer` checks answer *shape* (well-formed, citations resolve, refuses on negatives) but **not** whether the claims are actually supported by the cited chunks. That needs an LLM-as-judge pass and is deferred to v1. See the [verification ladder](#the-verification-ladder-where-tier-b-sits).
 - **Filter correctness.** The eval doesn't verify that all returned chunks honor the language/repo filter. Add later (vision review's feedback `filter_violation_count`).
 - **Result-shape validation.** No check that returned chunks contain non-empty `content`, valid line numbers, etc.
-- **Comparison mode.** No `eval compare baseline.json candidate.json` yet. For now, manually diff the JSON.
-- **CI gating.** No regression policy. The harness reports; you decide what to do. (Answer metrics are report-only by design.)
+- **Comparison mode.** No built-in `eval compare` yet. `compare.py` prints report deltas; manifest checks and per-query review are still manual.
+- **CI gating.** Automated retrieval gates are deferred. Use the manual frozen-input comparison policy above; existing unit/site CI is unchanged. Answer metrics remain report-only.
 
 Items intentionally deferred — see `docs/review_feedback/rag_evaluation_metrics_with_feedback.md` for the full backlog and roadmap.
 

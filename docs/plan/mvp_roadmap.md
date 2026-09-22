@@ -1,301 +1,196 @@
-# MVP Roadmap
+# Product Roadmap — Reliable Local Code Search
 
-Forward-looking task list distilled from `docs/review_feedback/system_vision_review.md` and `docs/review_feedback/codemaps_review.md`.
-Focus: core retrieval quality. Explore Mode, TUI choices, and Phase C are explicitly deferred (see end).
+> Updated 2026-09-22 after the docs_update review. This document owns sequencing
+> and next-up tasks. `checklist.md` records the original phase plan.
+> These are planned changes, not implementation or release claims.
 
-`docs/plan/checklist.md` remains as a historical record of the original phase plan. This document is the canonical next-up tasks.
+## Product direction
 
-Product direction: ragcodepilot is evolving toward a full local RAG pipeline. Phases 1-3 build the retrieval foundation; answer generation adds the "G" only after retrieval is measurable and strong enough to provide trustworthy context.
+ragcodepilot remains a **single-user, local code-search CLI** built on Go,
+Qdrant, and Ollama, with hybrid retrieval and opt-in grounded answers. The
+priority is useful, repeatable search on real repositories and affordable,
+recoverable re-indexing. Keep the current core architecture.
 
----
+MCP, an agent-first product pivot, repository registration/refresh commands,
+and shared team deployment are **removed from the active roadmap**. They add
+integration, identity, freshness, and process-lifecycle requirements without
+validated demand. Existing repo filters remain supported; they do not imply
+that a multi-repo workspace product has been accepted.
 
-## Summary
+Local-first remains a constraint. Retrieval changes start as opt-in experiments,
+keep the default path stable, and require comparable evidence before promotion.
+A local sidecar is compatible with local-first but adds deployment complexity.
 
-| Phase | Goal | Size | Exit criterion | Status |
+## Evidence snapshot and branch boundary
+
+Reconciled with fetched `origin/main` at `a3ac8ff` on 2026-09-22. This branch
+now includes that implementation and its saved reports. The PR adds documentation
+only relative to main; no retrieval benchmark was rerun for this update.
+
+| Saved report | Queries / positives | hit@5 | Navigation hit@5 | Negative pass | Interpretation |
+|---|---|---|---|---|---|
+| `baseline_v6.json` on this branch | 23 / 19 | 17/19 = 0.8947 | 6/8 = 0.7500 | 4/4 at 0.55 | Historical; hybrid negative cutoff was ineffective |
+| `baseline_v7.json` on this branch | 39 / 35 | 31/35 = 0.8857 | 20/24 = 0.8333 | 4/4 at 0.55 | Historical full set after structural queries were added |
+| `baseline_v8.json` | 39 / 35 | 34/35 = 0.9714 | 23/24 = 0.9583 | 2/4 at 0.02 | Latest saved hybrid baseline on reviewed main; not a fresh run |
+
+The reconciled implementation includes additive identifier tokens, named Go
+type/interface chunks, and mode-calibrated negative checks. The v8 report predates
+some later chunker changes; it is not proof of current HEAD performance. Capture
+a fresh baseline before choosing new retrieval work.
+
+The old 0.55 cosine threshold cannot fail for two-list RRF with k=60 (maximum
+about 0.0333). Replaying v6's saved scores at 0.02 fails the same two negatives
+as v8: `oauth_middleware_negative` and `grpc_gateway_router_negative`. The 100%
+to 50% change is not evidence of a new retrieval regression. Track those failures;
+do not adjust thresholds to make the report green. RRF agreement is a retrieval
+diagnostic, not a calibrated probability or a measure of answer faithfulness.
+
+See [evaluation guidance](../eval/README.md) for snapshot and comparison rules.
+
+## Milestones and dependencies
+
+The near-term queue has **three deliverables**: a fresh baseline plus one external
+repository, dense embedding reuse with reliable recovery, and actionable errors
+plus .gitignore handling. M0 precedes M3; M4 can proceed independently. IDs from
+the July proposal remain so historical references do not change meaning.
+
+| ID | Scope | Size | Exit criterion | Status |
 |---|---|---|---|---|
-| 1 | Evaluation foundation | S | `hit@5` baseline metrics committed; `ragcodepilot eval` CLI works | ✅ Done |
-| 2 | Hybrid search (BM25 + dense + RRF) | L | Eval shows ≥10pp `hit@5` improvement on exact-symbol queries | ✅ Done — current baseline `baseline_v6.json`: hit@5 = 0.895, hit@1 = 0.579, MRR@5 = 0.673, recall@5 = 0.789, recall@10 = 0.921. BM25 `k1=0.5` + additive Snowball stemming; `*_test.go` excluded from indexing. See `retrieval_quality_decisions.md` §2.5 for the v4 → v6 lineage (Phase 2 corpus → Phase 5 corpus + hygiene). |
-| 5 v0 | Minimal `--answer` mode (RAG seam) | S | `ragcodepilot search --answer "q"` returns LLM answer + source chunks via local Ollama | ✅ Shipped — answer-mode dogfooding triggered `*_test.go` exclusion + GraphRAG plan |
-| 6 | **GraphRAG — structural retrieval layer** | L | `--graph` lifts `hit@5` on **≥60% of the named `structural` queries** (per-query gate; top-5 inclusion for LLM context), no regression >2pp elsewhere, `negative_pass_rate` stays 1.00. See `graphrag.md` Goal section for the authoritative criterion. | **▶ Next** — plan at `graphrag.md` |
-| 3 | Reranking (cross-encoder) | M | — | ⏸ **Deprioritized 2026-05-28.** Reranking only reorders within top-50; cannot add structural signal. Goal is top-5 inclusion for `--answer`, which GraphRAG attacks directly. Revisit only if GraphRAG ships and `concept`-query `hit@5` remains the bottleneck. |
-| 3.5 | Rust AST chunker | M | Rust chunker ships with per-function chunks matching the Go contract | ⏸ Deferred — split out from old Phase 3. Independent of reranking; pick up after GraphRAG if multi-language coverage becomes the binding gap. |
-| 4 | UX polish | S | JSON output mode, context-lines flag, faster startup *(detail TBD when reached)* | ⏸ Deferred (some items may be shaped by Phase 5 v0 output) |
-
-**Pivot — 2026-05-14.** Phase 5 v0 was pulled ahead of Phases 3 and 4 after Phase 2's hit@5 of 0.895 cleared the vision review's "retrieval is strong enough to feed an LLM" gate, and the user confirmed the RAG product direction. The original Phase 5 condition was "don't start unless a real user need has surfaced" — that gate just opened. Phase 3 (Rust chunker) and Phase 4 (UX polish) are parked, not cancelled; their full plans remain in `phase3_rust_chunker.md` and the Phase 4 sketch below. Phase 5 v0's dogfooding result determines what gets un-parked next.
-
-**Pivot — 2026-05-28.** Phase 5 v0 dogfooding surfaced two issues: (a) `*_test.go` files were polluting retrieval (fixed: now excluded by default via `skip_file_patterns`, re-baseline at `baseline_v6.json` lifted hit@5 from 0.789 to 0.895), and (b) **navigation queries remain the weak type** (v6: navigation hit@5 = 0.75, MRR@5 = 0.47 — only type below 1.0 hit@5). Navigation answers are *structural*, not similarity-based, so reranking (Phase 3) was deprioritized below **GraphRAG** (new Phase 6, plan at `graphrag.md`). Reasoning: reranking only reorders within top-50 candidates; it cannot add a signal that is not already in the embedding/BM25 space. The product goal is *top-5 inclusion for LLM context*, and graph edges (calls / defines / imports) attack that directly.
-
-**Honest framing of the GraphRAG-over-reranker bet.** The v6 recall gap (`recall@10 − recall@5 = 0.132`) actually *triggers* the reranker rule in `retrieval_quality_decisions.md` §2.5 (≥0.10 → reranker headroom). This pivot is **not** *"reranker can't help"* — it is a deliberate trade-off: *"structural signal pays more on navigation than reordering pays on the recall gap."* Recording the framing this way so future-us doesn't refight the decision under different evidence. Phase 3 reranking stays parked, not cancelled — revisit if it becomes the binding constraint after GraphRAG ships.
-
-**Cheaper lever evaluated — `--answer-limit`.** The hypothesis (raise `--answer-limit` 5 → 8 to capture the recall gap's RAG value without a reranker or graph) did **not** validate on automated metrics — shape flat, p50 latency up ~55%, content benefit invisible to Tier B (2026-05-28). **Canonical A/B data: `retrieval_quality_decisions.md` §2.5.** Consequence for Phase 6: dogfooding judgment on 3–5 multi-chunk questions at AL=5 vs AL=8 is a prerequisite before any "narrow scope" verdict (see `graphrag.md` "Prerequisites before Step 1").
-
-### Current product path toward full RAG
-
-1. **Retrieval measurable and reliable.** ✅ Eval harness + hybrid search + stemming + test-file hygiene shipped (Phases 1–2). `baseline_v6` is the current canonical baseline.
-2. **Answer generation deliberately.** ✅ Phase 5 v0 shipped: `--answer` flag, frozen prompt, auto-warm, greedy decoding, `--answer-limit`, and the Tier B reference-free `eval --answer` harness. See [`phase5_v0_answer_mode.md`](phase5_v0_answer_mode.md).
-3. **Structural retrieval for top-5 inclusion.** ▶ Phase 6 — GraphRAG (`graphrag.md`). Adds a graph layer over hybrid so structural queries (navigation, "what calls X") land the right chunk in the top-5 sent to the LLM. Gated on ✅ ≥15-query structural subset (done, `baseline_v7_structural.json`) + ⏳ dogfooding judgment on AL=5 vs AL=8 (the eval-side A/B from 2026-05-28 was inconclusive on Tier B — see 2026-05-28 pivot above).
-4. **Grounding safeguards after dogfooding.** Citation validation (Tier C faithfulness judge), low-confidence refusal guardrail, and streaming are v1 candidates in `phase5_v0_answer_mode.md`. The model currently refuses on its own (negative pass = 1.00), so these are justified-but-not-urgent.
-
-Rust AST chunking (Phase 3.5) and output UX (Phase 4) remain supporting improvements. Reranking is parked behind Phase 6 (see 2026-05-28 pivot above).
-
----
-
-## Phase 1 — Evaluation foundation [S]
-
-**Goal:** Build the harness that measures every subsequent change.
-
-**Why now:** Without baseline metrics, you cannot tell if Phase 2 (hybrid), Phase 3 (reranking), or any chunker change helps or hurts. This is the vision review's P1.
-
-**Exit criterion:** `ragcodepilot eval --dataset docs/eval/golden.yaml` runs end-to-end and produces a report with `hit@1/3/5`, `MRR@5`, `recall@10`, and latency percentiles. Baseline numbers checked into the repo.
-
-### Checklist
-
-**Schema & dataset:**
-
-- [x] Define golden query YAML schema. Starting point: the format sketched in `docs/plan/rag_evaluation_metrics.md`.
-- [x] Write 5 starter golden queries covering all three categories: **navigation** ("where is X defined"), **concept** ("how does Y work"), **behavior** ("when does Z fail").
-- [x] Index ragcodepilot's own repo as the eval target.
-- [x] Expand to 20-30 queries over the course of the phase.
-
-**Metrics package:**
-
-- [x] Create `internal/eval/metrics.go` with `HitAtK`, `MRRAtK`, `RecallAtK` functions.
-- [x] Capture latencies broken out by stage: embed, qdrant, total.
-- [x] Unit tests for each metric (known inputs, expected outputs).
-
-**CLI:**
-
-- [x] Create `internal/eval/runner.go` that loads a YAML dataset, runs each query through the existing `search.Searcher`, computes per-query metrics, aggregates.
-- [x] Add `eval` subcommand to `cmd/ragcodepilot/main.go`.
-- [x] Support `--output json` and `--output human` modes.
-- [x] Support filtering queries by tag (run just navigation, or just concept, etc.).
-
-**Negative tests:**
-
-- [x] Add 3-5 queries that should NOT match well. Confirm top-1 score is below a threshold.
-
-**Baseline:**
-
-- [x] Run eval against current `main`. Commit `docs/eval/baseline_v1.json` with the numbers.
-
-### Files to touch / create
-
-- `internal/eval/metrics.go` *(new)*
-- `internal/eval/dataset.go` *(new — YAML loader)*
-- `internal/eval/runner.go` *(new)*
-- `internal/eval/metrics_test.go` *(new)*
-- `cmd/ragcodepilot/main.go` *(extend with `eval` subcommand)*
-- `docs/eval/golden.yaml` *(new)*
-- `docs/eval/baseline_v1.json` *(new)*
-
-### Out of scope for Phase 1
-
-- No automated CI gating on metric regressions (manual review for now).
-- No reranking, no hybrid search — just measure the current system.
-- No structural metrics for Explore Mode (those are part of the deferred work).
-
----
-
-## Phase 2 — Hybrid search [L]
-
-**Goal:** Add BM25 sparse-vector search alongside dense vector search; fuse with Reciprocal Rank Fusion.
-
-**Why now:** Pure vector search misses exact-symbol queries. BM25 sparse vectors catch identifier matches. RRF is a well-understood combiner. Vision review's #3 P1 weakness.
-
-**Algorithm history:** Original plan said BM25. Initial implementation in 2026-05-13 shipped as TF-IDF after the `hybrid_search.md` plan review argued BM25's length normalization adds little value on short, uniform-length code chunks. A 2026-05-15 spike re-ran the eval with BM25 (`k1=0.5`, `b=0.75`) — hit@1 jumped +21.1pp, MRR@5 +9.9pp, but one concept query (`hasher_concept`) regressed due to a plural/singular tokenizer mismatch. A same-day follow-up added additive Snowball stemming (`baseline_v4.json`), which recovered the regression while keeping hit@1 at +15.8pp and MRR@5 at +9.2pp vs the TF-IDF baseline — Pareto-better on every metric. See `hybrid_search.md` §3 for the full history and eval matrix.
-
-**Exit criterion:** Eval shows ≥10pp `hit@5` improvement on exact-symbol queries (a tag in the golden set), with no regression on concept queries.
-
-### Checklist
-
-**Schema:**
-
-- [x] Research Qdrant's named sparse vector API; confirm exact request shape.
-- [x] Update collection schema: named dense vector (`"dense"`) + sparse vector slot (`"sparse"`).
-- [x] Migration path: when an old (unnamed-vector) collection is detected, return a clear error with fix instructions.
-- [x] Validate existing collections have both dense and sparse slots.
-
-**Sparse vector generation:**
-
-- [x] Implement TF-IDF tokenizer in `internal/embedding/sparse.go`. Code-aware tokenization (split camelCase, snake_case, digit runs; remove stop words + Go keywords).
-- [x] Compute IDF globally over the full corpus per indexing run (not batch-local).
-- [x] Generate sparse vector alongside dense in the ingest pipeline.
-- [x] Tests for tokenization edge cases (CamelCase, snake_case, mixed, numbers, stop words, empty input, determinism, index/query parity).
-
-**Hybrid search:**
-
-- [x] Unify into one `qdrant.Client.Search` method that handles all three modes (dense, sparse, hybrid) via request shape.
-- [x] Server-side RRF fusion via Qdrant `PrefetchQuery` + `NewQueryRRF(k=60)`. No client-side `rrf.go` needed.
-- [x] Filters placed on each prefetch stage (not top-level) for correct hybrid ranking.
-- [x] Add `--mode dense|sparse|hybrid` flag to both `search` and `eval`. Default: `hybrid`.
-- [x] Unit tests for hybrid request shape (prefetch count, Using, limits, filter placement, RRF K).
-
-**Evaluation:**
-
-- [x] Tag golden queries by type (`navigation`, `concept`, `behavior`, `negative`).
-- [x] Run eval in all three modes. Compare `hit@5` per tag.
-- [x] Commit `docs/eval/baseline_v2.json` showing the delta.
-- [x] Dense regression check: P2 dense `hit@5` matches P1 `baseline_v1.json` within 1pp.
-
-**Documentation:**
-
-- [x] Write `docs/plan/hybrid_search.md` documenting the schema change, RRF parameters, and the eval results.
-
-### Files touched / created
-
-- `internal/embedding/sparse.go` *(new — TF-IDF tokenizer, SparseVector type, IDF computation)*
-- `internal/embedding/sparse_test.go` *(new — 15+ test cases)*
-- `internal/qdrant/client.go` *(named vectors, sparse slot, unified Search with hybrid)*
-- `internal/qdrant/client_test.go` *(named vector schema + hybrid request-shape assertions)*
-- `internal/search/searcher.go` *(search mode switch: dense/sparse/hybrid)*
-- `internal/ingest/pipeline.go` *(global IDF + sparse vector generation)*
-- `cmd/ragcodepilot/main.go` *(`--mode` flag on search + eval)*
-- `docs/plan/hybrid_search.md` *(new — design + eval results)*
-- `docs/eval/baseline_v2.json` *(new — hybrid eval results)*
-- `docs/eval/baseline_v2_dense.json` *(new — dense reference for Phase 3)*
-- ~~`internal/embedding/bm25.go`~~ *(kept as `sparse.go`; the file name was set during the TF-IDF phase and stayed when the algorithm switched back to BM25 on 2026-05-15 — see `hybrid_search.md` §3)*
-- ~~`internal/search/rrf.go`~~ *(not needed — Qdrant handles RRF server-side)*
-
-### Out of scope for Phase 2 (kept as designed)
-
-- No learned sparse models (SPLADE, etc.) — BM25 only.
-- No reranking yet — that's Phase 3.
-- No tuning beyond a single RRF `k` value (60 is the standard).
-- No persisted IDF file — recompute in memory each indexing run.
-
----
-
-## Phase 3 — Reranking + chunker upgrades [M]
-
-> **⏸ Deprioritized 2026-05-28.** The reranking sub-phase is parked behind
-> **Phase 6 — GraphRAG** (`docs/plan/graphrag.md`). Reasoning: a cross-encoder
-> only reorders within top-50, so it cannot add the structural signal that
-> navigation queries (the weakest type in `baseline_v6.json`) actually need.
-> The product gate is *top-5 inclusion for LLM context*, and GraphRAG attacks
-> that directly. The **Rust AST chunker** sub-phase is independent and remains
-> a candidate after GraphRAG — see Phase 3.5 row in the summary table. The
-> rest of this section is preserved as the original design for if and when
-> reranking is reopened.
-
-**Goal:** Add a cross-encoder reranker on top-50 retrieval, and replace one language's regex chunker with proper AST-based chunking.
-
-**Why now:** Vision review's P2 #4 and #5 weaknesses. Reranking lifts precision on ambiguous queries. AST chunking lifts chunk quality for languages beyond Go.
-
-**Exit criterion:**
-
-- Reranking turned on shows measurable `MRR@5` improvement on the ambiguous-query subset (no regression on others).
-- One non-Go language has AST-based chunking with chunk-quality metric ≥ Go baseline.
-
-### Checklist
-
-**Reranking sub-phase:**
-
-- [ ] Decide reranker model. Candidates:
-  - A small cross-encoder served via Ollama (if a suitable model exists).
-  - Local sentence-transformers via a Python sidecar.
-  - A Go reimplementation of a small reranker.
-  - Document the decision in `docs/plan/reranking.md`.
-- [ ] Build `internal/rerank/` package with a `Reranker` interface and one implementation.
-- [ ] Add `--rerank` flag to `search` (default: off until eval confirms it helps).
-- [ ] Implement the flow: retrieve top-50 (hybrid) → rerank → return top-10.
-- [ ] Eval: tag ambiguous queries; compare `MRR@5` with and without rerank.
-- [ ] Latency budget: rerank should add ≤200ms warm. If it adds more, document the tradeoff.
-- [ ] Tests: fake reranker for wiring tests; real reranker tested manually.
-
-**Chunker upgrade sub-phase:**
-
-- [ ] Pick one language. **Rust** (matches the Phase C ambition). Document the choice.
-- [ ] Evaluate AST parsing options:
-  - tree-sitter-go bindings (CGo, build complexity).
-  - Pure-Go ports (e.g. `go-tree-sitter-bare`).
-  - Calling a Python sidecar for Python AST (avoids CGo but adds a process).
-- [ ] Implement chunker in `internal/ingest/chunker_<lang>.go`.
-- [ ] Per-function chunk extraction matching the Go AST chunker's contract.
-- [ ] Eval: pick 5 golden queries targeting this language; show `hit@5` improvement vs the regex fallback.
-- [ ] Tests for the new chunker (corpus of small sample files).
-
-### Files to touch / create
-
-- `internal/rerank/reranker.go` *(new — interface)*
-- `internal/rerank/<impl>.go` *(new — implementation)*
-- `internal/rerank/rerank_test.go` *(new)*
-- `internal/ingest/chunker_<lang>.go` *(new)*
-- `internal/ingest/chunker_<lang>_test.go` *(new)*
-- `internal/ingest/pipeline.go` *(route to the new chunker by language)*
-- `internal/search/searcher.go` *(wire reranker)*
-- `cmd/ragcodepilot/main.go` *(`--rerank` flag)*
-- `docs/plan/reranking.md` *(new — design doc)*
-- `docs/eval/baseline_v3.json` *(new — post-Phase-3 metrics)*
-
-### Out of scope for Phase 3
-
-- Only **ONE** non-Go language. Multi-language chunking is deferred.
-- LLM-as-reranker is not on the table (vision review's "avoid early").
-- Reranker tuning beyond reasonable defaults — just confirm it helps or doesn't.
-
----
-
-## Phase 4 — UX polish [S, sketch only]
-
-**Goal:** Make result output composable and developer-friendly.
-
-**Likely checklist (flesh out when reached):**
-
-- [ ] `--json` output mode for `search`
-- [ ] `--context-lines N` flag (print N lines around each chunk)
-- [ ] Result grouping by file
-- [x] Faster cold-start (pre-warm Ollama; pin via `OLLAMA_KEEP_ALIVE`) — **✅ shipped in Phase 5 v0** (`answer.Warmer` auto-warm before the timed `Generate` call; `OLLAMA_KEEP_ALIVE=-1` documented in README setup)
-- [ ] Update README with new flags (incremental as new flags land)
-
-**Do not start until Phase 6 (GraphRAG) ships, or sooner if dogfooding surfaces a UX/output need.**
-
----
-
-## Phase 5 — `--answer` mode (v0 shipped, v1 deferred)
-
-**v0 status:** ✅ Shipped (commit `8597391`, PR #35). See [`phase5_v0_answer_mode.md`](phase5_v0_answer_mode.md) for the canonical design and what landed:
-
-- `Generator` interface + `OllamaGenerator` + `FakeGenerator`
-- Frozen v0 system prompt (golden-tested for exact wording)
-- `--answer` CLI flag (opt-in; default retrieval path is byte-identical to pre-v0)
-- Auto-warm via the `answer.Warmer` optional interface
-- Greedy decoding (temperature 0 + fixed seed)
-- `--answer-limit` (decouples answer context from the retrieval `--limit`)
-- Tier B reference-free `eval --answer` harness (citation validity, refusal-on-negative, well-formedness, `recall@5`/`recall@10` gap diagnostic) — report-only
-
-**v1 deferred items** (gated on real-use dogfooding signal):
-
-- [ ] Multi-provider support (OpenAI-compatible HTTP first, then native Anthropic) — see §"v1: multi-provider support" in the v0 plan.
-- [ ] Faithfulness eval (Tier C, LLM-as-judge). Tier B reference-free metrics already ship.
-- [ ] Low-confidence refusal guardrail (refuse to generate when retrieval top-1 score is below threshold). *Justified-but-not-urgent — `baseline_v6` negative pass = 1.00, model already refuses on its own.*
-- [ ] Streaming responses (currently synchronous; would lift the time-to-first-token UX, doesn't reduce total time).
-- [ ] Semantic citation precision (Tier B only range-checks references; v1 verifies that the cited chunk actually contains the claimed fact).
-
----
-
-## Deferred decisions (revisit triggers)
-
-Explicit out-of-scope list. Each item has a trigger that should cause us to reopen it.
-
-| Item | Status | Revisit trigger |
+| M0 | Fresh evidence on self + one external repo | S–M | Pinned inputs, saved reports, named failure inventory, manual comparison checklist | Next |
+| M3 | Dense reuse + retry/cleanup | M | Cache reuse and invalidation, interrupted-run replay, stale-ID cleanup, one writer per index | After M0 |
+| M4 | Existing-command errors + .gitignore | S–M | Actionable operation-specific failures; nested ignore/exclusion behavior verified | Independent |
+| M1 | Sources-first terminal output | S | Exact answer sources appear before warmup and generation | Optional small UX change |
+| M2 | Agent integration | — | Removed from active scope | Retired |
+| M5 | Retrieval layers and dedicated prototypes | S–L if reopened | Repeated named failures establish a concrete need | Deferred; no scheduled research/build |
+
+## M0 — Fresh baseline and one external repository [S–M]
+
+- [ ] Record the reconciled code revision and freeze the source snapshot, query
+  set, config/filters, model artifact/preprocessing, representation version, and limits.
+- [ ] Capture fresh full and structural self-corpus reports with current score
+  semantics. Saved v8 evidence is useful history, not a substitute for this run.
+- [ ] Evaluate **one representative external Go repository**, in its own collection,
+  with a small carefully labeled query set (about 15–20 positive/negative cases).
+  Include required multi-file evidence; retain per-query failures and source revision.
+- [ ] Classify recurring misses, then document a manual regression checklist for
+  changes to retrieval. Retain comparable control/candidate reports and inspect
+  query errors, accepted hits/coverage, negatives, and latency.
+
+**Exit:** reproducible reports and a named failure inventory. No new retrieval
+component, model sweep, or graph prototype is required. Add another external repo
+before making claims of generalization or promoting a retrieval change broadly;
+it is not a dependency for the first indexing improvement. Automated retrieval CI
+waits until this manual process is stable and worth automating.
+
+## M3 — Dense reuse and reliable retry/cleanup [M]
+
+Detailed contract: [local reliability](../improvement/production_readiness_and_features.md).
+
+- [ ] Cache dense vectors by model artifact, preprocessing, and exact enriched
+  input. Reuse unchanged inputs; correctly invalidate model/enrichment/chunker changes.
+- [ ] Retain the existing full sparse refresh and complete-point upsert path.
+  Do not add sparse-only updates, staged collections, or atomic index swapping.
+- [ ] Use a durable incomplete-run marker with the input/representation fingerprint.
+  A failed run must remain detectable and replay the affected scope rather than
+  skipping work because some file hashes were already written.
+- [ ] Verify deletions, renames, obsolete chunk cleanup, interrupted-run retries,
+  source changes during indexing, and exclusion of overlapping writers.
+- [ ] Measure dense calls, sparse writes, and total time independently; a dense
+  cache does not make all re-index work proportional to the changed files.
+
+**Exit:** a warm-cache one-file edit embeds only changed/new inputs, and retry
+produces the same final index as a clean rebuild. Claim recovery after a complete
+run, not atomic visibility during updates or verified large-corpus capacity.
+
+## M4 — Actionable errors and .gitignore [S–M]
+
+- [ ] Improve errors in existing `index`/`search` commands with an actionable fix
+  for missing relevant services/models. No standalone `doctor` command yet.
+- [ ] Keep checks operation-specific: sparse search does not need an embedder,
+  retrieval does not need a generator, and first indexing creates a collection.
+- [ ] Respect nested .gitignore rules and negation while preserving explicit config
+  exclusions; document precedence and remove newly excluded files on re-index.
+- [ ] Preserve current hidden-file/extension exclusions. Automatic secret scanning
+  and redaction are deferred; exclusions are not a guarantee of secret-free content.
+
+**Exit:** common failures explain the remedy, and inclusion/exclusion behavior is
+verified. Shared/team deployment and a broader diagnostics framework remain out of scope.
+
+## M1 — Sources-first output [S, optional]
+
+If answer-mode waiting is a frequent annoyance, show the exact selected sources
+with matching citation numbers immediately after retrieval, before warmup/generation.
+Verify that generation errors leave sources readable and the default search output
+unchanged. This small change does not need token streaming or a new model.
+
+Streaming, partial-stream handling, TTFT targets, model routing, and refusal-heuristic
+changes remain deferred until sustained `--answer` usage warrants them. Keep current
+answer defaults and report-only refusal diagnostics; review questionable answers manually.
+
+## M5 — Deferred retrieval work
+
+No dedicated graph study, symbol database, embedding sweep, reranker prototype, or
+non-Go chunker build is in the near-term queue. Record actual misses during normal
+use and M0. Reopen only the smallest experiment addressing a repeated failure:
+
+| Candidate | Revisit condition |
+|---|---|
+| Exact-symbol lookup | Repeated definition misses after existing identifier/type support; try current name payload first |
+| Alternative embeddings | Required evidence repeatedly absent from candidates |
+| Reranker | Required evidence repeatedly retrieved but below the useful context window |
+| GraphRAG | Missing evidence requires supported structural relationships and simpler fixes have not helped |
+| Non-Go AST chunking | Active use of that language exposes concrete chunk-boundary failures |
+
+[Cheaper levers](cheaper_levers.md) and [GraphRAG](graphrag.md) retain conditional
+design notes only. If reopened, use fresh paired evidence and required-evidence
+coverage; historical structural hit@5 already passes 14/16 queries.
+
+## Completed work and history
+
+P1 evaluation foundation, P2 hybrid retrieval, P5 v0 answer mode, file-hash/index-
+version change detection, and watch mode remain implemented. See the linked
+phase plans and [historical checklist](checklist.md); indexing still rebuilds
+all dense vectors in the current scope when a run detects changes.
+
+- **2026-05-14:** answer mode was pulled forward after retrieval cleared the
+  historical self-corpus floor; this remains an opt-in CLI capability.
+- **2026-05-28:** navigation misses motivated a GraphRAG-first hypothesis.
+  The AL=8 experiment increased latency without demonstrating content benefit
+  through shape metrics alone. Defaults remain unchanged.
+- **2026-07-06:** the initial docs_update proposal introduced milestones and an
+  agent-integration pivot. That proposed ordering is superseded here.
+- **2026-09-22:** keep the local CLI scope, retire M2, prioritize evidence and
+  indexing reliability, and correct the acceptance gates before further builds.
+  Further scope reduction limits the active queue to M0/M3/M4; broader experiments
+  and product surfaces stay deferred.
+
+## Deferred decisions
+
+| Item | Decision | Revisit only when |
 |---|---|---|
-| **Explore Mode** (call graph + clustering + drill-down) | **Promoted into Phase 6 — GraphRAG.** The call-graph + drill-down idea is now a retrieval-quality lever, not a separate UX mode. See `graphrag.md`. | n/a — superseded. The UX presentation (TUI / drill-down navigation) remains deferred per the TUI row below. |
-| **TUI implementation choice** (stdin-loop vs bubbletea) | Deferred per user request | After GraphRAG (Phase 6) ships and there is a connected-subgraph result shape worth navigating. Restart from §2.5 of `codemaps_review.md`. |
-| **Cross-encoder reranking** | **Deprioritized 2026-05-28** behind GraphRAG. Only reorders within top-50; can't add structural signal. | After GraphRAG ships, if the **recall gap** (`recall@10 − recall@5`, currently 0.132 ≥ 0.10 on v6, 0.150 on v7_structural) remains the binding constraint on multi-chunk answer completeness — the standing trigger in `retrieval_quality_decisions.md` §2.5. (Concept `hit@5 = 1.00` on v6 means the LLM already gets a relevant chunk in top-5, so concept *precision* is a weaker trigger than the recall gap.) Note: the `--answer-limit 8` eval-side A/B (2026-05-28) was inconclusive on Tier B and added +55% latency — *not* a cheap alternative that pre-empts the reranker. A reranker would land rank-6–10 chunks in top-5 without the latency penalty, so this case strengthens after the AL=8 finding. |
-| **Tree-sitter for non-Go languages** | Deferred | After GraphRAG ships and the first non-Go AST chunker (Rust) proves the multi-language pattern. |
-| **Phase C** (custom vector DB in Go per `docs/plan/vecdb/`) | Deferred indefinitely | After Phase 5 ships AND explicit decision that learning goals outweigh continued product investment. |
-| **Watch mode / incremental re-indexing** | Deferred | After Phase 4 (UX polish). |
-| **Multi-modal embeddings** (separate code / prose / docstring vectors) | Deferred | Only if eval shows the single-vector approach has a clear ceiling we can't lift with GraphRAG or reranking. |
-| **IDE plugin** | Deferred | After Phase 5; never in MVP. |
+| MCP / agent-first pivot | Removed from active scope | Repeated real coding tasks need external indexed retrieval and a controlled comparison shows task-level benefit |
+| Multi-repo workspace commands | Removed from active scope | Repeated cross-repo workflows justify stable repo/worktree identity, completed-index freshness, and conflict handling |
+| Shared/team deployment | Out of scope | Explicit demand includes access control, isolation, lifecycle, and operational ownership |
+| Additional external benchmark repos | Deferred expansion | Needed before generalization claims or broader retrieval promotion |
+| Nightly/on-demand retrieval CI | Deferred automation | Manual pinned-input evaluation is stable and recurring checks justify automation |
+| Standalone doctor command | Deferred | Existing-command error guidance proves insufficient |
+| Token streaming / TTFT targets | Deferred | Sustained answer-mode use makes sources-first output insufficient |
+| Secret scanning/redaction | Deferred | Included-content exposure and a tested policy justify false-positive/invalidation costs |
+| Refusal-heuristic changes | Deferred | Labeled recurring mistakes justify changing the report-only diagnostic |
+| Sparse-only updates / atomic index publication | Deferred | Measured sparse-write cost or a real atomic-read requirement justifies added complexity |
+| CLI --json / --context-lines | Deferred standalone UX | A concrete scripting or source-reading workflow needs it; no MCP dependency |
+| REPL / TUI / IDE plugin / HTTP daemon | Deferred | Existing CLI workflow is a demonstrated limit |
+| Multi-provider answers / model routing | Deferred | Local answer-mode usage establishes a quality or latency need |
+| Tier C answer-content evaluation | Deferred tooling | Manual answer review needs automation; Tier B remains a shape diagnostic |
+| Custom vector DB / multi-modal embeddings | Deferred | Explicit learning objective or measured capability gap justifies the investment |
 
----
+The former [MCP design](mcp_server_mode.md) is retained only as a short deferred
+record. It carries no implementation checklist or committed release scope.
 
 ## Related docs
 
-- `docs/review_feedback/system_vision_review.md` — source of the phase numbering and overall strategy.
-- `docs/review_feedback/codemaps_review.md` — why Explore Mode is deferred.
-- `docs/brainstorm/codemaps_analysis.md` — the original Explore Mode proposal (to reopen later).
-- `docs/plan/graphrag.md` — Phase 6 (GraphRAG) design doc.
-- `docs/knowledge/code_graph_retrieval_landscape.md` — industry context & prior art for Phase 6 (GraphRAG).
-- `docs/plan/rag_evaluation_metrics.md` — eval harness spec (input for Phase 1).
-- `docs/plan/checklist.md` — historical record of the original phase plan.
+- [System design](system_design.md) — reconciled architecture and saved-evidence limitations.
+- [Production readiness](../improvement/production_readiness_and_features.md) — indexing and local reliability contracts.
+- [Evaluation](../eval/README.md) — evidence, metrics, and comparison workflow.
+- [Retrieval decisions](../knowledge/retrieval_quality_decisions.md) — historical tradeoffs and current evidence notice.
+- [Architecture decisions](../knowledge/architecture_decisions.md) — CLI/process-shape decisions.

@@ -15,7 +15,7 @@ page to find the right entry point.
 
 > **New here?** Read [`knowledge/building_ragcodepilot.md`](knowledge/building_ragcodepilot.md) for the narrative of how the system was built, then [`plan/mvp_roadmap.md`](plan/mvp_roadmap.md) for what's next.
 >
-> **Making a retrieval-quality or architecture decision?** See the two decision docs in `knowledge/`: [`retrieval_quality_decisions.md`](knowledge/retrieval_quality_decisions.md) (what to score) and [`architecture_decisions.md`](knowledge/architecture_decisions.md) (process shape). `retrieval_quality_decisions.md` §2.5 is the canonical record for current baseline numbers and the `--answer-limit` A/B.
+> **Making a retrieval-quality or architecture decision?** See the two decision docs in `knowledge/`: [`retrieval_quality_decisions.md`](knowledge/retrieval_quality_decisions.md) (what to score) and [`architecture_decisions.md`](knowledge/architecture_decisions.md) (process shape). The roadmap records the reconciled implementation and saved-evidence boundary; `retrieval_quality_decisions.md` §2.5 retains the historical `--answer-limit` A/B.
 
 ---
 
@@ -23,8 +23,10 @@ page to find the right entry point.
 
 | Doc | Purpose |
 |---|---|
-| [`mvp_roadmap.md`](plan/mvp_roadmap.md) | **Canonical next-up tasks** and product direction. Start here. |
-| [`graphrag.md`](plan/graphrag.md) | Phase 6 — GraphRAG structural retrieval layer (design doc). |
+| [`mvp_roadmap.md`](plan/mvp_roadmap.md) | **Canonical next-up tasks**: fresh evidence on one external repo, dense reuse/recovery, and local errors/.gitignore. Start here. |
+| [`graphrag.md`](plan/graphrag.md) | Deferred GraphRAG proposal with reachability and required-evidence gates. |
+| [`cheaper_levers.md`](plan/cheaper_levers.md) | Conditional model/reranker experiments; fresh paired evidence required before M5. |
+| [`mcp_server_mode.md`](plan/mcp_server_mode.md) | Deferred decision only; removed from active scope, no implementation checklist. |
 | [`phase5_v0_answer_mode.md`](plan/phase5_v0_answer_mode.md) | Phase 5 v0 — `--answer` mode (minimal RAG seam). |
 | [`hybrid_search.md`](plan/hybrid_search.md) | Phase 2 — hybrid search (BM25 + dense + RRF) implementation + eval history. |
 | [`phase3_rust_chunker.md`](plan/phase3_rust_chunker.md) | Phase 3 — Rust AST chunker plan (deferred). |
@@ -86,14 +88,19 @@ page to find the right entry point.
 | Doc | Purpose |
 |---|---|
 | [`incremental_processing_roadmap.md`](improvement/incremental_processing_roadmap.md) | Incremental processing roadmap. |
-| [`reindexing.md`](improvement/reindexing.md) | Re-indexing via file-hash change detection. |
+| [`reindexing.md`](improvement/reindexing.md) | Re-indexing via file-hash + index-version change detection. |
+| [`production_readiness_and_features.md`](improvement/production_readiness_and_features.md) | Local indexing recovery/cost, external eval, and onboarding contracts; product expansion deferred. |
 
 ## eval/ — metrics, golden set, baselines
 
 See [`eval/README.md`](eval/README.md). Holds the golden query set and the
-`baseline_v*.json` files; `baseline_v8.json` is the current canonical hybrid
-baseline (additive identifier tokens), `baseline_v7_structural.json` is the
-Phase 6 comparison target.
+`baseline_v*.json` files. v6/v7 on this branch are historical snapshots.
+After reconciliation with main, the latest saved hybrid baseline here is
+[`baseline_v8.json`](eval/baseline_v8.json). It was not rerun for this
+documentation update and predates some later chunker changes. Its negative-score calibration differs from
+v6/v7. See the [roadmap evidence snapshot](plan/mvp_roadmap.md#evidence-snapshot-and-branch-boundary)
+and [comparison rules](eval/README.md#baselines-and-the-corpus-stability-assumption).
+Fresh same-input control/candidate runs are required for acceptance.
 
 ## task_tracker/ — task tracking
 

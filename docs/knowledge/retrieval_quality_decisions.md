@@ -9,13 +9,38 @@
 
 **Companion docs:**
 
-- [`../plan/mvp_roadmap.md`](../plan/mvp_roadmap.md) — phase plan and product direction (full RAG)
+- [`../plan/mvp_roadmap.md`](../plan/mvp_roadmap.md) — active local CLI roadmap and product direction
 - [`../plan/hybrid_search.md`](../plan/hybrid_search.md) — current BM25 + dense + RRF design with additive stemming (`baseline_v4`)
 - [`../plan/rag_evaluation_metrics.md`](../plan/rag_evaluation_metrics.md) — eval harness spec
 - [`code_graph_retrieval_landscape.md`](code_graph_retrieval_landscape.md) — industry landscape / prior-art companion to the GraphRAG (Phase 6) decision
-- [`rag_notebook.md`](rag_notebook.md) — beginner walkthrough; §14 has current performance numbers
+- [`rag_notebook.md`](rag_notebook.md) — beginner walkthrough; §14 has historical performance examples
 
 ---
+
+## Current decision boundary (2026-09-22)
+
+The analyses below retain historical observations and hypotheses. Active sequencing
+is the [local CLI roadmap](../plan/mvp_roadmap.md); MCP, the agent-first pivot, and
+multi-repo workspace features are deferred. New retrieval layers and dedicated prototypes stay deferred until recurring
+failures justify investigation. Start with one external repository and manual
+comparisons; automated retrieval CI, broader benchmark collections, and extra
+product surfaces are deferred.
+
+The branch is reconciled with fetched main `a3ac8ff` and includes its v8 hybrid report (39 queries/35 positives,
+hit@5 34/35, navigation 23/24, negative pass 2/4 at RRF 0.02). The identifier/type/calibration changes are now present. v8 remains saved
+evidence, not a fresh benchmark of the reconciled tree. M0 refreshes the baseline
+and tests one external repository; [evaluation guidance](../eval/README.md) defines comparability.
+
+Historical v6/v7 hybrid 1.00 negative pass used an ineffective 0.55 cosine cutoff.
+It is not a faithfulness floor. Preserve passing negatives under valid fixed
+score-aware calibration and track known failures explicitly; never loosen a cutoff
+to restore 1.00. The same two v6 saved negatives fail when scored at main's 0.02.
+
+Structural hit@5 already passes 14/16 historical queries. All seven recall-gap
+queries already pass it too. Use required-evidence coverage for completeness,
+retain hit@5 as a preservation check, and do not require binary improvement on
+already-passing queries. Proposed model/reranker gains and latency ranges below
+are hypotheses to benchmark, not commitments.
 
 ## Table of contents
 
@@ -142,8 +167,8 @@ An LLM reads top-K and synthesizes an answer.
 Given you're between retrieval-CLI (now) and answer mode (next phase):
 
 1. **MRR@5 — headline metric.** Single number that captures both "is top-1 right" and "if not, is the right answer near the top." Best for tracking improvements and catching regressions in one number.
-2. **Hit@5 — RAG-readiness gate.** Once answer mode ships, `hit@5 < 0.70` means the LLM gets the right info less than 70% of the time. Set a floor (e.g., *"no future change drops hit@5 below 0.85"*). Current value (`baseline_v6`, current corpus, 182 chunks): **0.895** — above the floor. It briefly dipped to 0.789 when Phase 5 grew the corpus (`baseline_v5_pre`), but excluding `*_test.go` from indexing recovered it; see §2.5 "Corpus re-baseline + test-file hygiene".
-3. **Negative pass — faithfulness floor.** Must be able to fail. Under hybrid RRF a cosine 0.55 cutoff cannot (top-1 is ~0.017–0.033), so `negative_pass_rate = 1.00` on `baseline_v6` is not evidence. After the mode-calibrated check, treat a regression against the *new* hybrid rate as the gate — not "must print 1.00."
+2. **Hit@5 — RAG-readiness gate.** Once answer mode ships, `hit@5 < 0.70` means the LLM gets the right info less than 70% of the time. Set a floor (e.g., *"no future change drops hit@5 below 0.85"*). Historical value (`baseline_v6`, its 182-chunk corpus): **0.895** — above the floor. It briefly dipped to 0.789 when Phase 5 grew the corpus (`baseline_v5_pre`), but excluding `*_test.go` from indexing recovered it; see §2.5 "Corpus re-baseline + test-file hygiene".
+3. **Negative pass — calibrated retrieval diagnostic.** Preserve passing cases under fixed score-aware thresholds and track failures. The historical hybrid 1.00 was vacuous; neither it nor a calibrated score threshold proves answer faithfulness.
 4. **Recall@10 vs Recall@5 ratio — diagnostic, not a target.** If recall@10 is much higher than recall@5, *"we know it but can't rank it"* → **reranking** is the right next step. If they're equal, embedding/chunking is the floor → upgrade the embedding model.
 5. **Hit@1 — secondary.** Tracks retrieval-CLI quality. Useful as a leading indicator of "did the algorithm get sharper?" but no longer the final-answer metric.
 
@@ -177,7 +202,7 @@ After Phase 5 v0 (`--answer` mode) landed, re-indexing the repo grew the corpus 
 
 - `baseline_v5_pre` — the grown corpus *with* test files indexed.
 - `baseline_v5` — after excluding `*_test.go` (and hidden dirs like `.claude/worktrees`) from indexing. **182 chunks.**
-- `baseline_v6` — same corpus, first run carrying the new `recall@5` / recall-gap diagnostic. **This is the current canonical baseline.** (The tiny v5→v6 drift — hit@3 0.632→0.684, MRR@5 0.668→0.673 — is the recall-gap code itself getting indexed between runs; a reminder the signal-to-noise is low at this corpus size.)
+- `baseline_v6` — same corpus, first run carrying the new `recall@5` / recall-gap diagnostic. **Historical pre-identifier-token baseline; see the current decision boundary above.** (The tiny v5→v6 drift — hit@3 0.632→0.684, MRR@5 0.668→0.673 — is the recall-gap code itself getting indexed between runs; a reminder the signal-to-noise is low at this corpus size.)
 
 | Metric | `baseline_v4` (Phase 2, 350 chunks) | `baseline_v5_pre` (grown, +tests) | `baseline_v6` (current, −tests) |
 |---|---|---|---|
@@ -265,7 +290,7 @@ Same retrieval substrate, different success criterion. Track both axes; emphasiz
 - **Track MRR@5 as the single headline metric.** It blends "did we put the right answer near the top" (CLI relevance) and "is the LLM likely to anchor on something correct" (RAG relevance) — the same blend the product cares about during this transition phase.
 - **Use Hit@5 as a hard floor.** Once answer mode ships, hit@5 below ~0.80 means the LLM is missing the right context too often. No retrieval-algorithm change should violate this floor without an exceptional MRR@5 lift to compensate.
 - **Treat Hit@1 as a precision indicator, not the final-answer metric.** Useful for tracking algorithm sharpness; don't optimize it at the expense of hit@5.
-- **Don't let Negative pass become vacuous.** The check is mode-calibrated (cosine / RRF dual-list / BM25). Historical hybrid `1.00` used an unreachable 0.55 cosine cutoff. The floor is "the check can still fail," not "the number is 1.00."
+- **Keep negative checks meaningful.** Compare fixed score-aware policies on frozen inputs; track named existing failures and reject new regressions. Historical hybrid 1.00 is not an acceptance target.
 - **For the next quality investment:**
   - If you want the cheapest fix to the one known regression: **stemming** (S, no latency cost, RAG-aligned).
   - If you want the biggest hit@1 lift and have latency budget: **reranking** (M–L, large latency cost, CLI-aligned, also helps RAG by stabilizing top-K ordering).
