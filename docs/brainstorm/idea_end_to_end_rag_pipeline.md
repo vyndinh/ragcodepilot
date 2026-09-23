@@ -71,10 +71,14 @@ A typed dataflow pipeline where each node memoizes its output keyed by its input
 - Change embedder model → re-embed only (chunks whose text didn't change keep their old vectors, but those vectors are now stale and need re-embedding).
 - Change a source file → re-process only that file's downstream chain.
 
-`docs/improvement/incremental_processing_roadmap.md` already sketches the two pieces that matter:
+The [local reliability contract](../improvement/production_readiness_and_features.md)
+now owns the practical subset of this idea:
 
-- **Chunk-level change detection** (finer than the current file-hash).
-- **Pipeline fingerprinting** (detect when chunker/embedder version invalidates the cache).
+- **Exact enriched-input dense reuse**, separate from point identity and cleanup.
+- **Representation fingerprinting**, to invalidate incompatible cached/indexed inputs.
+
+This does not implement the full dataflow proposal: sparse statistics and point
+upserts still refresh the scope, and recovery has its own acceptance gates.
 
 ### Where it fits
 

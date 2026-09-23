@@ -831,7 +831,7 @@ Now that you understand the concepts, here are good next paths:
   go run ./cmd/ragcodepilot search --mode hybrid "ChunkFile"
   ```
 
-- **Look at the eval harness** ([`../eval/README.md`](../eval/README.md), [`../plan/rag_evaluation_metrics.md`](../plan/rag_evaluation_metrics.md), `go run ./cmd/ragcodepilot eval`) — how do we *measure* whether retrieval got better or worse? Metrics like `hit@K` and `MRR@5` are the answer. The per-query results are especially useful for learning because they show exactly which queries improved, regressed, or missed.
+- **Look at the eval harness** ([evaluation guide](../eval/README.md), `go run ./cmd/ragcodepilot eval`) — how do we *measure* whether retrieval got better or worse? Metrics like `hit@K` and `MRR@5` are the answer. The per-query results are especially useful for learning because they show exactly which queries improved, regressed, or missed.
 
 - **Read [`hybrid_search.md`](../plan/hybrid_search.md)** end-to-end. It's the single best worked example in this repo of going from a design decision to an eval result.
 

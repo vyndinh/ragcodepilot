@@ -1,5 +1,9 @@
 ## **Mental model: what a vector database really does**
 
+> Historical custom-engine learning proposal, not a delivery plan for ragcodepilot.
+> The [application-first decision](../knowledge/architecture_decisions.md#application-first-not-a-custom-vector-database)
+> and [current roadmap](../plan/mvp_roadmap.md) separate this material from product scope.
+
 A vector database stores objects like this:
 
 Point {  
@@ -831,4 +835,3 @@ Build in this order:
 Use vector DB \-\> build flat vector DB \-\> add database features \-\> add ANN \-\> build code search \-\> refactor Rust repo to Go.
 
 The biggest mistake would be starting with HNSW or directly refactoring a large Rust database. First build the small version yourself. Then, when you read the Rust repo, every module will map to something you already understand.
-

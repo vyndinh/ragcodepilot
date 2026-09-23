@@ -1,5 +1,10 @@
 # Chat Conversation
 
+> Archived learning discussion, not an implementation plan. Custom-vector-DB work
+> is [outside the active product roadmap](plan/mvp_roadmap.md#out-of-current-scope).
+> Historical workspace links and observations below are retained as conversation
+> context, not current repository evidence.
+
 Note: _This is purely the output of the chat conversation and does not contain any raw data, codebase snippets, etc. used to generate the output._
 
 ### User Input

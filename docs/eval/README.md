@@ -3,7 +3,11 @@
 Offline retrieval evaluation for ragcodepilot.
 Loads a YAML golden dataset, runs each query through the existing search path, and reports `hit@k`, `MRR@5`, `recall@10`, and per-stage latency percentiles. With `--answer`, it additionally generates an answer per query and reports reference-free answer metrics — see [Answer-mode evaluation](#answer-mode-evaluation----answer-tier-b).
 
-This is Phase 1 of `docs/plan/mvp_roadmap.md`. The harness is the scoreboard for every retrieval-quality change that follows (hybrid search, reranking, chunker upgrades).
+This is the canonical evaluation guide, consolidating the original metrics plan
+and its copied review. The harness began as Phase 1; the
+[roadmap](../plan/mvp_roadmap.md) now owns active work. Retrieval and optional
+answer-shape evaluation are implemented; new retrieval components are not implied
+by this guide.
 
 ---
 
@@ -152,7 +156,7 @@ The metrics are computed purely from **the answer text plus the chunks that were
 
 ### How a query is scored
 
-```
+```text
 for each query q in the golden set:
     results = search(q)                      # identical retrieval path to normal eval (top --limit)
     chunks  = top --answer-limit of results  # 1-based, citation-ready (default 5)
@@ -364,6 +368,48 @@ For any future retrieval comparison:
 - **CI gating.** Automated retrieval gates are deferred. Use the manual frozen-input comparison policy above; existing unit/site CI is unchanged. Answer metrics remain report-only.
 
 These are measurement limitations. The [roadmap](../plan/mvp_roadmap.md) owns delivery scope; historical review logs are not an active backlog.
+
+### Historical review disposition
+
+The original metrics proposal and copied feedback are retained in Git history at
+revision `8644cc7`. Their useful distinctions are kept here without duplicating
+the current schema or inventing new CLI modes:
+
+- **Already represented:** negative cases, query categories, hit@1/3/5 and MRR
+  for ranking, file recall, stage latency, query errors, and saved JSON reports.
+  Use the schema and definitions above, not the old illustrative YAML fields.
+- **Graded relevance / nDCG:** deferred until there are carefully labeled grades
+  and a demonstrated ranking question. Binary hits cannot stand in for complete
+  file/symbol/range coverage; retain manual coverage checks meanwhile.
+- **Filter and result-shape checks:** remain measurement gaps, not guaranteed by
+  a typed result structure. A relevant top hit can coexist with wrong-repo results,
+  empty content, or invalid source ranges.
+- **Reproducibility:** preserve source/query/config/model/representation metadata
+  with the report bundle. The pinned run manifests supply information that is not
+  automatically embedded in every ordinary CLI report. Equal dimensions alone
+  do not prove compatible embeddings.
+- **Comparison and CI policy:** use the frozen paired-run workflow and manual
+  failure review above. The old example thresholds, extra eval subcommands, and
+  automatic quality gates are not accepted requirements.
+- **Performance:** record result counts and warm/cold conditions when diagnosing
+  retrieval. Ingestion throughput and cache effectiveness belong to the separate
+  [indexing measurement contract](../improvement/production_readiness_and_features.md),
+  not a search-latency proxy.
+
+FEEDBACK: Future filter checks must inspect every returned result, not just the
+accepted hit. Result-shape checks should verify usable content, file paths, source
+ranges, and symbol metadata where applicable. Until implemented, keep these
+limitations visible and inspect them manually in acceptance runs.
+
+FEEDBACK: Citation resolution and refusal heuristics measure answer shape, not
+faithfulness, correctness, or semantic citation precision. Do not convert Tier B
+results into answer-quality gates or silently relax negative thresholds.
+
+Background references retained from the original metrics proposal:
+
+- [Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks](https://papers.nips.cc/paper_files/paper/2020/hash/6b493230205f780e1bc26945df7481e5-Abstract.html)
+- [RAGAS](https://arxiv.org/abs/2309.15217)
+- [BEIR](https://arxiv.org/abs/2104.08663)
 
 ---
 

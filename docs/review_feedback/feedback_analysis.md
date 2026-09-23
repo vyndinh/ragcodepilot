@@ -1,6 +1,14 @@
 # Feedback Analysis
 
-Review of suggestions from external feedback on `system_design_with_feedback.md` and `rag_evaluation_metrics_with_feedback.md`.
+> Archived in place: May 2026 review disposition. The assumptions about corpus
+> size, absent CI, unnecessary provenance, and type-guaranteed result validity
+> below are historical, not current guidance. See the
+> [roadmap](../plan/mvp_roadmap.md) and [evaluation guide](../eval/README.md).
+
+Review of suggestions from the original design and evaluation reviews. The
+duplicated specification copies are now consolidated into the
+[design disposition](../plan/system_design.md#historical-review-disposition) and
+[evaluation disposition](../eval/README.md#historical-review-disposition).
 
 ## Summary
 

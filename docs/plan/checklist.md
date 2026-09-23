@@ -1,5 +1,9 @@
 # Progress checklist — ragcodepilot
 
+> Archived in place: this is the original May 2026 checklist, not the current
+> progress tracker. Statuses below are historical. Use the
+> [product roadmap](mvp_roadmap.md) for active milestones and acceptance gates.
+
 Tracking progress against [system_design.md](system_design.md) build phases.
 
 Last updated: 2026-05-08
@@ -84,7 +88,7 @@ Last updated: 2026-05-08
 ### Documentation
 
 - [x] System design document (`docs/plan/system_design.md`)
-- [x] Plan comparison: old vs new (`docs/plan/plan_comparison.md`)
+- [x] Plan comparison: old vs new (now summarized in the [application-first decision](../knowledge/architecture_decisions.md#application-first-not-a-custom-vector-database))
 - [x] Embeddings explained (`docs/knowledge/embeddings_explained.md`)
 - [x] RAG architecture parts (`docs/knowledge/rag_parts.md`)
 - [x] Platform comparison (`docs/knowledge/compare.md`)
@@ -145,7 +149,9 @@ Last updated: 2026-05-08
 
 ## Incremental processing improvements
 
-> See [`docs/improvement/incremental_processing_roadmap.md`](../improvement/incremental_processing_roadmap.md) for full design details.
+> The original incremental proposal is superseded by the
+> [local reliability contract](../improvement/production_readiness_and_features.md).
+> The checkboxes below retain their historical state, not current implementation status.
 
 - [ ] Pipeline version fingerprint — detect enrichment/model/chunker changes and force re-index
 - [ ] Chunk-level change detection — skip unchanged chunks within changed files

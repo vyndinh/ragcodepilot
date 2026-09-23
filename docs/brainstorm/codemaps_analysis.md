@@ -564,7 +564,7 @@ Explore Mode depends on Phase 3 (call graph extraction from AST) and Phase 4 (re
 
 ### The gap: current eval doesn't measure structural quality
 
-The evaluation harness spec (`rag_evaluation_metrics_with_feedback.md`) measures **flat retrieval quality**:
+The [evaluation guide](../eval/README.md) defines **flat retrieval quality**:
 
 - `hit@k` — did the right file appear in top K?
 - `MRR@k` — how high did it rank?

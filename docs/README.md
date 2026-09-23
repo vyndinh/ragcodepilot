@@ -1,15 +1,16 @@
 # ragcodepilot — Documentation Index
 
 This folder is organized into tiers by **purpose**, not by feature. Use this
-page to find the right entry point.
+page to find the right entry point. The roadmap owns active work; historical
+plans and reviews are not a second backlog.
 
 | Tier | Folder | What lives here | Start with |
 |---|---|---|---|
 | **Plan** | `plan/` | Design docs, the roadmap, phase implementation plans | [`plan/mvp_roadmap.md`](plan/mvp_roadmap.md) |
 | **Knowledge** | `knowledge/` | Reference: trade-off decisions + learning material | [`knowledge/building_ragcodepilot.md`](knowledge/building_ragcodepilot.md) (story) / [`knowledge/rag_notebook.md`](knowledge/rag_notebook.md) (beginners) |
-| **Review feedback** | `review_feedback/` | Review logs and decision records for past plans | [`review_feedback/system_vision_review.md`](review_feedback/system_vision_review.md) |
+| **Review feedback** | `review_feedback/` | Historical reviews; not current implementation guidance | [Historical records](#historical-records) |
 | **Brainstorm** | `brainstorm/` | Early exploration, not committed direction | — |
-| **Improvement** | `improvement/` | Roadmaps for incremental indexing / re-indexing | [`improvement/incremental_processing_roadmap.md`](improvement/incremental_processing_roadmap.md) |
+| **Improvement** | `improvement/` | Indexing and local reliability contracts | [`improvement/production_readiness_and_features.md`](improvement/production_readiness_and_features.md) |
 | **Eval** | `eval/` | Metrics spec, golden set, baselines | [`eval/README.md`](eval/README.md) |
 | **Task tracker** | `task_tracker/` | Per-phase task tracking | — |
 
@@ -30,10 +31,9 @@ page to find the right entry point.
 | [`function_level_chunker.md`](plan/function_level_chunker.md) | Go AST function-level chunker design. |
 | [`chunk_enrichment.md`](plan/chunk_enrichment.md) | Metadata enrichment before embedding. |
 | [`embedding_dimension_validation.md`](plan/embedding_dimension_validation.md) | Dimension auto-detection + batch validation. |
-| [`rag_evaluation_metrics.md`](plan/rag_evaluation_metrics.md) | Eval harness spec (input for Phase 1). |
+| [Evaluation guide](eval/README.md) | Canonical metrics, dataset schema, comparison workflow, and measurement gaps. |
 | [`system_design.md`](plan/system_design.md) | Full system design document. |
-| [`plan_comparison.md`](plan/plan_comparison.md) | `vector_db_app.md` vs `system_design.md` comparison. |
-| [`checklist.md`](plan/checklist.md) | Historical record of the original phase plan. |
+| [Application-first decision](knowledge/architecture_decisions.md#application-first-not-a-custom-vector-database) | Why the CLI uses Qdrant instead of building a storage engine. |
 
 ## knowledge/ — reference & trade-offs
 
@@ -59,17 +59,25 @@ page to find the right entry point.
 | [`bm25_vs_tfidf.md`](knowledge/bm25_vs_tfidf.md) | How keyword scoring works. |
 | [`compare.md`](knowledge/compare.md) | Search & vector-database comparison. |
 
-## review_feedback/ — review logs & decision records
+## Historical records
+
+These records are archived in place so existing links and decision history remain
+available. Their feature statuses, priorities, and measurements describe the time
+of writing, not current behavior. Use the [roadmap](plan/mvp_roadmap.md) for active work.
 
 | Doc | Purpose |
 |---|---|
-| [`system_vision_review.md`](review_feedback/system_vision_review.md) | Source of the phase numbering and overall strategy. |
+| [`checklist.md`](plan/checklist.md) | Original phase checklist; no longer the current progress tracker. |
+| [`system_vision_review.md`](review_feedback/system_vision_review.md) | Historical strategy review, including the original ten product questions. |
 | [`codemaps_review.md`](review_feedback/codemaps_review.md) | Historical review of Explore Mode; not an active delivery plan. |
 | [`hybrid_search_review.md`](review_feedback/hybrid_search_review.md) | Hybrid search review history. |
 | [`reindexing_review.md`](review_feedback/reindexing_review.md) | Re-indexing pipeline review history. |
-| [`system_design_with_feedback.md`](review_feedback/system_design_with_feedback.md) | System design with inline feedback. |
-| [`rag_evaluation_metrics_with_feedback.md`](review_feedback/rag_evaluation_metrics_with_feedback.md) | Eval metrics with inline feedback. |
-| [`feedback_analysis.md`](review_feedback/feedback_analysis.md) | Feedback analysis. |
+| [`feedback_analysis.md`](review_feedback/feedback_analysis.md) | Historical disposition of the original reviews; later decisions supersede it. |
+
+Duplicated specification copies have been consolidated into the
+[system design review disposition](plan/system_design.md#historical-review-disposition)
+and [evaluation review disposition](eval/README.md#historical-review-disposition).
+The full original documents remain in Git history at revision `8644cc7`.
 
 ## brainstorm/ — exploratory (not committed)
 
@@ -77,14 +85,15 @@ page to find the right entry point.
 |---|---|
 | [`codemaps_analysis.md`](brainstorm/codemaps_analysis.md) | Original Explore Mode proposal. |
 | [`idea_end_to_end_rag_pipeline.md`](brainstorm/idea_end_to_end_rag_pipeline.md) | Ideal end-to-end RAG pipeline sketch. |
-| [`vector_db_app.md`](brainstorm/vector_db_app.md) | Early "mini Qdrant for code search" idea. |
-| [`vector_db_core.md`](brainstorm/vector_db_core.md) | Vector-DB internals notes. |
+| [`vector_DB_app.md`](brainstorm/vector_DB_app.md) | Historical custom-engine proposal; outside the active product roadmap. |
+| [`Vector_DB_core.md`](brainstorm/Vector_DB_core.md) | Vector-DB internals learning notes, not an implementation commitment. |
+| [Flat-search exercise](plan/vecdb/vecdb_phase1_flat_search.md) | Separate custom-engine learning proposal; not active product work. |
+| [Custom-vector-DB discussion](discussion_about_plan_own_vectorDB.md) | Archived conversation, not a delivery plan. |
 
-## improvement/ — incremental indexing roadmaps
+## improvement/ — indexing contracts
 
 | Doc | Purpose |
 |---|---|
-| [`incremental_processing_roadmap.md`](improvement/incremental_processing_roadmap.md) | Incremental processing roadmap. |
 | [`reindexing.md`](improvement/reindexing.md) | Re-indexing via file-hash + index-version change detection. |
 | [`production_readiness_and_features.md`](improvement/production_readiness_and_features.md) | Local indexing recovery/cost, external eval, and onboarding contracts; product expansion deferred. |
 
@@ -106,10 +115,3 @@ Fresh same-input control/candidate runs are required for acceptance.
 | Doc | Purpose |
 |---|---|
 | [`phase3_rust_chunker.md`](task_tracker/phase3_rust_chunker.md) | Phase 3 Rust AST chunker task tracker. |
-
-## Top-level
-
-| Doc | Purpose |
-|---|---|
-| [`discussion_about_plan_own_vectorDB.md`](discussion_about_plan_own_vectorDB.md) | Discussion log on building a custom vector DB (Phase C). |
-| [`questions.md`](questions.md) | Open questions. |

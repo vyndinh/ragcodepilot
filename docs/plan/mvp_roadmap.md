@@ -171,8 +171,9 @@ answer defaults and report-only refusal diagnostics; review questionable answers
 
 P1 evaluation foundation, P2 hybrid retrieval, P5 v0 answer mode, file-hash/index-
 version change detection, and watch mode remain implemented. See the linked
-phase plans and [historical checklist](checklist.md); indexing still rebuilds
-all dense vectors in the current scope when a run detects changes.
+phase plans and [historical checklist](checklist.md). On changed runs, indexing
+still re-chunks the scope and rebuilds sparse weights, but valid dense-cache
+entries avoid embedding unchanged inputs. Recovery acceptance remains separate.
 
 - **2026-05-14:** answer mode was pulled forward after retrieval cleared the
   historical self-corpus floor; this remains an opt-in CLI capability.

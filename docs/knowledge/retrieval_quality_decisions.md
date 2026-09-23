@@ -11,7 +11,7 @@
 
 - [`../plan/mvp_roadmap.md`](../plan/mvp_roadmap.md) — active local CLI roadmap and product direction
 - [`../plan/hybrid_search.md`](../plan/hybrid_search.md) — current BM25 + dense + RRF design with additive stemming (`baseline_v4`)
-- [`../plan/rag_evaluation_metrics.md`](../plan/rag_evaluation_metrics.md) — eval harness spec
+- [Evaluation guide](../eval/README.md) — canonical metrics, dataset schema, and comparison rules
 - [`code_graph_retrieval_landscape.md`](code_graph_retrieval_landscape.md) — code-graph concepts and historical research references
 - [`rag_notebook.md`](rag_notebook.md) — beginner walkthrough; §14 has historical performance examples
 

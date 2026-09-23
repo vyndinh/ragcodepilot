@@ -1,7 +1,16 @@
 # System Vision & Product Direction Review
 
-Honest answers to the ten strategic questions in `docs/questions.md`.
-Grounded in the planning docs (`docs/plan/system_design.md`, `docs/plan/checklist.md`, `docs/plan/vecdb/`, the `_with_feedback` variants under `docs/review_feedback/`) and the current implementation (`internal/search`, `internal/ingest`, `internal/qdrant`, `cmd/ragcodepilot`).
+> Archived in place: this review predates the evaluation harness, hybrid search,
+> and opt-in answer generation. Statements about missing features and priorities
+> below describe that earlier snapshot. The [roadmap](../plan/mvp_roadmap.md)
+> owns current direction; this review is not an active backlog.
+
+Honest answers to the ten original product questions, preserved as the Q1–Q10
+headings below. The separate question-only prompt has been removed.
+Grounded in the planning docs and implementation available at the time of review.
+The original copied reviews are now summarized in the
+[design disposition](../plan/system_design.md#historical-review-disposition) and
+[evaluation disposition](../eval/README.md#historical-review-disposition).
 
 ---
 
@@ -20,7 +29,7 @@ Grounded in the planning docs (`docs/plan/system_design.md`, `docs/plan/checklis
 **Direct answer:** Two stacked goals, both legitimate but worth naming explicitly:
 
 - **Outward product:** A local, privacy-respecting, CLI-native semantic code search tool that lets a developer ask natural-language questions over one or more local Git repos and get ranked source-code chunks back.
-- **Inward goal:** A learning vehicle. The plan tree in `docs/plan/vecdb/` and `plan_comparison.md` makes it clear the long arc is: build an app on Qdrant → study Qdrant's internals → eventually re-implement a vector DB in Go (the "Phase C" Rust→Go refactor).
+- **Inward goal:** A learning vehicle. The original vector-DB plans described this long arc: build an app on Qdrant → study Qdrant's internals → eventually re-implement a vector DB in Go (the "Phase C" Rust→Go refactor). The retained [application-first decision](../knowledge/architecture_decisions.md#application-first-not-a-custom-vector-database) separates that learning goal from current product scope.
 
 The current app is the on-ramp to that learning path, not the destination. Both goals are fine; the trap is conflating them when prioritizing.
 
@@ -30,7 +39,7 @@ The current app is the on-ramp to that learning path, not the destination. Both 
 
 **Direct answer:** Yes, with caveats.
 
-- **For the learning goal:** Excellent. The stack (chunking, embedding, vector DB, filtered retrieval) covers the full vector-search surface area without overreach. The pedagogical structure in `system_design.md` and `plan_comparison.md` is genuinely strong.
+- **For the learning goal:** Excellent. The stack (chunking, embedding, vector DB, filtered retrieval) covers the full vector-search surface area without overreach. The original system design and application-first rationale provide the pedagogical structure.
 - **For the product goal:** It's a crowded space. Sourcegraph, GitHub code search, Cursor's `@workspace`, Cody, and Aider all do semantic code retrieval to some degree. The defensible niche is narrow but real:
   - **Local-only, offline, no telemetry, no vendor lock-in.**
   - **CLI-native** (scripts, pipes, no UI dependency).
@@ -75,7 +84,7 @@ A few concrete points:
 
 | # | Severity | Weakness | Why it matters |
 |---|---|---|---|
-| 1 | P1 | No evaluation harness | Can't measure if any change helps or hurts; spec exists in `docs/review_feedback/rag_evaluation_metrics_with_feedback.md` but isn't built |
+| 1 | P1 | No evaluation harness | At review time, the evaluation proposal existed but was not built; current guidance is in the [evaluation guide](../eval/README.md) |
 | 2 | P1 | Misleading project name | `ragcodepilot` / `ragsearch` imply generation; README contradicts the name |
 | 3 | P1 | No hybrid search | Vector-only misses exact-symbol queries; BM25 + RRF is well-understood and Qdrant supports it natively |
 | 4 | P2 | No reranking | Single embedder's top-K is the final answer; precision on ambiguous queries suffers |
@@ -95,7 +104,7 @@ Ordered by priority + effort + value:
 
 | Priority | Feature | Effort | Why it matters |
 |---|---|---|---|
-| P1 | **Evaluation harness + 20-30 golden queries** | M | Measures every subsequent change; spec already in `rag_evaluation_metrics_with_feedback.md` |
+| P1 | **Evaluation harness + 20-30 golden queries** | M | Measures every subsequent change; the original proposal is now consolidated into the [evaluation guide](../eval/README.md) |
 | P1 | **Hybrid search (sparse BM25 + dense vector + RRF)** | M | Fixes exact-symbol lookups; significant `hit@k` gains on technical queries |
 | P1 | **Result formatting upgrade** (JSON mode, group by file, ±N context lines) | S | Real users will pipe results into other tools; current formatting blocks that |
 | P2 | **Cross-encoder reranking** (top-50 → top-10) | M | Precision boost on ambiguous queries |
@@ -113,7 +122,7 @@ S/M/L are rough — S ≤ 1 week, M ≈ 1-2 weeks, L ≈ 3+ weeks of focused wor
 
 **P1: Build the evaluation harness.**
 
-**Reasoning:** Hybrid search, reranking, chunker upgrades — every retrieval improvement you make next will be a gamble without metrics. The spec is already written (`docs/review_feedback/rag_evaluation_metrics_with_feedback.md`). Implementing it is straightforward Go: load a YAML of queries with expected files/symbols, run each query through the existing `Searcher`, compute `hit@k`, `MRR@k`, `recall@k`, output JSON.
+**Reasoning at review time:** Hybrid search, reranking, chunker upgrades — every retrieval improvement would be a gamble without metrics. The proposal was to load queries with expected files/symbols, run each query through the existing search path, compute `hit@k`, `MRR@k`, `recall@k`, and output JSON. The implemented workflow is now documented in the [evaluation guide](../eval/README.md).
 
 **Why this beats jumping straight to hybrid search:**
 - You need a baseline to know if hybrid helps.
