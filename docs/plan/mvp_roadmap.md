@@ -67,7 +67,7 @@ their original meanings; gaps refer to retired proposals.
 |---|---|---|---|---|
 | M0 | Fresh evidence on self + one external repo | S–M | Pinned inputs, saved reports, named failure inventory, manual comparison checklist | Complete as measurement; known failures retained |
 | M3 | Dense reuse + retry/cleanup | M | Cache reuse and invalidation, interrupted-run replay, stale-ID cleanup, one writer per index | Recovery/cleanup in progress |
-| M4 | Existing-command errors + .gitignore | S–M | Actionable operation-specific failures; nested ignore/exclusion behavior verified | Independent |
+| M4 | Existing-command errors + .gitignore | S–M | Actionable operation-specific failures; nested ignore/exclusion behavior verified | In progress |
 | M1 | Sources-first terminal output | S | Exact answer sources appear before warmup and generation | Optional small UX change |
 
 ## M0 — Fresh baseline and one external repository [S–M]
@@ -144,11 +144,11 @@ run, not atomic visibility during updates or verified large-corpus capacity.
 
 ## M4 — Actionable errors and .gitignore [S–M]
 
-- [ ] Improve errors in existing `index`/`search` commands with an actionable fix
+- [x] Improve errors in existing `index`/`search` commands with an actionable fix
   for missing relevant services/models. No standalone `doctor` command yet.
 - [ ] Keep checks operation-specific: sparse search does not need an embedder,
   retrieval does not need a generator, and first indexing creates a collection.
-- [ ] Respect nested .gitignore rules and negation while preserving explicit config
+- [x] Respect nested .gitignore rules and negation while preserving explicit config
   exclusions; document precedence and remove newly excluded files on re-index.
 - [ ] Preserve current hidden-file/extension exclusions. Automatic secret scanning
   and redaction are deferred; exclusions are not a guarantee of secret-free content.
