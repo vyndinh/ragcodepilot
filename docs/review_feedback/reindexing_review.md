@@ -1,5 +1,10 @@
 # Re-indexing Pipeline — Review History
 
+> Historical review rounds, archived in place. Resolution statements below apply
+> to those rounds, not all current recovery gates. The
+> [local reliability contract](../improvement/production_readiness_and_features.md)
+> supersedes the old incremental proposal, including its sentinel-point design.
+
 Consolidated audit trail covering all review rounds for the re-indexing pipeline.
 All issues have been resolved.
 
@@ -86,7 +91,9 @@ Added `TestPipeline_RunDeletesChangedFilesAfterUpsert` and `TestPipeline_RunDele
 
 **Fix:** Updated the roadmap to use `UUIDv5(namespace, "pipeline_meta:" + repo_name)` with `chunk_type: "metadata"` for search exclusion.
 
-**Files:** `docs/improvement/incremental_processing_roadmap.md`
+**Historical target:** the retired tiered incremental proposal (preserved in Git
+history at revision `8644cc7`); current decisions are in the
+[indexing contract](../improvement/production_readiness_and_features.md#consolidated-incremental-indexing-decisions).
 
 ---
 
@@ -179,11 +186,13 @@ Both calls are idempotent so there is no correctness issue, but the Step 2 call 
 
 ## Appendix: Doc-level feedback
 
-Findings from a separate review of `docs/improvement/reindexing.md` and `docs/improvement/incremental_processing_roadmap.md`. All were addressed in the rounds above.
+Findings from a separate review of [re-indexing](../improvement/reindexing.md)
+and the retired tiered incremental proposal. All were addressed in the historical
+rounds above; later recovery work has separate acceptance gates.
 
 | Finding | Severity | Resolution |
 |---|---|---|
 | `ScrollFileHashes` only reads one page | P1 | Fixed in Round 1 (scroll pagination) |
 | Existing collections skip payload index creation | P2 | Fixed in Round 1 (exposed `EnsurePayloadIndexes`) |
 | Stale-only cleanup reports "Everything up to date" | P2 | Fixed in pipeline — distinct message for stale-cleanup-only runs |
-| Roadmap wording for unnamed block IDs inaccurate | P3 | Updated in `incremental_processing_roadmap.md` |
+| Roadmap wording for unnamed block IDs inaccurate | P3 | Updated in the historical incremental proposal; current identity/cleanup decisions live in the indexing contract |

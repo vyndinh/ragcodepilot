@@ -20,6 +20,7 @@
 
 ## Table of contents
 
+- [Application-first, not a custom vector database](#application-first-not-a-custom-vector-database)
 1. [CLI vs daemon — why we stay a thin CLI](#1-cli-vs-daemon--why-we-stay-a-thin-cli)
 2. [Per-invocation cost budget](#2-per-invocation-cost-budget)
 3. [Incremental indexing without a daemon](#3-incremental-indexing-without-a-daemon)
@@ -28,6 +29,26 @@
 6. [Bottom line](#6-bottom-line)
 
 ---
+
+## Application-first, not a custom vector database
+
+The original choice was between building a storage engine first (flat search,
+filters, persistence, segments, then HNSW) and building useful code search on
+Qdrant. We chose the application-first path: it lets us evaluate chunking,
+retrieval, and user workflows without implementing and maintaining another
+database. Local Ollama provides real embeddings; Qdrant owns vector storage
+and search. This decision does not commit us to a later engine replacement.
+
+Vector math, WALs, segments, and indexing algorithms remain useful learning
+topics. The [internals notes](../brainstorm/Vector_DB_core.md) and
+[early engine proposal](../brainstorm/vector_DB_app.md) preserve that material.
+Custom-engine implementation requires a separate explicit objective; it is
+[outside the product roadmap](../plan/mvp_roadmap.md#out-of-current-scope).
+
+This summary replaces the old bottom-up/top-down plan comparison. The following
+process-shape analyses retain historical estimates; use the roadmap for delivery
+scope and the [indexing contract](../improvement/production_readiness_and_features.md)
+for current reuse and recovery behavior.
 
 ## 1. CLI vs daemon — why we stay a thin CLI
 

@@ -1,5 +1,9 @@
 # Phase 1: Vector Math + Flat Search
 
+> Historical learning proposal, not active product work. The suggested package
+> and implementation sequence below require a separate explicit objective; see
+> the [roadmap scope boundary](../mvp_roadmap.md#out-of-current-scope).
+
 > Build the simplest possible vector database — in-memory, brute-force search, no persistence.
 
 ## What you will learn

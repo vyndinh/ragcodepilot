@@ -17,14 +17,37 @@ are removed from active scope. Their brief revisit conditions are in the roadmap
 
 `Pipeline.Run` skips a run only when hashes and representation versions match
 and there are no stale files. A change, addition, deletion, or version refresh
-causes all remaining files in that run's scope to be chunked, embedded, and
-upserted. The scope is the selected repository and languages, not every point
-in a shared collection. [Re-indexing](reindexing.md) already documents this.
+causes all remaining files in that run's scope to be chunked and upserted with
+fresh sparse weights. Valid cached dense vectors are reused; only cache misses
+call the embedder. The scope is the selected repository and languages, not every
+point in a shared collection. [Re-indexing](reindexing.md) documents classification
+and cleanup; the cache and recovery contracts below extend that flow.
 
 Only BM25 statistics and sparse weights depend on corpus composition. Dense
 embeddings depend on the exact enriched text, model artifact, and preprocessing.
 Reusing a dense vector is valid only when those inputs match. File content alone
 is insufficient: path/name headers, chunk boundaries, or model changes matter.
+
+### Consolidated incremental-indexing decisions
+
+This contract replaces the earlier tiered incremental-processing proposal.
+Representation fingerprinting, exact enriched-input dense reuse, and
+`index --watch` belong to the existing pipeline; they do not require a new daemon
+or a multi-source dependency graph. Watch events re-run the scoped pipeline, not
+just the changed file. Sparse statistics and complete-point upserts remain
+scope-wide even when most dense vectors are reusable.
+
+The old sentinel-point proposal and content-only point IDs are not the selected
+design: durable run state lives outside the source repository, cache keys are
+separate from point identity, and declaration identity prevents same-name Go
+methods from overwriting one another. Reuse must not discard distinct identical
+declarations or leave obsolete points after a rename or boundary change.
+
+FEEDBACK: Keep invalidation, deletion/rename cleanup, interrupted-run replay,
+cache-storage bounds, and source consistency as explicit acceptance concerns.
+Dense-cache hits alone do not prove recovery or fully incremental indexing.
+Multi-source DAGs, sparse-only writes, and atomic publication remain deferred
+under the [roadmap's scope boundary](../plan/mvp_roadmap.md#out-of-current-scope).
 
 ### Correctness prerequisite discovered by M0
 

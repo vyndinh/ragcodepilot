@@ -275,7 +275,7 @@ Key decisions:
 | Sparse algorithm | BM25 `k1=0.5, b=0.75` + additive identifiers and Snowball stemming | Eval-driven: +15.8pp hit@1 vs TF-IDF with no hit@5 loss (`hybrid_search.md` §3) |
 | Test files | `*_test.go` excluded by default | They crowded top-K; excluding lifted hit@5 0.789→0.895 |
 | Batch size | 32 embed / upsert batch | Throughput vs memory |
-| Point ID | Hash of repo + file path + symbol + chunk index; unnamed chunks use start line | Names omit receiver identity and collide within files; fix and version before cache work |
+| Point ID | Hash of repo + file path + declaration identity + chunk index for named Go chunks; generic blocks remain position-sensitive | Receiver/declaration identity prevents same-file Go name collisions; versioned migration removes old IDs |
 | Change detection | SHA-256 file hash + combined tokenizer/chunker `index_version` | Detects tracked representation changes; model/enrichment fingerprinting remains planned |
 
 ### Search flow
@@ -363,9 +363,30 @@ ragcodepilot/
 |   +-- plan/                    # design docs + roadmap (this file)
 |   +-- knowledge/               # decision docs + learning notes
 |   +-- eval/                    # golden set, baselines, compare.py
-|   +-- improvement/             # re-indexing, incremental roadmap, production readiness
+|   +-- improvement/             # re-indexing and local reliability contracts
 |   `-- review_feedback/         # review logs
 +-- config.yaml
 +-- docker-compose.yml           # Qdrant service
 `-- go.mod / go.sum
 ```
+
+## Historical review disposition
+
+The original copied design-with-feedback document has been consolidated here.
+Its complete text remains in Git history at revision `8644cc7`; its suggested
+commands and implementation order are not current contracts.
+
+| Review topic | Retained decision / current home |
+|---|---|
+| Evaluation subsystem, CLI, and baseline-before-retrieval changes | The real search path feeds `internal/eval`; the [evaluation guide](../eval/README.md) owns metrics, commands, and frozen-input comparisons. No separate six-mode eval CLI is planned. |
+| Point identity, stale deletion, and changed-file cleanup | Declaration-unique Go IDs and versioned migration are documented above; [re-indexing](../improvement/reindexing.md) and [local reliability](../improvement/production_readiness_and_features.md) own cleanup and retry acceptance. |
+| Payload indexes | Existing indexes cover repo, language, and file path. Extra symbol/type/time indexes are not requirements without matching query patterns and measured need. |
+| Chunking by language | Go AST and generic fallback remain the implemented split. The deferred Rust plan stays intact; other parser or Markdown-heading proposals are not implied to be shipped. |
+| Score interpretation and negatives | Dense, sparse, and RRF scores are not interchangeable confidence values; use mode-calibrated negatives and inspect named failures. |
+| Timing and ingestion cost | Retrieval stage timings belong in eval reports; dense calls, sparse writes, and total indexing time are separate measurements in the reliability contract. |
+| Non-goals and sequencing | The [roadmap](mvp_roadmap.md) supersedes the original review sequence. Default retrieval remains available; opt-in answer generation is implemented, not an excluded future layer. |
+
+FEEDBACK: Preserve the distinction between implemented mechanisms and acceptance
+evidence. A collision fix, a cache hit, or a successful write does not by itself
+prove retry equivalence, source consistency, atomic visibility, or broad retrieval
+quality. Use the linked contracts and pinned experiments for those claims.
