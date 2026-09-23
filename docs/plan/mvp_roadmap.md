@@ -135,6 +135,13 @@ collection. See the [run-state contract](../improvement/production_readiness_and
 produces the same final index as a clean rebuild. Claim recovery after a complete
 run, not atomic visibility during updates or verified large-corpus capacity.
 
+### M3-D: Measurement and evidence (in progress)
+
+- [ ] Save clean-build and warm-cache metrics for the pinned self and chi corpora.
+- [x] Emit per-run dense calls/inputs, cache hits/misses, sparse-vector count,
+  chunking/statistics/upsert/source-verification durations, and total duration.
+- [ ] Compare retry output and final point sets with a clean rebuild.
+
 ## M4 — Actionable errors and .gitignore [S–M]
 
 - [ ] Improve errors in existing `index`/`search` commands with an actionable fix

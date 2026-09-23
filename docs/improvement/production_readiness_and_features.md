@@ -102,9 +102,9 @@ on retry with an incomplete-run marker:
     do not skip work merely because individual file hashes now match
 ```
 
-Persist the marker, input/representation fingerprint, and last successful run
-state durably. Define their storage location and crash recovery before implementation.
-A source change during a run or a failed write must leave the run incomplete.
+M3-A now persists the marker, input/representation fingerprint, and last
+successful run state durably. M3-B must keep using that contract: a source change
+during a run or a failed write must leave the run incomplete.
 Retry can replay the entire affected scope, reusing valid cached dense inputs.
 This is a single recoverable in-place index, not multiple publication generations.
 
@@ -144,6 +144,12 @@ inputs in cache keys/logs; redaction changes also invalidate affected entries.
 | Interrupted refresh + retry | Completion does not advance on failure; replay produces the same final point set/weights as a clean rebuild |
 | Concurrent writers / source changes | One writer per collection; changed snapshot cannot be marked complete |
 | No-op after a complete run | No embedding/upsert work when manifest and representation match |
+
+Each CLI index run emits one machine-readable-friendly `Index metrics:` line with
+file/chunk counts, dense calls and inputs, cache hits/misses, sparse-vector writes,
+upsert batches, stage durations, source-verification duration, and total duration.
+Use those records for clean-build versus warm-cache comparisons; latency from a
+single local run is descriptive and not a capacity claim.
 
 Measure dense calls, sparse writes, hashing/chunking/statistics time, and total
 elapsed time separately. **Dense work can become proportional to changed inputs;
