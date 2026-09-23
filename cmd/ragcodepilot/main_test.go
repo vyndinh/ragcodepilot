@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -154,5 +155,22 @@ func TestResolveGenerator(t *testing.T) {
 				t.Error("expected a non-nil generator")
 			}
 		})
+	}
+}
+
+func TestActionableOperationError(t *testing.T) {
+	t.Parallel()
+
+	err := actionableOperationError("search", fmt.Errorf("searching qdrant: connection refused"))
+	if !strings.Contains(err.Error(), "start Qdrant") {
+		t.Fatalf("error = %v, want Qdrant remedy", err)
+	}
+	err = actionableOperationError("index", fmt.Errorf("calling ollama embed API: connection refused"))
+	if !strings.Contains(err.Error(), "ollama pull nomic-embed-text") {
+		t.Fatalf("error = %v, want Ollama remedy", err)
+	}
+	err = actionableOperationError("index", fmt.Errorf("source changed during indexing; retry required"))
+	if !strings.Contains(err.Error(), "retry indexing") {
+		t.Fatalf("error = %v, want retry remedy", err)
 	}
 }

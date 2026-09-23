@@ -214,16 +214,22 @@ usage justifies them. Continue manual review of questionable answers.
 
 ## 4. Existing-command errors and .gitignore [S–M]
 
-**Mode-aware errors.** Improve existing `index`/`search` failures with actionable
-remedies for missing Qdrant/models. Defer the separate `doctor` command. Do not require a
+**Mode-aware errors — implemented.** Existing `index`/`search` failures now include
+operation-specific remedies for missing Qdrant or Ollama/model services, active
+writer locks, source changes during indexing, and collection-before-indexing
+mistakes. Defer the separate `doctor` command. Do not require a
 generator for retrieval, Ollama for sparse search, or an existing collection for
 first indexing. Answer generation already provides some Ollama recovery hints;
 extend the uncovered paths instead of claiming every current error is raw.
 
-**.gitignore support.** The walker already skips hidden files/directories,
-configured directories (including `bin`), unsupported extensions, and configured
-filename patterns. Add nested Git ignore/negation behavior with explicit precedence
-against config exclusions. Verify newly excluded files are removed on re-index.
+**.gitignore support — implemented.** The walker applies Git's nested patterns and
+negation through `git check-ignore --no-index --stdin`, after hidden-file and
+configured-directory/file exclusions. Configuration exclusions therefore take
+precedence over negation. Newly ignored files disappear from the next manifest and
+the existing stale-file cleanup removes their points on re-index.
+
+The walker still skips hidden files/directories, configured directories (including
+`bin`), unsupported extensions, and configured filename patterns.
 
 **Sensitive included content — scanning deferred.** Preserve explicit exclusions;
 hidden .env files and unsupported key extensions already have walker protection.

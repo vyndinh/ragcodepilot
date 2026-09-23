@@ -334,6 +334,30 @@ func generatorName(generatorType, generativeModel string) string {
 	return generatorType
 }
 
+func actionableOperationError(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+	message := err.Error()
+	remedy := ""
+	switch {
+	case strings.Contains(message, "connecting to qdrant") || strings.Contains(message, "searching qdrant"):
+		remedy = "start Qdrant with `docker compose up -d` and verify ports 6333/6334"
+	case strings.Contains(message, "calling ollama") || strings.Contains(message, "ollama embed API") || strings.Contains(message, "ollama tags API"):
+		remedy = "start Ollama and verify the embedding model with `ollama pull nomic-embed-text`"
+	case strings.Contains(message, "collection") && strings.Contains(message, "does not exist"):
+		remedy = "index the repository first or choose the correct `--collection`"
+	case strings.Contains(message, "already being indexed"):
+		remedy = "wait for the active index run to finish; inspect the reported lock path if it is stale"
+	case strings.Contains(message, "source changed during indexing"):
+		remedy = "retry indexing after source edits stop"
+	}
+	if remedy == "" {
+		return fmt.Errorf("%s failed: %w", operation, err)
+	}
+	return fmt.Errorf("%s failed: %w; remedy: %s", operation, err, remedy)
+}
+
 func runIndex(repoPath, collection string, languages []string, qdrantHost string, qdrantPort int, embedder embedding.Embedder, watch bool) error {
 	// Use a cancellable context. In watch mode, Ctrl-C cancels it cleanly.
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -346,7 +370,7 @@ func runIndex(repoPath, collection string, languages []string, qdrantHost string
 
 	client, err := qdrant.NewClient(qdrantHost, qdrantPort)
 	if err != nil {
-		return fmt.Errorf("connecting to qdrant: %w", err)
+		return actionableOperationError("index", fmt.Errorf("connecting to qdrant: %w", err))
 	}
 	defer func() { _ = client.Close() }()
 
@@ -368,7 +392,7 @@ func runIndex(repoPath, collection string, languages []string, qdrantHost string
 
 	// Initial index — same behavior whether --watch is set or not.
 	if err := pipeline.Run(ctx, repoPath); err != nil {
-		return err
+		return actionableOperationError("index", err)
 	}
 
 	if !watch {
@@ -409,14 +433,14 @@ func runSearch(query, collection string, languages, repos []string, mode search.
 
 	client, err := qdrant.NewClient(qdrantHost, qdrantPort)
 	if err != nil {
-		return fmt.Errorf("connecting to qdrant: %w", err)
+		return actionableOperationError("search", fmt.Errorf("connecting to qdrant: %w", err))
 	}
 	defer func() { _ = client.Close() }()
 
 	searcher := search.NewSearcher(client, embedder)
 	results, err := searcher.Search(ctx, collection, query, mode, uint64(limit), languages, repos)
 	if err != nil {
-		return err
+		return actionableOperationError("search", err)
 	}
 
 	if gen == nil {
@@ -429,7 +453,7 @@ func runSearch(query, collection string, languages, repos []string, mode search.
 	if w, ok := gen.(answer.Warmer); ok {
 		fmt.Fprintln(os.Stderr, "Warming up generative model (first call may take a while)...")
 		if err := w.Warmup(ctx); err != nil {
-			return fmt.Errorf("warming up generator: %w", err)
+			return actionableOperationError("search answer warmup", fmt.Errorf("warming up generator: %w", err))
 		}
 	}
 
@@ -443,7 +467,7 @@ func runSearch(query, collection string, languages, repos []string, mode search.
 	prompt := answer.Prompt{Question: query, Chunks: answer.ContextsFromResults(answerResults)}
 	text, err := gen.Generate(ctx, prompt)
 	if err != nil {
-		return fmt.Errorf("generating answer: %w", err)
+		return actionableOperationError("search answer generation", fmt.Errorf("generating answer: %w", err))
 	}
 
 	fmt.Printf("Answer: %s\n\nSources:\n%s", text, search.FormatResults(answerResults))

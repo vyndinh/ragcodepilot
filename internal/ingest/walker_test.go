@@ -2,7 +2,9 @@ package ingest
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -96,5 +98,39 @@ func TestWalkFilesIncludesTestFilesWhenDisabled(t *testing.T) {
 	}
 	if len(files) != 2 {
 		t.Errorf("expected 2 files when skipping disabled, got %d: %v", len(files), files)
+	}
+}
+
+func TestWalkFilesAppliesNestedGitignoreAndNegation(t *testing.T) {
+	root := t.TempDir()
+	if err := exec.Command("git", "-C", root, "init", "-q").Run(); err != nil {
+		t.Skipf("git unavailable: %v", err)
+	}
+	for _, rel := range []string{"main.go", "nested/drop.go", "nested/keep.go", "ignored/no.go"} {
+		path := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("package x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("nested/drop.go\nignored/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := WalkFiles(root, config.Default())
+	if err != nil {
+		t.Fatalf("WalkFiles: %v", err)
+	}
+	got := make([]string, 0, len(files))
+	for _, file := range files {
+		rel, _ := filepath.Rel(root, file)
+		got = append(got, filepath.ToSlash(rel))
+	}
+	sort.Strings(got)
+	want := []string{"main.go", "nested/keep.go"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("files = %v, want %v", got, want)
 	}
 }

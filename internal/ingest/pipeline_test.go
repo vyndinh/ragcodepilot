@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -811,5 +812,30 @@ func TestPipeline_RunRejectsSourceChangeDuringIndexing(t *testing.T) {
 	}
 	if store.upsertCalls == 0 {
 		t.Fatal("expected the run to upsert before detecting the source change")
+	}
+}
+
+func TestPipeline_RunDeletesNewlyGitIgnoredFiles(t *testing.T) {
+	t.Parallel()
+
+	repoPath := t.TempDir()
+	if err := exec.Command("git", "-C", repoPath, "init", "-q").Run(); err != nil {
+		t.Skipf("git unavailable: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, "keep.py"), []byte("print('keep')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, ".gitignore"), []byte("ignored.py\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store := &recordingStore{existingStates: map[string]model.FileIndexState{
+		"ignored.py": {FileHash: "old", IndexVersion: representationVersion()},
+	}}
+	p := NewPipeline(config.Default(), &fakeEmbedder{dim: 4}, store, "gitignore-cleanup")
+	if err := p.Run(context.Background(), repoPath); err != nil {
+		t.Fatalf("Run() unexpected error: %v", err)
+	}
+	if !reflect.DeepEqual(store.deleteFilePaths, []string{"ignored.py"}) {
+		t.Fatalf("deleted file paths = %v, want [ignored.py]", store.deleteFilePaths)
 	}
 }
