@@ -14,9 +14,10 @@ class EvidenceCheck(unittest.TestCase):
     def test_source_change_and_output_corruption_are_detected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            config = json.loads((ROOT / 'tools/site/evidence.json').read_text())
+            kinds = ('retrieval', 'generation', 'external', 'verification', 'indexing')
             for name in ('tools/site/build_evidence.py', 'tools/site/evidence.json',
-                         'docs/eval/baseline_v8.json',
-                         'docs/eval/baseline_v7_structural_answer_al5.json', 'go.mod'):
+                         'go.mod', *(config[kind] for kind in kinds)):
                 target = root / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / name, target)
@@ -24,17 +25,25 @@ class EvidenceCheck(unittest.TestCase):
                 return subprocess.run([sys.executable, str(root / 'tools/site/build_evidence.py'), *args], capture_output=True)
             self.assertEqual(run().returncode, 0)
             self.assertEqual(run('--check').returncode, 0)
-            report_path = root / 'docs/eval/baseline_v8.json'
+            for kind in kinds:
+                with self.subTest(kind=kind):
+                    report_path = root / config[kind]
+                    report = json.loads(report_path.read_text())
+                    report['test_drift_marker'] = True
+                    report_path.write_text(json.dumps(report))
+                    self.assertNotEqual(run('--check').returncode, 0)
+                    self.assertEqual(run().returncode, 0)
+                    self.assertEqual(run('--check').returncode, 0)
+                    snapshot = root / f'site/data/{kind}.json'
+                    self.assertTrue(json.loads(snapshot.read_text())['test_drift_marker'])
+                    snapshot.write_text('{}')
+                    self.assertNotEqual(run('--check').returncode, 0)
+                    self.assertEqual(run().returncode, 0)
+            report_path = root / config['retrieval']
             report = json.loads(report_path.read_text())
             report['aggregate']['hit_at_5'] = 0.5
             report_path.write_text(json.dumps(report))
-            self.assertNotEqual(run('--check').returncode, 0)
-            self.assertEqual(run().returncode, 0)
-            self.assertEqual(run('--check').returncode, 0)
-            snapshot = root / 'site/data/retrieval.json'
-            self.assertEqual(json.loads(snapshot.read_text())['aggregate']['hit_at_5'], 0.5)
-            snapshot.write_text('{}')
-            self.assertNotEqual(run('--check').returncode, 0)
+            self.assertNotEqual(run().returncode, 0, 'inconsistent summary must be rejected')
 
 
 if __name__ == '__main__':

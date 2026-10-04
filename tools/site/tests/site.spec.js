@@ -2,7 +2,9 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '../../..');
-const baseline = JSON.parse(fs.readFileSync(path.join(root, 'docs/eval/baseline_v8.json')));
+const config = JSON.parse(fs.readFileSync(path.join(root, 'tools/site/evidence.json')));
+const baseline = JSON.parse(fs.readFileSync(path.join(root, config.retrieval)));
+const verification = JSON.parse(fs.readFileSync(path.join(root, config.verification)));
 
 test.beforeEach(async ({ page }) => { await page.goto('/'); });
 
@@ -93,7 +95,7 @@ test('keyboard, failure path, RRF math, and mobile navigation', async ({ page })
 test('scoreboard and full query table match saved evidence', async ({ page }) => {
   await expect(page.locator('[data-evidence="hit5"]').first()).toHaveText(`${(baseline.aggregate.hit_at_5 * 100).toFixed(1)}%`);
   await expect(page.locator('#evalTableBody tr')).toHaveCount(baseline.queries.length);
-  await expect(page.locator('[data-evidence="retrievalDate"]')).toHaveText(baseline.run_id.slice(0, 10));
+  await expect(page.locator('[data-evidence="retrievalDate"]')).toContainText(`${baseline.run_id.slice(0, 10)} UTC`);
   await expect(page.locator('#implementationRevision')).toHaveAttribute('href', /\/tree\/[a-f0-9]{40}$/);
   await expect(page.locator('#evalTableBody')).toContainText(baseline.queries[0].query);
 });
@@ -108,6 +110,40 @@ test('setup commands copy successfully and clipboard rejection is handled', asyn
   await page.evaluate(() => { Object.defineProperty(navigator.clipboard, 'writeText', { value: () => Promise.reject(new Error('denied')) }); });
   await page.locator('#copyCliQuickstartBtn').click();
   await expect(page.locator('#copyStatus')).toContainText('Clipboard unavailable');
+});
+
+test('status separates implementation, saved measurements, and open acceptance', async ({ page }, testInfo) => {
+  await expect(page.locator('#status-implemented')).toContainText('Implemented');
+  await expect(page.locator('#status-implemented')).toContainText('Dense-cache reuse');
+  await expect(page.locator('#status-measured')).toContainText(verification.source_revision);
+  await expect(page.locator('#status-unverified')).toContainText('Still unverified');
+  await expect(page.locator('#status-unverified')).toContainText('Retry output and final point-set equivalence');
+  await expect(page.locator('#status-unverified')).toContainText('not atomic snapshots');
+  await expect(page.locator('[data-evidence="chiNegative"]')).toHaveText('3 of 4 negatives fail (25.0% pass)');
+  await expect(page.locator('[data-evidence="chiCoverage"]')).toContainText('11/16');
+  await expect(page.locator('#external-evidence')).toContainText('not a controlled speedup claim');
+  await expect(page.locator('#implementationRevision')).toHaveAttribute('href', new RegExp(config.implementation_revision + '$'));
+  const missingEvidence = await page.locator('[data-evidence]').evaluateAll(nodes =>
+    nodes.filter(node => !node.textContent || ['—', 'undefined'].includes(node.textContent)).map(node => node.dataset.evidence));
+  expect(missingEvidence).toEqual([]);
+  for (const kind of ['retrieval', 'external', 'verification', 'indexing', 'generation']) {
+    const response = await page.request.get(`/data/${kind}.json`);
+    expect(response.ok()).toBeTruthy();
+    expect(await response.json()).toEqual(JSON.parse(fs.readFileSync(path.join(root, config[kind]))));
+  }
+  await page.locator('.preset-btn').nth(3).click();
+  await page.locator('#simAnswerToggleBtn').click();
+  await expect(page.locator('#simAnswerText')).toContainText('Only misses call the embedder');
+  await page.locator('[data-tab="incremental"]').click();
+  await expect(page.locator('#dd-incremental')).toContainText('only cache misses call Ollama');
+  expect(await page.locator('body').textContent()).not.toMatch(/re-embeds ALL|re-chunked and re-embedded/);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.locator('#status').screenshot({ path: testInfo.outputPath('status-desktop.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('#themeToggleBtn').click();
+  await page.locator('#status').scrollIntoViewIfNeeded();
+  expect(await page.locator('.skip-link').evaluate(node => node.getBoundingClientRect().bottom)).toBeLessThan(0);
+  await page.screenshot({ path: testInfo.outputPath('status-mobile-dark.png') });
 });
 
 test('loads local assets without browser errors or broken anchors', async ({ page }) => {

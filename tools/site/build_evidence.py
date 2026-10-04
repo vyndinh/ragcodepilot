@@ -15,7 +15,7 @@ def build():
     evidence = dict(config)
     outputs = {}
     evidence['source_hashes'] = {}
-    for kind in ('retrieval', 'generation'):
+    for kind in ('retrieval', 'generation', 'external', 'verification', 'indexing'):
         path = config[kind]
         raw = (ROOT / path).read_bytes()
         outputs[ROOT / f'site/data/{kind}.json'] = raw.decode()
@@ -29,10 +29,20 @@ def build():
             # The UI only needs the top returned file, not full result lists.
             for query in evidence['retrieval_report']['queries']:
                 query['top_results'] = query.get('top_results', [])[:1]
-        else:
+        elif kind == 'generation':
             evidence['generation_report'] = {
                 'run_id': report['run_id'], 'answer': report['answer']
             }
+        elif kind == 'external':
+            assert report['aggregate']['queries'] == len(report['queries'])
+            evidence['external_report'] = {
+                key: report[key] for key in ('run_id', 'mode', 'aggregate')
+            }
+        else:
+            evidence[f'{kind}_report'] = report
+    verification = evidence['verification_report']
+    assert verification['reports']['self_full'] == evidence['retrieval_report']['aggregate']
+    assert verification['reports']['chi_full'] == evidence['external_report']['aggregate']
     go_mod = (ROOT / 'go.mod').read_text()
     evidence['go_version'] = re.search(r'^go (\S+)', go_mod, re.M)[1]
     evidence['source_hashes']['go.mod'] = hashlib.sha256(go_mod.encode()).hexdigest()

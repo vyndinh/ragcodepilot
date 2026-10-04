@@ -27,10 +27,21 @@ are only followed when a reader opens them.
   the evaluation terminal summary, and the separate generation timings. Report
   download links refer to these exact local snapshots, independently of the
   implementation revision. Do not hand-edit generated files.
-- Headline retrieval metrics come from `docs/eval/baseline_v8.json` (39 queries,
-  35 positives). The separate generation figures come from
+- Headline retrieval metrics come from the September 23 post-merge bundle:
+  `docs/eval/runs/2026-09-23-postmerge/self-full.json` (39 queries, 35 positives).
+  Its `chi-full.json` and `summary.json` supply external-repository results, point
+  survival, and named coverage/negative failures. These describe source `b3483b0`,
+  not the newer implementation-review revision. Raw report timestamps are UTC;
+  the bundle's September 23 date is the local run-record date.
+- `docs/eval/runs/2026-09-23-m3d/metrics.json` supplies a separate indexing smoke
+  probe. Different clean/warm corpus sizes and single observations do not establish
+  a controlled speedup, capacity, or full M3 acceptance.
+- The separate, historical generation figures still come from
   `docs/eval/baseline_v7_structural_answer_al5.json` (16 structural queries).
   They describe different workloads and must not be combined into one timing.
+- The status cards distinguish **implemented mechanisms**, **saved measurements**,
+  and **still-unverified acceptance gates**. Content review on 2026-10-04 did not
+  run a new backend benchmark. Keep source-review dates and report dates separate.
 - RRF uses this project's k=60 and Qdrant's zero-based positions. Missing
   candidates contribute zero. The worked table calculates its illustrative
   scores in the browser.
@@ -57,7 +68,7 @@ npm test
 
 The pinned dependency and lockfile make browser checks reproducible. `npm test`
 runs the stale-artifact gate, JavaScript syntax check, an isolated drift test,
-and eight Chromium browser tests. Playwright traces are retained on failures
+and nine Chromium browser tests. Playwright traces are retained on failures
 under the ignored `tools/site/test-results/` directory.
 
 `Website checks` runs on relevant pull requests. Pages deployment depends on
@@ -117,6 +128,31 @@ and local-only loading. Successful clipboard writes and the denied-clipboard
 fallback both passed on localhost. The isolated evidence test proved that
 changing a source report or corrupting a copied report fails `--check`.
 
-Hosted CI and deployment have not been run. The setup instructions were checked
+For that original verification, hosted CI and deployment had not been run. The setup instructions were checked
 against the repository's commands and defaults; installing services, pulling
 models, and performing fresh-machine indexing remain outside these site tests.
+
+## Content refresh — 2026-10-04
+
+- Reviewed implementation explanations and source locations against `c54b7a5`:
+  dense-cache reuse, writer ownership/run markers, source verification, Go
+  declaration identity, Git ignore precedence, and error remedies.
+- Updated pipeline inspectors, incremental deep dive, illustrative simulator and
+  terminal output. Examples remain teaching fixtures, not a live service.
+- The generator copies five source reports, hashes each, and rejects disagreement
+  between retrieval aggregates and the verification summary. The isolated drift
+  test exercises every report and generated snapshot.
+- Browser checks additionally verify status boundaries, external failures,
+  downloadable report equality, and revised dense-cache explanations.
+- Frozen reports under `docs/eval/` are unchanged. The pending corpus-scale cache
+  and retry-equivalence gates remain open; no new answer-quality claim is made.
+
+The previously published `c54b7a5` revision passed hosted CI and Pages deployment.
+This refresh still requires its own commit, hosted checks, and publication.
+
+Local validation for this refresh: all nine Chromium tests passed, including both
+themes at 320/390/768/1024/1440px, the evidence/status checks, and all simulator
+mode combinations. Evidence generation/check, drift and summary-consistency
+tests, JavaScript syntax, and whitespace checks passed. All 47 source references
+were checked against the pinned implementation; desktop and mobile status-card
+screenshots were inspected. No live indexing or answer benchmark was run.
