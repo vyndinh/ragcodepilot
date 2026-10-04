@@ -73,6 +73,7 @@
         Menu
       </button>
       <nav id="siteNav" class="nav-pills">
+        <a href="#status" class="nav-link">Status &amp; Evidence</a>
         <a href="#pipeline" class="nav-link active">Pipeline Flow</a>
         <a href="#simulator" class="nav-link">RAG Simulator</a>
         <a href="#walkthrough" class="nav-link">Worked Example</a>
@@ -155,6 +156,45 @@
         <div class="stat-number">Local</div>
         <div class="stat-note">Host CLI + Ollama + Docker Qdrant. Offline after setup and model downloads.</div>
       </div>
+    </div>
+  </section>
+
+  <section class="section-container" id="status">
+    <div class="section-header">
+      <h2 class="section-title">Implemented, measured, still unverified</h2>
+      <p class="section-subtitle">Content reviewed <span data-evidence="reviewed">—</span>. The implementation revision and experiment revisions are separate: a website refresh is not a new benchmark or release certification.</p>
+    </div>
+    <div class="three-column-grid">
+      <article class="nb-card status-card" id="status-implemented">
+        <h3>Implemented</h3>
+        <p>Local CLI with hybrid retrieval, opt-in answers, and <code>index --watch</code>.</p>
+        <ul>
+          <li>Dense-cache reuse keyed by exact enriched input, representation, and embedder identity.</li>
+          <li>Durable run markers, collection writer ownership, source-change detection, and indexing metrics.</li>
+          <li>Declaration-unique Go chunk IDs, stale-point cleanup, nested <code>.gitignore</code>, and actionable errors.</li>
+        </ul>
+        <p><a data-source="internal/ingest/pipeline.go">Inspect indexing implementation ↗</a> · <a data-source="internal/ingest/walker.go">File selection ↗</a></p>
+      </article>
+      <article class="nb-card status-card" id="status-measured">
+        <h3>Measured</h3>
+        <p>Saved self/chi recheck: <span data-evidence="measuredDate">—</span>, source <code data-evidence="measuredRevision">—</code>.</p>
+        <ul>
+          <li>Point survival: self <span data-evidence="selfPoints">—</span>; chi <span data-evidence="chiPoints">—</span>.</li>
+          <li>Self hit@5: <span data-evidence="hit5">—</span>; chi: <span data-evidence="chiHit5">—</span>. File hits are not complete context or correct answers.</li>
+          <li>Small cache probe: <span data-evidence="probeReuse">—</span>. Smoke evidence only.</li>
+        </ul>
+        <p><a href="#eval">See results and known failures ↓</a></p>
+      </article>
+      <article class="nb-card status-card" id="status-unverified">
+        <h3>Still unverified</h3>
+        <ul>
+          <li>Full pinned self/chi clean-versus-warm indexing measurements.</li>
+          <li>Retry output and final point-set equivalence against a clean rebuild on those corpora.</li>
+          <li>Answer faithfulness, broader-repository generalization, and large-corpus capacity.</li>
+        </ul>
+        <p>In-place updates are not atomic snapshots. Sparse refresh and upserts remain scope-wide. These are acceptance boundaries, not claims that the mechanisms are absent.</p>
+        <p><a data-source="docs/plan/mvp_roadmap.md">Open acceptance gates ↗</a></p>
+      </article>
     </div>
   </section>
 
@@ -249,22 +289,22 @@
         <!-- SVG Definitions (Markers, Filters) -->
         <defs>
           <marker id="arrowYellow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 1 L 10 5 L 0 9 z" fill="#d97706" />
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--flow-yellow)" />
           </marker>
           <marker id="arrowBlue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 1 L 10 5 L 0 9 z" fill="#0284c7" />
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--flow-blue)" />
           </marker>
           <marker id="arrowOrange" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 1 L 10 5 L 0 9 z" fill="#ea580c" />
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--flow-orange)" />
           </marker>
           <marker id="arrowMint" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 1 L 10 5 L 0 9 z" fill="#059669" />
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--flow-mint)" />
           </marker>
           <marker id="arrowPink" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 1 L 10 5 L 0 9 z" fill="#e11d48" />
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--flow-pink)" />
           </marker>
           <filter id="particleGlow" x="-50%" y="-50%" width="200%" height="200%">
-            <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#ffde59" flood-opacity="0.8"/>
+            <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="var(--accent-yellow)" flood-opacity="0.8"/>
           </filter>
         </defs>
 
@@ -288,7 +328,7 @@
         <div class="inspector-info">
           <h3 id="inspectTitle">1. File Walker &amp; Filter</h3>
           <p class="inspector-desc" id="inspectDesc">
-            Recursively traverses the repository filesystem, applying ignore rules from <code>config.yaml</code>. Excludes <code>.git</code>, vendor directories, and <code>*_test.go</code> to prevent test assertions from diluting semantic code search.
+            Applies language, hidden-file, and <code>config.yaml</code> exclusions, then Git's nested <code>.gitignore</code> rules. Negation cannot restore paths already excluded by configuration or hidden-file rules. Default exclusions include <code>.git</code>, vendor directories, and <code>*_test.go</code>.
           </p>
           <div class="inspector-specs">
             <div class="spec-box">
@@ -486,12 +526,12 @@ Language: go
 Function: ChunkFile
 
 [the same source text from step 1]</code></pre></li>
-      <li class="nb-card"><h3>3. Store one point in Qdrant</h3><p>The CLI calls Ollama over HTTP for a dense vector, builds BM25 document weights using corpus statistics, then upserts both over gRPC.</p><pre><code>collection: code_chunks
+      <li class="nb-card"><h3>3. Store one point in Qdrant</h3><p>The CLI reuses a validated dense vector or calls Ollama on a cache miss, builds BM25 document weights using scope-wide statistics, then upserts both over gRPC.</p><pre><code>collection: code_chunks
 vectors: dense [768 floats], sparse {term IDs, BM25 weights}
 payload: {repo, file_path, language: go, name: ChunkFile,
           chunk_type: function, start_line: 20, end_line: 28,
           content: original source, file_hash, index_version}</code></pre></li>
-      <li class="nb-card" id="walkQueryStage"><h3 id="walkQueryTitle">4. Retrieve the stored chunk</h3><p id="walkRetrievalText">Query: <strong>“where is ChunkFile defined”</strong>. Hybrid mode embeds it and tokenizes it into sparse terms with weight 1.0 each. Qdrant filters both candidate lists and fuses their positions with RRF.</p><p id="walkRecordedResult">The saved <code>baseline_v8</code> run returned this function at rank #1. This is a recorded result on this repository, not a guarantee for other corpora.</p><p id="walkFailureMessage" class="failure-message" hidden>Stop: a hypothetical 1,536-dimensional query vector does not match this 768-dimensional collection. <code>ValidateCollectionVectorSize</code> returns an error before vector lookup. Use the matching embedding model, or intentionally rebuild the index for the new model. No retrieval or answer is produced.</p></li>
+      <li class="nb-card" id="walkQueryStage"><h3 id="walkQueryTitle">4. Retrieve the stored chunk</h3><p id="walkRetrievalText">Query: <strong>“where is ChunkFile defined”</strong>. Hybrid mode embeds it and tokenizes it into sparse terms with weight 1.0 each. Qdrant filters both candidate lists and fuses their positions with RRF.</p><p id="walkRecordedResult">The saved September 23 post-merge self run returned this function at rank #1. Its source revision is separate from the implementation review; this is not a guarantee for other corpora.</p><p id="walkFailureMessage" class="failure-message" hidden>Stop: a hypothetical 1,536-dimensional query vector does not match this 768-dimensional collection. <code>ValidateCollectionVectorSize</code> returns an error before vector lookup. Use the matching embedding model, or intentionally rebuild the index for the new model. No retrieval or answer is produced.</p></li>
       <li class="nb-card" id="walkOutputStage"><h3>5. Print code, or request an answer</h3><p>Default: return ranked code chunks. With <code>--answer</code>: warm the local generator, select up to <code>--answer-limit</code> chunks (default 5), build the prompt, and call Ollama <code>/api/chat</code>.</p><blockquote>“ChunkFile is defined in internal/ingest/chunker.go. It dispatches Go files to the AST chunker and other files to the generic chunker. [1]”</blockquote><p><a data-source="internal/ingest/chunker.go" data-lines="20-28">[1] Inspect the original function ↗</a></p><p class="learning-note">Illustrative answer. Citations make evidence inspectable; their presence alone does not prove the explanation is correct.</p></li>
     </ol>
     <p id="walkScenarioStatus" role="status" class="learning-note">Success: index → retrieve → code results → optional cited answer.</p>
@@ -669,7 +709,7 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
           Incremental Reindexing &amp; SHA-256 Change Detection
         </h4>
         <p style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 1.5rem; max-width: 900px;">
-          File hashes skip work only when the <em>entire</em> corpus is unchanged. BM25 IDF is corpus-wide, so if any file changes, every current file is re-chunked and re-embedded.
+          Changed runs re-chunk the selected repository/language scope and refresh BM25 statistics and complete-point upserts. Dense vectors are reused from cache when exact enriched input and representation/model identity match; only cache misses call Ollama. Dense reuse does not make every indexing stage proportional to the edit.
         </p>
         <div class="three-column-grid">
           <div class="spec-box">
@@ -677,14 +717,15 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
             <p style="font-size: 0.85rem; margin-top: 0.4rem;">Each file's SHA-256 is compared with Qdrant payloads. If hashes <em>and</em> index version all match, indexing is a no-op.</p>
           </div>
           <div class="spec-box">
-            <div class="spec-box-label">2. INDEX VERSIONING</div>
-            <p style="font-size: 0.85rem; margin-top: 0.4rem;">Tokenizer or chunker changes bump <code>index_version</code> so unchanged files still refresh sparse/chunk shape.</p>
+            <div class="spec-box-label">2. DENSE CACHE &amp; IDENTITY</div>
+            <p style="font-size: 0.85rem; margin-top: 0.4rem;">The CLI's representation includes chunk settings and embedder identity; Ollama supplies a model digest. Cached vectors are validated before reuse. Declaration identity distinguishes same-name Go methods; version migration removes old IDs.</p>
           </div>
           <div class="spec-box">
             <div class="spec-box-label">3. --watch (same pipeline)</div>
             <p style="font-size: 0.85rem; margin-top: 0.4rem;"><code>index --watch</code> debounces fsnotify events and re-runs the full index pipeline — not a per-file embed-only daemon.</p>
           </div>
         </div>
+        <p class="learning-note">A collection writer lock prevents overlapping local indexers. Durable markers record incomplete or failed runs; end-of-run source verification rejects a changed source snapshot. Writes remain visible in place, and full retry-versus-clean-rebuild acceptance is still open. Inspect <a data-source="internal/ingest/run_state.go">run state ↗</a> and <a data-source="internal/ingest/dense_cache.go">dense cache ↗</a>.</p>
       </div>
     </div>
   </section>
@@ -736,8 +777,22 @@ func (c *Client) EnsureCollection(ctx context.Context, name string, vectorSize u
       </div>
     </div>
 
+    <div class="nb-card status-card" id="external-evidence">
+      <h3>Measured on self + one external Go repository</h3>
+      <p>The saved post-merge recheck used source <code data-evidence="measuredRevision">—</code>, not the October implementation-review date. No labels or thresholds were changed to hide known failures.</p>
+      <ul>
+        <li>Self: <span data-evidence="selfCoverage">—</span>; <span data-evidence="negativeScope">—</span>.</li>
+        <li>chi v5.2.3: hit@5 <span data-evidence="chiHit5">—</span>, but <span data-evidence="chiNegative">—</span>.</li>
+        <li><span data-evidence="chiCoverage">—</span>. Finding a file can still miss the required declaration.</li>
+      </ul>
+      <p><a href="data/external.json" target="_blank" rel="noopener">chi retrieval report ↗</a> · <a href="data/verification.json" target="_blank" rel="noopener">Point survival, coverage, and failures ↗</a> · <a data-source="docs/eval/runs/2026-09-23-postmerge/README.md">Run provenance ↗</a></p>
+      <h3>Separate indexing smoke measurement</h3>
+      <p>Probe dated <span data-evidence="probeDate">—</span>: <span data-evidence="probeReuse">—</span>; <span data-evidence="probeTiming">—</span>. The clean corpus had one file/two chunks; the warm corpus had two files/four chunks. This is not a controlled speedup claim, corpus benchmark, or capacity result. Sparse vectors and upserts still covered every current chunk.</p>
+      <p><a href="data/indexing.json" target="_blank" rel="noopener">Raw indexing metrics ↗</a> · <a data-source="docs/eval/runs/2026-09-23-m3d/README.md">Probe scope and remaining gates ↗</a></p>
+    </div>
+
     <!-- Table of Sample Golden Queries -->
-    <p class="learning-note">Generation is a separate cost: the saved <span data-evidence="generationScope">—</span> from <span data-evidence="generationDate">—</span> with <code>--answer-limit 5</code> measured <span data-evidence="generationP50">—</span> p50 and <span data-evidence="generationP95">—</span> p95 for generation. This older, different workload is not an end-to-end latency comparison with baseline_v8. <a href="data/generation.json" target="_blank" rel="noopener">Inspect saved answer report ↗</a>.</p>
+    <p class="learning-note">Generation is a separate cost: the saved <span data-evidence="generationScope">—</span> from <span data-evidence="generationDate">—</span> with <code>--answer-limit 5</code> measured <span data-evidence="generationP50">—</span> p50 and <span data-evidence="generationP95">—</span> p95 for generation. This older, different workload is not an end-to-end latency comparison with the post-merge retrieval run. <a href="data/generation.json" target="_blank" rel="noopener">Inspect saved answer report ↗</a>.</p>
     <div class="nb-card table-scroll" tabindex="0" role="region" aria-label="Golden query evaluation results" style="padding: 1.5rem;">
       <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 0.75rem;">Golden Dataset Benchmark Queries</h3>
       <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
@@ -775,7 +830,7 @@ go run ./cmd/ragcodepilot version</code></pre><button class="nb-btn nb-btn-sm" d
       <li class="nb-card"><h3>5. Optional: generate an answer</h3><p>Download the additional model, then use <code>--answer</code>. The first call can take longer while the model loads. Inspect its source citations to judge the answer.</p><pre><code id="setupAnswer">ollama pull qwen2.5-coder:7b
 go run ./cmd/ragcodepilot search --answer "how does chunking work?"</code></pre><button class="nb-btn nb-btn-sm" data-copy-command="setupAnswer">Copy answer commands</button></li>
     </ol>
-    <details class="nb-card setup-help"><summary>Service errors or an empty search?</summary><ul><li>Ollama connection refused: start the Ollama app or <code>ollama serve</code>. Run <code>ollama list</code> to check downloaded models.</li><li>Qdrant connection refused: check <code>docker compose ps</code> and <code>docker compose logs qdrant</code>. The CLI uses port 6334.</li><li>Missing collection or no results: finish indexing first and use matching collection/language/repository filters.</li><li>Vector dimension mismatch: use the same embedding model for index and search, or deliberately rebuild for the new model.</li></ul><p><a data-source="README.md">Full CLI reference and configuration ↗</a></p></details>
+    <details class="nb-card setup-help"><summary>Service errors or an empty search?</summary><ul><li>Source changed during indexing: stabilize the source and retry. Writer ownership conflict: wait for the active indexer; do not delete a live lock.</li><li>Ollama connection refused: start the Ollama app or <code>ollama serve</code>. Run <code>ollama list</code> to check downloaded models.</li><li>Qdrant connection refused: check <code>docker compose ps</code> and <code>docker compose logs qdrant</code>. The CLI uses port 6334.</li><li>Missing collection or no results: finish indexing first and use matching collection/language/repository filters.</li><li>Vector dimension mismatch: use the same embedding model for index and search, or deliberately rebuild for the new model.</li></ul><p><a data-source="README.md">Full CLI reference and configuration ↗</a></p></details>
   </section>
 
   <!-- Interactive Terminal Emulator -->
@@ -799,8 +854,8 @@ go run ./cmd/ragcodepilot search --answer "how does chunking work?"</code></pre>
           <div class="terminal-dot yellow"></div>
           <div class="terminal-dot green"></div>
         </div>
-        <span style="color: #9499a8; font-size: 0.75rem; font-weight: 700;">bash — ragcodepilot (darwin/arm64)</span>
-        <button id="copyTerminalCmdBtn" class="nb-btn nb-btn-sm" style="background-color: #2b2d38; color: #fff; border: 1px solid #454955;">
+        <span style="color: #b7cbc0; font-size: 0.75rem; font-weight: 700;">bash — ragcodepilot (darwin/arm64)</span>
+        <button id="copyTerminalCmdBtn" class="nb-btn nb-btn-sm" style="background-color: #29473f; color: #e4eee6; border: 1px solid #65877a;">
           Copy Command 📋
         </button>
       </div>

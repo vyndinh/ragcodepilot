@@ -27,6 +27,9 @@ function initEvidence() {
   const report = SITE_EVIDENCE.retrieval_report;
   const a = report.aggregate;
   const generation = SITE_EVIDENCE.generation_report;
+  const verification = SITE_EVIDENCE.verification_report;
+  const external = SITE_EVIDENCE.external_report.aggregate;
+  const probe = SITE_EVIDENCE.indexing_report;
   const percent = value => `${(value * 100).toFixed(1)}%`;
   const values = {
     hit1: percent(a.hit_at_1), hit5: percent(a.hit_at_5),
@@ -35,7 +38,18 @@ function initEvidence() {
     positiveScope: `${a.positive_queries} positive queries, ${report.mode} mode`,
     corpusScope: `${a.queries} golden queries on this Go repository`,
     queryCount: `GOLDEN BENCHMARK (${a.queries} QUERIES)`,
-    retrievalDate: report.run_id.slice(0, 10),
+    retrievalDate: `${report.run_id.slice(0, 10)} UTC (September 23 local run record)`,
+    measuredRevision: verification.source_revision,
+    measuredDate: verification.run_date,
+    selfPoints: `${verification.collections.self.stored_points}/${verification.collections.self.generated_chunks}`,
+    chiPoints: `${verification.collections.chi.stored_points}/${verification.collections.chi.generated_chunks}`,
+    chiHit5: percent(external.hit_at_5),
+    chiNegative: `${verification.checks.negative_failures_preserved.chi_full.length} of ${external.negative_queries} negatives fail (${percent(external.negative_pass_rate)} pass)`,
+    selfCoverage: `${verification.checks.self_incomplete_file_coverage_at_5.length} self positives lack complete expected-file coverage at top 5`,
+    chiCoverage: `${verification.checks.chi_predeclared_source_ranges_complete_at_5}/${verification.checks.chi_predeclared_source_ranges_total} chi positives have complete required source ranges at top 5`,
+    probeDate: probe.date,
+    probeReuse: `${probe.warm_after_one_file_addition.cache_hits}/${probe.warm_after_one_file_addition.chunks} dense vectors reused; ${probe.warm_after_one_file_addition.dense_inputs} new inputs embedded`,
+    probeTiming: `${probe.clean.total_ms} ms clean / ${probe.warm_after_one_file_addition.total_ms} ms warm after adding one file`,
     allRows: `All ${a.queries} queries from the saved report; ${report.queries.filter(q => q.type !== 'negative' && q.hit_at_5).length} of ${a.positive_queries} positives hit@5. Returned files may be irrelevant, especially for negative queries.`,
     negativeScope: `${report.queries.filter(q => q.type === 'negative' && !q.negative.pass).length} of ${a.negative_queries} out-of-scope queries fail the calibrated check`,
     generationScope: `${generation.answer.generated}-query structural answer run`,
@@ -114,13 +128,14 @@ const pipelineData = {
       pkg: 'root filesystem',
       input: 'Local repository path (e.g., ".")',
       output: 'File tree for the walker to traverse',
-      desc: 'The indexing entry point: a local checkout of a Git repository. With the default local service addresses, source content stays on this machine. The walker applies the language and skip rules defined in config.yaml.',
+      desc: 'The indexing entry point: a local checkout of a Git repository. With the default local service addresses, source content stays on this machine. Language, hidden-file, and config exclusions run before nested .gitignore rules.',
       code: `// Everything runs locally — no file content is sent to any cloud API.
 //   ragcodepilot index --language go <repoPath>
 //
 // The walker only sees paths that survive the config.yaml rules:
 //   - skip dirs:  .git, vendor, node_modules, hidden directories
-//   - skip files: *_test.go (test assertions dilute code search)`
+//   - skip files: *_test.go (test assertions dilute code search)
+// Git ignore rules run afterward; negation cannot override those exclusions.`
     },
     {
       id: 'ingest-walker',
@@ -131,7 +146,7 @@ const pipelineData = {
       pkg: 'internal/ingest/walker.go',
       input: 'Repository root path (e.g., ".")',
       output: '[]string of valid file paths',
-      desc: 'Traverses the repository directory tree, enforcing ignore lists from config.yaml. Skips .git, vendor, hidden files, and *_test.go files to ensure test assertions do not contaminate code retrieval.',
+      desc: 'Traverses the repository using language, hidden-file, and config exclusions, then delegates nested .gitignore patterns and negation to git check-ignore. Git negation cannot restore paths already excluded. With Git unavailable or outside a Git worktree, config filtering still applies; exclusions are not a secret scanner.',
       code: `// WalkFiles traverses root and filters candidate source files
 func WalkFiles(root string, cfg *config.Config) ([]string, error) {
     var files []string
@@ -145,7 +160,8 @@ func WalkFiles(root string, cfg *config.Config) ([]string, error) {
         files = append(files, path)
         return nil
     })
-    return files, err
+    if err != nil { return nil, err }
+    return applyGitIgnore(root, files)
 }`
     },
     {
@@ -157,7 +173,7 @@ func WalkFiles(root string, cfg *config.Config) ([]string, error) {
       pkg: 'internal/ingest/hasher.go',
       input: 'File content byte stream',
       output: 'Hex-encoded SHA-256 digest per file',
-      desc: 'Calculates the SHA-256 checksum of each file. If every hash and index version match, the run is a no-op. If any file changed, BM25 IDF is rebuilt and all current files are re-chunked and re-embedded — not only the files that changed.',
+      desc: 'Hashes each selected file and compares its hash and representation with stored state. Changed runs re-chunk the scope, refresh BM25 statistics, and upsert all current chunks. Compatible dense-cache entries avoid embedding unchanged inputs; file hashing is not the dense-cache key. Recovery equivalence remains a separate acceptance gate.',
       code: `// HashFile returns the hex-encoded SHA-256 hash of the file at the given path.
 func HashFile(path string) (string, error) {
     data, err := os.ReadFile(path)
@@ -177,7 +193,7 @@ func HashFile(path string) (string, error) {
       pkg: 'internal/ingest/chunker_go.go',
       input: 'Raw Go source code',
       output: '[]model.CodeChunk (functions, types, interfaces, blocks)',
-      desc: 'Uses go/parser to extract function/method declarations and named type/interface specs. Declarations longer than 80 lines use sliding-window splitting. Remaining imports and vars become block chunks. Syntax errors fall back to the generic sliding window.',
+      desc: 'Uses go/parser to extract functions/methods and named types/interfaces. Point identity includes declaration kind and method receiver, preventing same-file name collisions. Declarations longer than 80 lines split into windows; imports/vars become blocks. Syntax errors use the generic fallback.',
       code: `func chunkGoFile(...) ([]model.CodeChunk, error) {
     fset := gotoken.NewFileSet()
     file, parseErr := parser.ParseFile(fset, filePath, src, parser.ParseComments)
@@ -223,15 +239,17 @@ func HashFile(path string) (string, error) {
       icon: '🧠',
       title: '5. Dual Vectorizer',
       subtitle: 'Dense 768d + BM25',
-      symbol: 'Embed(texts) + BuildSparseVectors(texts, stats)',
-      pkg: 'internal/embedding/ollama.go',
+      symbol: 'denseCache.get(key) / Embed(misses) + BuildSparseVectors(texts, stats)',
+      pkg: 'internal/ingest/pipeline.go',
       input: 'Enriched code texts',
       output: '768d float vector + Sparse BM25 term weights',
-      desc: 'Calls Ollama HTTP /api/embed (nomic-embed-text) for dense vectors, then builds sparse BM25 document vectors using corpus-wide statistics. Tokenization preserves full identifiers and adds Snowball stems; terms are CRC32-hashed. These are sequential steps in each ingestion batch, not parallel workers.',
-      code: `// Embedder.Embed takes a batch of texts (nomic-embed-text, 768d)
-func (e *OllamaEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
-    // POST /api/embed  { model, input: texts }
-}`
+      desc: 'Reuses validated dense-cache entries keyed by exact enriched text, representation, and embedder identity. Only misses call Ollama /api/embed. Sparse BM25 weights are rebuilt for all current texts from scope-wide statistics. Dense reuse does not eliminate sparse work or full-point upserts.',
+      code: `// Simplified batch flow; see Pipeline.Run for error handling.
+key := denseCacheKey(embedderIdentity, currentRepresentation, text)
+vector, hit := denseCache.get(key, expectedDim)
+// Collect misses, call Embed(missingTexts), validate, then cache.
+// Build sparse weights for every text, including dense-cache hits.
+sparseVectors := embedding.BuildSparseVectors(texts, corpusStats)`
     },
     {
       id: 'ingest-upsert',
@@ -241,8 +259,8 @@ func (e *OllamaEmbedder) Embed(ctx context.Context, texts []string) ([][]float32
       symbol: '(*Client).Upsert(ctx, collection, chunks, vectors, sparseVectors)',
       pkg: 'internal/qdrant/client.go',
       input: 'Multi-vector points with payloads',
-      output: 'Qdrant points stored & indexes synced',
-      desc: 'Upserts dense and sparse vectors plus raw code and metadata over gRPC. Keyword payload indexes cover repo, language, and file_path. file_hash and index_version are stored metadata. The ingestion pipeline separately deletes stale points.',
+      output: 'In-place point writes (not an atomic index snapshot)',
+      desc: 'Upserts dense and sparse vectors plus raw code and metadata over gRPC. Payload indexes cover repo, language, and file_path. The pipeline performs stale/orphan cleanup and verifies the source manifest before marking completion. Writer locking and durable failure markers do not make partial writes invisible.',
       code: `// Excerpt of Client.Upsert: one named dense and sparse vector per point.
 // Validation, payload construction, and the batch loop are omitted here.
 vectorsMap := map[string]*pb.Vector{
@@ -437,14 +455,14 @@ if gen == nil {
 const canvasFlowDefinitions = {
   ingestion: {
     nodes: [
-      { id: 'ingest-source', detail: 'ingest-source', x: 25, y: 145, w: 125, h: 76, icon: '📂', name: 'Git Files', sub: 'Repo source', pkg: 'root filesystem', color: '#ffde59', step: 1 },
-      { id: 'ingest-walker', detail: 'ingest-walker', x: 185, y: 145, w: 130, h: 76, icon: '🚶', name: 'File Walker', sub: 'config.yaml', pkg: 'ingest/pipeline.go', color: '#ffde59', step: 2 },
-      { id: 'ingest-hasher', detail: 'ingest-hasher', x: 350, y: 145, w: 135, h: 76, icon: '🔐', name: 'SHA-256 Check', sub: 'Diff & cache', pkg: 'ingest/hasher.go', color: '#ffadc6', step: 3 },
-      { id: 'ingest-chunker', detail: 'ingest-chunker', x: 520, y: 145, w: 130, h: 76, icon: '✂️', name: 'AST Chunker', sub: 'Function units', pkg: 'chunker_go.go', color: '#a7f3d0', step: 4 },
-      { id: 'ingest-enrich', detail: 'ingest-enrich', x: 685, y: 145, w: 125, h: 76, icon: '🏷️', name: 'Enrichment', sub: 'Metadata inject', pkg: 'enrichment.go', color: '#ffde59', step: 5 },
-      { id: 'ingest-ollama', detail: 'ingest-vectorize', x: 845, y: 45, w: 145, h: 76, icon: '🧠', name: 'Ollama Embed', sub: 'nomic-embed (768d)', pkg: 'embedding/ollama.go', color: '#9be3ff', step: 6 },
-      { id: 'ingest-bm25', detail: 'ingest-vectorize', x: 845, y: 245, w: 145, h: 76, icon: '🔤', name: 'BM25 Sparse', sub: 'Snowball stemmer', pkg: 'embedding/sparse.go', color: '#ff6332', step: 6 },
-      { id: 'ingest-upsert', detail: 'ingest-upsert', x: 1015, y: 145, w: 110, h: 76, icon: '🗄️', name: 'Qdrant gRPC', sub: 'Dual vectors', pkg: 'qdrant/client.go', color: '#a7f3d0', step: 7 }
+      { id: 'ingest-source', detail: 'ingest-source', x: 25, y: 145, w: 125, h: 76, icon: '📂', name: 'Git Files', sub: 'Repo source', pkg: 'root filesystem', color: 'var(--accent-yellow)', step: 1 },
+      { id: 'ingest-walker', detail: 'ingest-walker', x: 185, y: 145, w: 130, h: 76, icon: '🚶', name: 'File Walker', sub: 'Config + gitignore', pkg: 'ingest/walker.go', color: 'var(--accent-yellow)', step: 2 },
+      { id: 'ingest-hasher', detail: 'ingest-hasher', x: 350, y: 145, w: 135, h: 76, icon: '🔐', name: 'SHA-256 Check', sub: 'Diff & cache', pkg: 'ingest/hasher.go', color: 'var(--accent-pink)', step: 3 },
+      { id: 'ingest-chunker', detail: 'ingest-chunker', x: 520, y: 145, w: 130, h: 76, icon: '✂️', name: 'AST Chunker', sub: 'Function units', pkg: 'chunker_go.go', color: 'var(--accent-mint)', step: 4 },
+      { id: 'ingest-enrich', detail: 'ingest-enrich', x: 685, y: 145, w: 125, h: 76, icon: '🏷️', name: 'Enrichment', sub: 'Metadata inject', pkg: 'enrichment.go', color: 'var(--accent-yellow)', step: 5 },
+      { id: 'ingest-ollama', detail: 'ingest-vectorize', x: 845, y: 45, w: 145, h: 76, icon: '🧠', name: 'Dense Cache', sub: 'Ollama on misses', pkg: 'ingest/pipeline.go', color: 'var(--accent-blue)', step: 6 },
+      { id: 'ingest-bm25', detail: 'ingest-vectorize', x: 845, y: 245, w: 145, h: 76, icon: '🔤', name: 'BM25 Sparse', sub: 'Snowball stemmer', pkg: 'embedding/sparse.go', color: 'var(--accent-orange)', step: 6 },
+      { id: 'ingest-upsert', detail: 'ingest-upsert', x: 1015, y: 145, w: 110, h: 76, icon: '🗄️', name: 'Qdrant gRPC', sub: 'Dual vectors', pkg: 'qdrant/client.go', color: 'var(--accent-mint)', step: 7 }
     ],
     connections: [
       { id: 'conn-0-1', from: 'ingest-source', to: 'ingest-walker', d: 'M 150 183 L 185 183', color: 'yellow', marker: 'arrowYellow', speed: 1 },
@@ -460,15 +478,15 @@ const canvasFlowDefinitions = {
 
   search: {
     nodes: [
-      { id: 'search-query', detail: 'search-query', x: 25, y: 145, w: 130, h: 76, icon: '💬', name: 'User Query', sub: 'CLI Terminal', pkg: 'cmd/ragcodepilot', color: '#ffde59', step: 1 },
-      { id: 'search-ollama', detail: 'search-encode', x: 195, y: 45, w: 140, h: 76, icon: '🧠', name: 'Ollama Query', sub: '768d Dense Vector', pkg: 'embedding/ollama.go', color: '#9be3ff', step: 2 },
-      { id: 'search-bm25', detail: 'search-bm25', x: 195, y: 245, w: 140, h: 76, icon: '🔤', name: 'BM25 Stemmer', sub: 'Query Tokens', pkg: 'embedding/sparse.go', color: '#ff6332', step: 2 },
-      { id: 'search-filter', detail: 'search-filter', x: 375, y: 145, w: 125, h: 76, icon: '🎯', name: 'Payload Filter', sub: 'Lang & Repo tags', pkg: 'qdrant/client.go', color: '#ffadc6', step: 3 },
-      { id: 'search-qdrant', detail: 'search-lookup', x: 535, y: 145, w: 130, h: 76, icon: '🔍', name: 'Vector Lookup', sub: 'Parallel Top-K', pkg: 'qdrant gRPC', color: '#9be3ff', step: 4 },
-      { id: 'search-rrf', detail: 'search-rrf', x: 700, y: 145, w: 130, h: 76, icon: '⚖️', name: 'RRF Fusion', sub: 'Rank Merge (k=60)', pkg: 'qdrant/client.go', color: '#a7f3d0', step: 5 },
-      { id: 'search-context', detail: 'search-context', x: 865, y: 145, w: 125, h: 76, icon: '📄', name: 'Context Chunks', sub: 'Top-K assembly', pkg: 'search/searcher.go', color: '#ffde59', step: 6 },
-      { id: 'search-results', detail: 'search-results', x: 1000, y: 45, w: 125, h: 76, icon: '💻', name: 'Code Results', sub: 'Default: print code', pkg: 'Go CLI · stdout', color: '#a7f3d0', step: 7 },
-      { id: 'search-answer', detail: 'search-answer', x: 1000, y: 245, w: 125, h: 76, icon: '🤖', name: 'Ollama LLM', sub: '--answer only', pkg: 'HTTP /api/chat', color: '#d8b4fe', step: 7 }
+      { id: 'search-query', detail: 'search-query', x: 25, y: 145, w: 130, h: 76, icon: '💬', name: 'User Query', sub: 'CLI Terminal', pkg: 'cmd/ragcodepilot', color: 'var(--accent-yellow)', step: 1 },
+      { id: 'search-ollama', detail: 'search-encode', x: 195, y: 45, w: 140, h: 76, icon: '🧠', name: 'Ollama Query', sub: '768d Dense Vector', pkg: 'embedding/ollama.go', color: 'var(--accent-blue)', step: 2 },
+      { id: 'search-bm25', detail: 'search-bm25', x: 195, y: 245, w: 140, h: 76, icon: '🔤', name: 'BM25 Stemmer', sub: 'Query Tokens', pkg: 'embedding/sparse.go', color: 'var(--accent-orange)', step: 2 },
+      { id: 'search-filter', detail: 'search-filter', x: 375, y: 145, w: 125, h: 76, icon: '🎯', name: 'Payload Filter', sub: 'Lang & Repo tags', pkg: 'qdrant/client.go', color: 'var(--accent-pink)', step: 3 },
+      { id: 'search-qdrant', detail: 'search-lookup', x: 535, y: 145, w: 130, h: 76, icon: '🔍', name: 'Vector Lookup', sub: 'Parallel Top-K', pkg: 'qdrant gRPC', color: 'var(--accent-blue)', step: 4 },
+      { id: 'search-rrf', detail: 'search-rrf', x: 700, y: 145, w: 130, h: 76, icon: '⚖️', name: 'RRF Fusion', sub: 'Rank Merge (k=60)', pkg: 'qdrant/client.go', color: 'var(--accent-mint)', step: 5 },
+      { id: 'search-context', detail: 'search-context', x: 865, y: 145, w: 125, h: 76, icon: '📄', name: 'Context Chunks', sub: 'Top-K assembly', pkg: 'search/searcher.go', color: 'var(--accent-yellow)', step: 6 },
+      { id: 'search-results', detail: 'search-results', x: 1000, y: 45, w: 125, h: 76, icon: '💻', name: 'Code Results', sub: 'Default: print code', pkg: 'Go CLI · stdout', color: 'var(--accent-mint)', step: 7 },
+      { id: 'search-answer', detail: 'search-answer', x: 1000, y: 245, w: 125, h: 76, icon: '🤖', name: 'Ollama LLM', sub: '--answer only', pkg: 'HTTP /api/chat', color: 'var(--accent-purple)', step: 7 }
     ],
     connections: [
       { id: 'sconn-0-1a', from: 'search-query', to: 'search-ollama', d: 'M 155 170 C 175 170, 175 83, 195 83', color: 'blue', marker: 'arrowBlue', speed: 1 },
@@ -535,7 +553,7 @@ function initPipeline() {
       if (el) pathElements[conn.id] = { el, length: el.getTotalLength(), conn };
     });
 
-    // 2. Render SVG Nodes (Neobrutalist cards)
+    // 2. Render SVG Nodes (theme-aware cards)
     svgNodesLayer.innerHTML = flowDef.nodes.map((node, idx) => `
       <g class="canvas-node-group ${idx === 0 ? 'active' : ''}" id="cnode-${node.id}" data-node-id="${node.id}" transform="translate(${node.x}, ${node.y})" tabindex="0" role="button" aria-pressed="${idx === 0}" aria-label="${node.name}: ${node.sub}">
         <!-- Card Drop Shadow & Border -->
@@ -544,18 +562,18 @@ function initPipeline() {
         <!-- Header color strip -->
         <rect class="node-header-bg" x="0" y="0" width="${node.w}" height="18" rx="10" fill="${node.color}" stroke="none" />
         <rect x="0" y="10" width="${node.w}" height="8" fill="${node.color}" stroke="none" />
-        <line x1="0" y1="18" x2="${node.w}" y2="18" stroke="#000" stroke-width="1.5" />
+        <line x1="0" y1="18" x2="${node.w}" y2="18" stroke="var(--border-color)" stroke-width="1.5" />
 
         <!-- Node Icon & Title -->
-        <text x="8" y="13" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="800" fill="#000">STAGE ${node.step}</text>
+        <text x="8" y="13" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="800" fill="var(--accent-ink)">STAGE ${node.step}</text>
         <text x="10" y="38" font-size="16">${node.icon}</text>
         <text x="32" y="36" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="800" fill="var(--text-primary)">${node.name}</text>
         <text x="10" y="52" font-family="'Plus Jakarta Sans', sans-serif" font-size="9.5" font-weight="600" fill="var(--text-secondary)">${node.sub}</text>
         <text x="10" y="66" font-family="'JetBrains Mono', monospace" font-size="8" font-weight="700" fill="var(--text-muted)">${node.pkg}</text>
 
         <!-- Port connector pins -->
-        <circle cx="0" cy="${node.h / 2}" r="3.5" fill="${node.color}" stroke="#000" stroke-width="1.5" />
-        <circle cx="${node.w}" cy="${node.h / 2}" r="3.5" fill="${node.color}" stroke="#000" stroke-width="1.5" />
+        <circle cx="0" cy="${node.h / 2}" r="3.5" fill="${node.color}" stroke="var(--border-color)" stroke-width="1.5" />
+        <circle cx="${node.w}" cy="${node.h / 2}" r="3.5" fill="${node.color}" stroke="var(--border-color)" stroke-width="1.5" />
       </g>
     `).join('');
 
@@ -581,7 +599,7 @@ function initPipeline() {
         connId: conn.id,
         progress: Math.random() * 0.8, // stagger particles
         speed: (conn.speed || 1) * 0.0035,
-        color: conn.color === 'yellow' ? '#ffde59' : conn.color === 'blue' ? '#38bdf8' : conn.color === 'orange' ? '#ff6332' : conn.color === 'pink' ? '#ffadc6' : '#a7f3d0'
+        color: conn.color === 'yellow' ? 'var(--accent-yellow)' : conn.color === 'blue' ? 'var(--accent-blue)' : conn.color === 'orange' ? 'var(--accent-orange)' : conn.color === 'pink' ? 'var(--accent-pink)' : 'var(--accent-mint)'
       });
     });
 
@@ -708,7 +726,7 @@ function initPipeline() {
           const pt = pathObj.el.getPointAtLength(p.progress * pathObj.length);
           particlesSvg += `
             <g transform="translate(${pt.x}, ${pt.y})">
-              <circle r="6" fill="${p.color}" stroke="#000" stroke-width="1.5" filter="url(#particleGlow)" />
+              <circle r="6" fill="${p.color}" stroke="var(--border-color)" stroke-width="1.5" filter="url(#particleGlow)" />
               <circle r="2.5" fill="#fff" />
             </g>
           `;
@@ -808,14 +826,14 @@ const mockKnowledgeBase = {
     sparseTerms: 'Example query terms: "chunking" (1.0), "chunk" (1.0), "work" (1.0)',
     answer: "ragcodepilot uses a two-tier chunking architecture:\n\n1. **Go AST Function-Level Chunker** (`internal/ingest/chunker_go.go`) [1]: For Go files, it parses the complete syntax tree using `go/parser`. It isolates function and method declarations along with their receiver, signature, parameter types, and doc comments as units when they fit; declarations longer than 80 lines are split, and syntax errors trigger the generic fallback.\n\n2. **Generic Sliding Window Chunker** (`internal/ingest/chunker.go`) [2]: For other languages (Rust, Python, Shell), it slices files into 40-line windows with a 5-line overlap, using regex pattern matching to extract enclosing symbol names.\n\nChunk enrichment [3] then prepends the file path, language, and chunk type/name metadata to the text before vectorization.",
     citations: [
-      { text: "[1] internal/ingest/chunker_go.go:24-105", link: "#" },
+      { text: "[1] internal/ingest/chunker_go.go:26-92", link: "#" },
       { text: "[2] internal/ingest/chunker.go:32-87", link: "#" },
       { text: "[3] internal/ingest/enrichment.go:18-37", link: "#" }
     ],
     results: [
       {
         file: "internal/ingest/chunker_go.go",
-        lines: "24-105",
+        lines: "26-92",
         name: "chunkGoFile",
         lang: "go",
         type: "function",
@@ -830,7 +848,7 @@ const mockKnowledgeBase = {
     for _, decl := range file.Decls {
         switch d := decl.(type) {
         case *ast.FuncDecl:
-            chunks = append(chunks, namedGoChunks(..., "function", d.Name.Name)...)
+            chunks = append(chunks, namedGoChunks(..., "function", d.Name.Name, goFuncIdentity(fset, d))...)
         case *ast.GenDecl:
             // type / interface specs → named chunks
         }
@@ -885,10 +903,10 @@ func chunkGeneric(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *
   "where is ChunkFile defined": {
     denseVec: "[0.012, -0.098, 0.045, 0.142, ... +764 floats]",
     sparseTerms: '"chunkfile" (1.0), "defin" (1.0)',
-    answer: "`ChunkFile` is defined in `internal/ingest/chunker.go:20-28` [1]. It routes Go files to the AST chunker and everything else to the generic sliding-window chunker (40-line window with 5-line overlap). The AST-based Go chunking itself is `chunkGoFile` in `internal/ingest/chunker_go.go:24` [2].",
+    answer: "`ChunkFile` is defined in `internal/ingest/chunker.go:20-28` [1]. It routes Go files to the AST chunker and everything else to the generic sliding-window chunker (40-line window with 5-line overlap). The AST-based Go chunking itself is `chunkGoFile` in `internal/ingest/chunker_go.go:26` [2].",
     citations: [
       { text: "[1] internal/ingest/chunker.go:20-28", link: "#" },
-      { text: "[2] internal/ingest/chunker_go.go:24-105", link: "#" }
+      { text: "[2] internal/ingest/chunker_go.go:26-92", link: "#" }
     ],
     results: [
       {
@@ -909,7 +927,7 @@ func ChunkFile(filePath, repoRoot, repo string, chunkSize, overlap int, cfg *con
       },
       {
         file: "internal/ingest/pipeline.go",
-        lines: "190-200",
+        lines: "334-340",
         name: "pipeline chunk dispatch",
         lang: "go",
         type: "call site",
@@ -970,7 +988,7 @@ queryPoints = &pb.QueryPoints{
   "incremental re-indexing change detection": {
     denseVec: "[0.034, -0.012, 0.155, -0.076, ... +764 floats]",
     sparseTerms: '"increment" (1.0), "reindex" (1.0), "detect" (1.0)',
-    answer: "Change detection is file-hash + index version, but it is not per-file embed skip when the corpus moves:\n\n1. **No-op path**: if every file hash and `index_version` match, indexing returns immediately [1][2].\n2. **Any change**: BM25 IDF is corpus-wide, so the pipeline re-chunks and re-embeds **all current files**, then deletes stale points for deleted/renamed paths.\n3. **`--watch`** runs that same pipeline on each debounced save — not a daemon that embeds only the touched file.",
+    answer: "Indexing separates dense reuse from scope-wide work:\n\n1. **Change detection**: file hashes and representation identify refresh work [1][2].\n2. **Dense cache**: exact enriched text plus representation/model identity select cached vectors. Only misses call the embedder [2].\n3. **Scope-wide work**: changed runs still re-chunk files, rebuild BM25 statistics, upsert current points, and clean stale points. `--watch` reuses this pipeline.\n4. **Recovery boundary**: writer locks, durable run markers, and source verification are implemented. In-place writes are not atomic; pinned retry-versus-clean equivalence is still unverified.",
     citations: [
       { text: "[1] internal/ingest/hasher.go:11-18", link: "#" },
       { text: "[2] internal/ingest/pipeline.go", link: "#" }
@@ -1003,7 +1021,7 @@ func HashFile(path string) (string, error) {
     answer: "In `internal/embedding/validate.go` [1], ragcodepilot validates vector batches before upserting or querying. The search path [2] calls `ValidateCollectionVectorSize` to check the query vector against the collection dimension at search time. If a collection was created with 768 dimensions (nomic-embed-text) but the query embedder returns a different dimension (e.g., 1536 from a different embedding model), the CLI returns an error before lookup. Use the matching model or intentionally rebuild the collection for the new model; deletion should not be the first automatic response.",
     citations: [
       { text: "[1] internal/embedding/validate.go:14-38", link: "#" },
-      { text: "[2] internal/search/searcher.go:109-112", link: "#" }
+      { text: "[2] internal/search/searcher.go:103-108", link: "#" }
     ],
     results: [
       {
@@ -1264,9 +1282,9 @@ function initEvalTable() {
         ? `<span class="nb-badge mint">${escapeHtml(q.outcome)}</span>`
         : `<span class="nb-badge pink">${escapeHtml(q.outcome)}</span>`;
     } else if (q.hit) {
-      outcomeBadge = `<strong style="color: #10b981;">${escapeHtml(q.outcome)}</strong>`;
+      outcomeBadge = `<strong style="color: var(--success-text);">${escapeHtml(q.outcome)}</strong>`;
     } else {
-      outcomeBadge = `<strong style="color: #e11d48;">${escapeHtml(q.outcome)}</strong>`;
+      outcomeBadge = `<strong style="color: var(--danger-text);">${escapeHtml(q.outcome)}</strong>`;
     }
 
     return `
@@ -1308,17 +1326,18 @@ const terminalScripts = {
     "      Dimension() int",
     "  }",
     "",
-    "RANK #2  [RRF: 0.0315]  internal/embedding/ollama.go:45-78",
+    "RANK #2  [RRF: 0.0315]  internal/embedding/ollama.go:56-113",
     "  func (e *OllamaEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {",
     "      // HTTP client calling /api/embed",
     "  }",
     "",
-    "RANK #3  [RRF: 0.0298]  internal/embedding/validate.go:15-40",
+    "RANK #3  [RRF: 0.0298]  internal/embedding/validate.go:14-38",
     "  func ValidateVectorBatch(vectors [][]float32, expectedDim int) (int, error)"
   ],
 
   "index": [
     "$ go run ./cmd/ragcodepilot index --language go .",
+    "Illustrative output; counts below are not current benchmark measurements.",
     "Using Ollama embedder (model: nomic-embed-text, url: http://localhost:11434)",
     "Filtering to languages: go",
     "Found 28 source files in ragsearch",
@@ -1330,6 +1349,7 @@ const terminalScripts = {
 
   "watch": [
     "$ go run ./cmd/ragcodepilot index --language go --watch .",
+    "Illustrative output; counts below are not current benchmark measurements.",
     "Using Ollama embedder (model: nomic-embed-text)",
     "Found 28 source files in ragsearch",
     "Change detection: 28 unchanged, 0 changed, 0 new, 0 stale, 0 index-version refresh",
@@ -1339,7 +1359,9 @@ const terminalScripts = {
     "[event] WRITE internal/ingest/chunker_go.go",
     "Change detection: 0 unchanged, 1 changed, 0 new, 0 stale, 0 index-version refresh",
     "Generated 199 chunks from 28 files",
-    "[note] any file change re-embeds ALL current files (BM25 IDF is corpus-wide)",
+    "[illustration] reuse compatible dense vectors; embed only cache misses",
+    "[illustration] refresh BM25 weights and upsert all current chunks",
+    "[illustration] verify source snapshot before completing the run",
     "Successfully indexed 199 chunks into collection \"code_chunks\""
   ],
 
