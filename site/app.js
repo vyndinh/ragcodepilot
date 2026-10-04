@@ -455,14 +455,14 @@ if gen == nil {
 const canvasFlowDefinitions = {
   ingestion: {
     nodes: [
-      { id: 'ingest-source', detail: 'ingest-source', x: 25, y: 145, w: 125, h: 76, icon: '📂', name: 'Git Files', sub: 'Repo source', pkg: 'root filesystem', color: '#ffde59', step: 1 },
-      { id: 'ingest-walker', detail: 'ingest-walker', x: 185, y: 145, w: 130, h: 76, icon: '🚶', name: 'File Walker', sub: 'Config + gitignore', pkg: 'ingest/walker.go', color: '#ffde59', step: 2 },
-      { id: 'ingest-hasher', detail: 'ingest-hasher', x: 350, y: 145, w: 135, h: 76, icon: '🔐', name: 'SHA-256 Check', sub: 'Diff & cache', pkg: 'ingest/hasher.go', color: '#ffadc6', step: 3 },
-      { id: 'ingest-chunker', detail: 'ingest-chunker', x: 520, y: 145, w: 130, h: 76, icon: '✂️', name: 'AST Chunker', sub: 'Function units', pkg: 'chunker_go.go', color: '#a7f3d0', step: 4 },
-      { id: 'ingest-enrich', detail: 'ingest-enrich', x: 685, y: 145, w: 125, h: 76, icon: '🏷️', name: 'Enrichment', sub: 'Metadata inject', pkg: 'enrichment.go', color: '#ffde59', step: 5 },
-      { id: 'ingest-ollama', detail: 'ingest-vectorize', x: 845, y: 45, w: 145, h: 76, icon: '🧠', name: 'Dense Cache', sub: 'Ollama on misses', pkg: 'ingest/pipeline.go', color: '#9be3ff', step: 6 },
-      { id: 'ingest-bm25', detail: 'ingest-vectorize', x: 845, y: 245, w: 145, h: 76, icon: '🔤', name: 'BM25 Sparse', sub: 'Snowball stemmer', pkg: 'embedding/sparse.go', color: '#ff6332', step: 6 },
-      { id: 'ingest-upsert', detail: 'ingest-upsert', x: 1015, y: 145, w: 110, h: 76, icon: '🗄️', name: 'Qdrant gRPC', sub: 'Dual vectors', pkg: 'qdrant/client.go', color: '#a7f3d0', step: 7 }
+      { id: 'ingest-source', detail: 'ingest-source', x: 25, y: 145, w: 125, h: 76, icon: '📂', name: 'Git Files', sub: 'Repo source', pkg: 'root filesystem', color: 'var(--accent-yellow)', step: 1 },
+      { id: 'ingest-walker', detail: 'ingest-walker', x: 185, y: 145, w: 130, h: 76, icon: '🚶', name: 'File Walker', sub: 'Config + gitignore', pkg: 'ingest/walker.go', color: 'var(--accent-yellow)', step: 2 },
+      { id: 'ingest-hasher', detail: 'ingest-hasher', x: 350, y: 145, w: 135, h: 76, icon: '🔐', name: 'SHA-256 Check', sub: 'Diff & cache', pkg: 'ingest/hasher.go', color: 'var(--accent-pink)', step: 3 },
+      { id: 'ingest-chunker', detail: 'ingest-chunker', x: 520, y: 145, w: 130, h: 76, icon: '✂️', name: 'AST Chunker', sub: 'Function units', pkg: 'chunker_go.go', color: 'var(--accent-mint)', step: 4 },
+      { id: 'ingest-enrich', detail: 'ingest-enrich', x: 685, y: 145, w: 125, h: 76, icon: '🏷️', name: 'Enrichment', sub: 'Metadata inject', pkg: 'enrichment.go', color: 'var(--accent-yellow)', step: 5 },
+      { id: 'ingest-ollama', detail: 'ingest-vectorize', x: 845, y: 45, w: 145, h: 76, icon: '🧠', name: 'Dense Cache', sub: 'Ollama on misses', pkg: 'ingest/pipeline.go', color: 'var(--accent-blue)', step: 6 },
+      { id: 'ingest-bm25', detail: 'ingest-vectorize', x: 845, y: 245, w: 145, h: 76, icon: '🔤', name: 'BM25 Sparse', sub: 'Snowball stemmer', pkg: 'embedding/sparse.go', color: 'var(--accent-orange)', step: 6 },
+      { id: 'ingest-upsert', detail: 'ingest-upsert', x: 1015, y: 145, w: 110, h: 76, icon: '🗄️', name: 'Qdrant gRPC', sub: 'Dual vectors', pkg: 'qdrant/client.go', color: 'var(--accent-mint)', step: 7 }
     ],
     connections: [
       { id: 'conn-0-1', from: 'ingest-source', to: 'ingest-walker', d: 'M 150 183 L 185 183', color: 'yellow', marker: 'arrowYellow', speed: 1 },
@@ -478,15 +478,15 @@ const canvasFlowDefinitions = {
 
   search: {
     nodes: [
-      { id: 'search-query', detail: 'search-query', x: 25, y: 145, w: 130, h: 76, icon: '💬', name: 'User Query', sub: 'CLI Terminal', pkg: 'cmd/ragcodepilot', color: '#ffde59', step: 1 },
-      { id: 'search-ollama', detail: 'search-encode', x: 195, y: 45, w: 140, h: 76, icon: '🧠', name: 'Ollama Query', sub: '768d Dense Vector', pkg: 'embedding/ollama.go', color: '#9be3ff', step: 2 },
-      { id: 'search-bm25', detail: 'search-bm25', x: 195, y: 245, w: 140, h: 76, icon: '🔤', name: 'BM25 Stemmer', sub: 'Query Tokens', pkg: 'embedding/sparse.go', color: '#ff6332', step: 2 },
-      { id: 'search-filter', detail: 'search-filter', x: 375, y: 145, w: 125, h: 76, icon: '🎯', name: 'Payload Filter', sub: 'Lang & Repo tags', pkg: 'qdrant/client.go', color: '#ffadc6', step: 3 },
-      { id: 'search-qdrant', detail: 'search-lookup', x: 535, y: 145, w: 130, h: 76, icon: '🔍', name: 'Vector Lookup', sub: 'Parallel Top-K', pkg: 'qdrant gRPC', color: '#9be3ff', step: 4 },
-      { id: 'search-rrf', detail: 'search-rrf', x: 700, y: 145, w: 130, h: 76, icon: '⚖️', name: 'RRF Fusion', sub: 'Rank Merge (k=60)', pkg: 'qdrant/client.go', color: '#a7f3d0', step: 5 },
-      { id: 'search-context', detail: 'search-context', x: 865, y: 145, w: 125, h: 76, icon: '📄', name: 'Context Chunks', sub: 'Top-K assembly', pkg: 'search/searcher.go', color: '#ffde59', step: 6 },
-      { id: 'search-results', detail: 'search-results', x: 1000, y: 45, w: 125, h: 76, icon: '💻', name: 'Code Results', sub: 'Default: print code', pkg: 'Go CLI · stdout', color: '#a7f3d0', step: 7 },
-      { id: 'search-answer', detail: 'search-answer', x: 1000, y: 245, w: 125, h: 76, icon: '🤖', name: 'Ollama LLM', sub: '--answer only', pkg: 'HTTP /api/chat', color: '#d8b4fe', step: 7 }
+      { id: 'search-query', detail: 'search-query', x: 25, y: 145, w: 130, h: 76, icon: '💬', name: 'User Query', sub: 'CLI Terminal', pkg: 'cmd/ragcodepilot', color: 'var(--accent-yellow)', step: 1 },
+      { id: 'search-ollama', detail: 'search-encode', x: 195, y: 45, w: 140, h: 76, icon: '🧠', name: 'Ollama Query', sub: '768d Dense Vector', pkg: 'embedding/ollama.go', color: 'var(--accent-blue)', step: 2 },
+      { id: 'search-bm25', detail: 'search-bm25', x: 195, y: 245, w: 140, h: 76, icon: '🔤', name: 'BM25 Stemmer', sub: 'Query Tokens', pkg: 'embedding/sparse.go', color: 'var(--accent-orange)', step: 2 },
+      { id: 'search-filter', detail: 'search-filter', x: 375, y: 145, w: 125, h: 76, icon: '🎯', name: 'Payload Filter', sub: 'Lang & Repo tags', pkg: 'qdrant/client.go', color: 'var(--accent-pink)', step: 3 },
+      { id: 'search-qdrant', detail: 'search-lookup', x: 535, y: 145, w: 130, h: 76, icon: '🔍', name: 'Vector Lookup', sub: 'Parallel Top-K', pkg: 'qdrant gRPC', color: 'var(--accent-blue)', step: 4 },
+      { id: 'search-rrf', detail: 'search-rrf', x: 700, y: 145, w: 130, h: 76, icon: '⚖️', name: 'RRF Fusion', sub: 'Rank Merge (k=60)', pkg: 'qdrant/client.go', color: 'var(--accent-mint)', step: 5 },
+      { id: 'search-context', detail: 'search-context', x: 865, y: 145, w: 125, h: 76, icon: '📄', name: 'Context Chunks', sub: 'Top-K assembly', pkg: 'search/searcher.go', color: 'var(--accent-yellow)', step: 6 },
+      { id: 'search-results', detail: 'search-results', x: 1000, y: 45, w: 125, h: 76, icon: '💻', name: 'Code Results', sub: 'Default: print code', pkg: 'Go CLI · stdout', color: 'var(--accent-mint)', step: 7 },
+      { id: 'search-answer', detail: 'search-answer', x: 1000, y: 245, w: 125, h: 76, icon: '🤖', name: 'Ollama LLM', sub: '--answer only', pkg: 'HTTP /api/chat', color: 'var(--accent-purple)', step: 7 }
     ],
     connections: [
       { id: 'sconn-0-1a', from: 'search-query', to: 'search-ollama', d: 'M 155 170 C 175 170, 175 83, 195 83', color: 'blue', marker: 'arrowBlue', speed: 1 },
@@ -553,7 +553,7 @@ function initPipeline() {
       if (el) pathElements[conn.id] = { el, length: el.getTotalLength(), conn };
     });
 
-    // 2. Render SVG Nodes (Neobrutalist cards)
+    // 2. Render SVG Nodes (theme-aware cards)
     svgNodesLayer.innerHTML = flowDef.nodes.map((node, idx) => `
       <g class="canvas-node-group ${idx === 0 ? 'active' : ''}" id="cnode-${node.id}" data-node-id="${node.id}" transform="translate(${node.x}, ${node.y})" tabindex="0" role="button" aria-pressed="${idx === 0}" aria-label="${node.name}: ${node.sub}">
         <!-- Card Drop Shadow & Border -->
@@ -562,18 +562,18 @@ function initPipeline() {
         <!-- Header color strip -->
         <rect class="node-header-bg" x="0" y="0" width="${node.w}" height="18" rx="10" fill="${node.color}" stroke="none" />
         <rect x="0" y="10" width="${node.w}" height="8" fill="${node.color}" stroke="none" />
-        <line x1="0" y1="18" x2="${node.w}" y2="18" stroke="#000" stroke-width="1.5" />
+        <line x1="0" y1="18" x2="${node.w}" y2="18" stroke="var(--border-color)" stroke-width="1.5" />
 
         <!-- Node Icon & Title -->
-        <text x="8" y="13" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="800" fill="#000">STAGE ${node.step}</text>
+        <text x="8" y="13" font-family="'JetBrains Mono', monospace" font-size="9" font-weight="800" fill="var(--accent-ink)">STAGE ${node.step}</text>
         <text x="10" y="38" font-size="16">${node.icon}</text>
         <text x="32" y="36" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="800" fill="var(--text-primary)">${node.name}</text>
         <text x="10" y="52" font-family="'Plus Jakarta Sans', sans-serif" font-size="9.5" font-weight="600" fill="var(--text-secondary)">${node.sub}</text>
         <text x="10" y="66" font-family="'JetBrains Mono', monospace" font-size="8" font-weight="700" fill="var(--text-muted)">${node.pkg}</text>
 
         <!-- Port connector pins -->
-        <circle cx="0" cy="${node.h / 2}" r="3.5" fill="${node.color}" stroke="#000" stroke-width="1.5" />
-        <circle cx="${node.w}" cy="${node.h / 2}" r="3.5" fill="${node.color}" stroke="#000" stroke-width="1.5" />
+        <circle cx="0" cy="${node.h / 2}" r="3.5" fill="${node.color}" stroke="var(--border-color)" stroke-width="1.5" />
+        <circle cx="${node.w}" cy="${node.h / 2}" r="3.5" fill="${node.color}" stroke="var(--border-color)" stroke-width="1.5" />
       </g>
     `).join('');
 
@@ -599,7 +599,7 @@ function initPipeline() {
         connId: conn.id,
         progress: Math.random() * 0.8, // stagger particles
         speed: (conn.speed || 1) * 0.0035,
-        color: conn.color === 'yellow' ? '#ffde59' : conn.color === 'blue' ? '#38bdf8' : conn.color === 'orange' ? '#ff6332' : conn.color === 'pink' ? '#ffadc6' : '#a7f3d0'
+        color: conn.color === 'yellow' ? 'var(--accent-yellow)' : conn.color === 'blue' ? 'var(--accent-blue)' : conn.color === 'orange' ? 'var(--accent-orange)' : conn.color === 'pink' ? 'var(--accent-pink)' : 'var(--accent-mint)'
       });
     });
 
@@ -726,7 +726,7 @@ function initPipeline() {
           const pt = pathObj.el.getPointAtLength(p.progress * pathObj.length);
           particlesSvg += `
             <g transform="translate(${pt.x}, ${pt.y})">
-              <circle r="6" fill="${p.color}" stroke="#000" stroke-width="1.5" filter="url(#particleGlow)" />
+              <circle r="6" fill="${p.color}" stroke="var(--border-color)" stroke-width="1.5" filter="url(#particleGlow)" />
               <circle r="2.5" fill="#fff" />
             </g>
           `;
@@ -1282,9 +1282,9 @@ function initEvalTable() {
         ? `<span class="nb-badge mint">${escapeHtml(q.outcome)}</span>`
         : `<span class="nb-badge pink">${escapeHtml(q.outcome)}</span>`;
     } else if (q.hit) {
-      outcomeBadge = `<strong style="color: #10b981;">${escapeHtml(q.outcome)}</strong>`;
+      outcomeBadge = `<strong style="color: var(--success-text);">${escapeHtml(q.outcome)}</strong>`;
     } else {
-      outcomeBadge = `<strong style="color: #e11d48;">${escapeHtml(q.outcome)}</strong>`;
+      outcomeBadge = `<strong style="color: var(--danger-text);">${escapeHtml(q.outcome)}</strong>`;
     }
 
     return `

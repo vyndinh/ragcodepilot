@@ -17,7 +17,10 @@ are only followed when a reader opens them.
 - `app.js`: pipeline inspectors, five simulator fixtures, worked RRF
   calculations, and interaction state. All simulator scores, vectors, and
   answers are illustrative. They are not replayed evaluation results.
-- `styles.css`: both themes and responsive layouts. Wide source snippets and
+- `styles.css`: calm, earthy blue-green light/dark themes and responsive layouts.
+  Ivory/sage surfaces, sea-glass accents, forest ink, and soft shadows share
+  tokens with the pipeline graphics. Legacy accent class names remain stable.
+  Wide source snippets and
   tables scroll within their own containers.
 - Implementation source links use the repository and reviewed revision from
   `tools/site/evidence.json`. Update the revision and review date only after
@@ -68,7 +71,8 @@ npm test
 
 The pinned dependency and lockfile make browser checks reproducible. `npm test`
 runs the stale-artifact gate, JavaScript syntax check, an isolated drift test,
-and nine Chromium browser tests. Playwright traces are retained on failures
+and ten Chromium browser tests, including 4.5:1 text-token contrast checks in
+both themes. Playwright traces are retained on failures
 under the ignored `tools/site/test-results/` directory.
 
 `Website checks` runs on relevant pull requests. Pages deployment depends on

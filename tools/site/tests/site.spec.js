@@ -8,6 +8,39 @@ const verification = JSON.parse(fs.readFileSync(path.join(root, config.verificat
 
 test.beforeEach(async ({ page }) => { await page.goto('/'); });
 
+test('earthy theme text tokens retain accessible contrast in both modes', async ({ page }, testInfo) => {
+  for (const theme of ['light', 'dark']) {
+    if (theme === 'dark') await page.locator('#themeToggleBtn').click();
+    const failures = await page.evaluate(() => {
+      const style = getComputedStyle(document.documentElement);
+      const luminance = token => {
+        const hex = style.getPropertyValue(token).trim().slice(1);
+        const channels = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+          .map(c => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+        return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+      };
+      const pairs = [];
+      for (const bg of ['--bg-primary', '--bg-secondary', '--bg-card', '--bg-card-dot']) {
+        for (const fg of ['--text-primary', '--text-secondary', '--text-muted', '--success-text', '--danger-text'])
+          pairs.push([fg, bg]);
+      }
+      for (const accent of ['yellow', 'pink', 'blue', 'orange', 'mint', 'purple'])
+        pairs.push(['--accent-ink', '--accent-' + accent]);
+      pairs.push(['--code-text', '--code-bg']);
+      return pairs.map(([fg, bg]) => {
+        const a = luminance(fg), b = luminance(bg);
+        return { fg, bg, ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) };
+      }).filter(pair => !Number.isFinite(pair.ratio) || pair.ratio < 4.5);
+    });
+    expect(failures).toEqual([]);
+    for (const selector of ['.spotlight-big-highlight', '.nav-link.active']) {
+      await expect(page.locator(selector).first()).toHaveCSS('color', 'rgb(25, 60, 58)');
+    }
+    await page.setViewportSize({ width: theme === 'light' ? 1440 : 390, height: 1000 });
+    await page.screenshot({ path: testInfo.outputPath('theme-' + theme + '.png') });
+  }
+});
+
 test('answer toggling cannot resurrect stale or unsupported answers', async ({ page }) => {
   const toggle = page.locator('#simAnswerToggleBtn');
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
